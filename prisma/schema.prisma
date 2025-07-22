@@ -20,6 +20,7 @@ model User {
   username String  @unique
   passcode  String
   active  Boolean @default(true)
+  sessions Session[]
 }
 
 model Game {
@@ -61,5 +62,12 @@ model Player {
   room      Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+model Session {
+  id        String   @id @default(cuid())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  expiresAt DateTime
 }
 
