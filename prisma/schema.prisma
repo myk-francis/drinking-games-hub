@@ -49,6 +49,10 @@ model Room {
   gameEnded Boolean @default(false)
   game      Game    @relation(fields: [gameId], references: [id], onDelete: Cascade)
   players   Player[]
+  currentPlayerId String?
+  previousPlayersIds String[]
+  currentQuestionId Int?
+  previousQuestionsId Int[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

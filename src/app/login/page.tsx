@@ -5,14 +5,36 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useState } from "react";
+import { toast } from "sonner";
+import { useTRPC } from "@/trpc/client";
+import { useMutation } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [username, setUsername] = useState("");
   const [passcode, setPasscode] = useState("");
+  const trpc = useTRPC();
+  const loginUser = useMutation(
+    trpc.auth.login.mutationOptions({
+      onError: (error) => {
+        toast.error(error.message);
+      },
+    })
+  );
 
   const handleLogin = () => {
     // handle login logic here
     console.log({ username, passcode });
+    loginUser.mutate(
+      { username, passcode },
+      {
+        onSuccess: () => {
+          toast.success("Login successful!");
+          router.push("/"); // Redirect to home
+        },
+      }
+    );
   };
 
   return (
