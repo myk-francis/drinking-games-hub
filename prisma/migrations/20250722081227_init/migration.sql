@@ -11,6 +11,7 @@ CREATE TABLE "User" (
 -- CreateTable
 CREATE TABLE "Game" (
     "id" SERIAL NOT NULL,
+    "code" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -34,6 +35,7 @@ CREATE TABLE "Question" (
 CREATE TABLE "Room" (
     "id" TEXT NOT NULL,
     "gameId" INTEGER NOT NULL,
+    "gameEnded" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
