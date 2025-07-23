@@ -121,6 +121,7 @@ export const gamesRouter = createTRPCRouter({
   addPlayerStats: baseProcedure
     .input(
       z.object({
+        gamecode: z.string(),
         roomId: z.string(),
         points: z.string(),
         drinks: z.string(),
@@ -152,7 +153,7 @@ export const gamesRouter = createTRPCRouter({
 
         const players = room.players.map((obj) => obj.id);
         const previousPlayersIds = room.previousPlayersIds || [];
-        const playersWhoHaveNotPlayed = players.filter(
+        let playersWhoHaveNotPlayed = players.filter(
           (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id)
         );
 
@@ -160,13 +161,14 @@ export const gamesRouter = createTRPCRouter({
           nextPlayerId = playersWhoHaveNotPlayed[0];
         } else {
           nextPlayerId = room.players[0].id;
+          playersWhoHaveNotPlayed = [];
         }
 
         let nextQuestionId = null;
 
         const questions = room.game.questions.map((obj) => obj.id);
         const previousQuestionsIds = room.previousQuestionsId || [];
-        const questionsWhichHaveNotPlayed = questions.filter(
+        let questionsWhichHaveNotPlayed = questions.filter(
           (id) =>
             ![...previousQuestionsIds, input.currentQuestionId].includes(id)
         );
@@ -175,11 +177,13 @@ export const gamesRouter = createTRPCRouter({
           nextQuestionId = questionsWhichHaveNotPlayed[0];
         } else {
           nextQuestionId = room.game.questions[0]?.id || null;
+          questionsWhichHaveNotPlayed = [];
         }
 
-        const updatedRoom = await prisma.room.update({
-          where: { id: input.roomId },
-          data: {
+        let data = {};
+
+        if (input.gamecode === "truth-or-drink") {
+          data = {
             currentPlayerId: nextPlayerId,
             previousPlayersIds: [...previousPlayersIds, input.currentPlayerId],
             currentQuestionId: nextQuestionId ?? null,
@@ -198,13 +202,97 @@ export const gamesRouter = createTRPCRouter({
                 },
               },
             },
-          },
+          };
+        } else {
+          data = {
+            players: {
+              update: {
+                where: {
+                  id: input.currentPlayerId,
+                },
+                data: {
+                  points: parseInt(input.points),
+                  drinks: parseInt(input.drinks),
+                },
+              },
+            },
+          };
+        }
+
+        const updatedRoom = await prisma.room.update({
+          where: { id: input.roomId },
+          data: data,
         });
 
         return updatedRoom;
       } catch (error) {
         console.error("Failed to update room:", error);
         throw new Error("Failed to update room");
+      }
+    }),
+  nextQuestion: baseProcedure
+    .input(
+      z.object({
+        gamecode: z.string(),
+        roomId: z.string(),
+        currentQuestionId: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const room = await prisma.room.findFirst({
+          where: {
+            id: input.roomId,
+          },
+          include: {
+            players: true,
+            game: {
+              include: {
+                questions: true, // Include questions if needed
+              },
+            },
+          },
+        });
+
+        if (!room) {
+          throw new Error("Room not found");
+        }
+
+        let nextQuestionId = null;
+
+        const questions = room.game.questions.map((obj) => obj.id);
+        const previousQuestionsIds = room.previousQuestionsId || [];
+        let questionsWhichHaveNotPlayed = questions.filter(
+          (id) =>
+            ![...previousQuestionsIds, input.currentQuestionId].includes(id)
+        );
+
+        if (questionsWhichHaveNotPlayed?.length > 0) {
+          nextQuestionId = questionsWhichHaveNotPlayed[0];
+        } else {
+          nextQuestionId = room.game.questions[0]?.id || null;
+          questionsWhichHaveNotPlayed = [];
+        }
+
+        let data = {};
+
+        data = {
+          currentQuestionId: nextQuestionId ?? null,
+          previousQuestionsId: [
+            ...previousQuestionsIds,
+            parseInt(input.currentQuestionId),
+          ],
+        };
+
+        const updatedRoom = await prisma.room.update({
+          where: { id: input.roomId },
+          data: data,
+        });
+
+        return updatedRoom;
+      } catch (error) {
+        console.error("Failed to update question:", error);
+        throw new Error("Failed to update question");
       }
     }),
 });

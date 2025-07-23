@@ -6,6 +6,10 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import React from "react";
 import UserConfirmModal from "./modal";
 import { toast } from "sonner";
+import { Loading } from "@/components/ui/loading";
+import ErrorPage from "@/app/error";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export default function RoomPage() {
   const params = useParams();
@@ -49,6 +53,17 @@ export default function RoomPage() {
       },
     })
   );
+  const nextQuestion = useMutation(
+    trpc.games.nextQuestion.mutationOptions({
+      onSuccess: (data) => {
+        toast.success("Next question coming up!");
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error changing question:", error);
+      },
+    })
+  );
 
   const selectedGame = room?.game?.code || "never-have-i-ever";
 
@@ -68,16 +83,33 @@ export default function RoomPage() {
     if (storedPlayerId) {
       setActualPlayer(storedPlayerId);
     }
+
+    if (room?.gameEnded) {
+      localStorage.removeItem("actualPlayerId");
+    }
+
+    return () => {
+      localStorage.removeItem("actualPlayerId");
+    };
   }, []);
 
-  if (isLoading) return <div className="p-4">Loading...</div>;
+  if (isLoading) return <Loading />;
   if (error)
-    return <div className="p-4 text-red-500">Error: {error.message}</div>;
+    //@ts-expect-error leave it
+    return <ErrorPage error={error} reset={() => window.location.reload()} />;
   if (!room) return <div className="p-4">Room not found</div>;
 
   if (!roomId) return <div className="p-4">Room ID is required</div>;
 
-  const PlayerScore = ({ points, drinks, player }) => (
+  const PlayerScore = ({
+    points,
+    drinks,
+    player,
+  }: {
+    points: number | null;
+    drinks: number | null;
+    player: string;
+  }) => (
     <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center border border-white/20">
       <div className="font-bold text-lg text-white mb-1">{player}</div>
       <div className="text-2xl font-bold text-emerald-400 mb-1">
@@ -102,6 +134,9 @@ export default function RoomPage() {
               />
             ))}
           </div>
+          <Link href="/" className="mt-6 inline-block self-center ">
+            <Button>Go back home</Button>
+          </Link>
         </div>
       </div>
     );
@@ -115,6 +150,58 @@ export default function RoomPage() {
 
     const renderGameSpecificContent = () => {
       switch (selectedGame) {
+        case "never-have-i-ever":
+          return (
+            <div className="text-center">
+              <div className="text-2xl mb-6 text-white leading-relaxed">
+                {questions?.filter((q) => q.id === room?.currentQuestionId)[0]
+                  ?.text ||
+                  "No question available. Please wait for the next round."}
+              </div>
+              <p className="text-lg text-white/80 mb-6">
+                Players who have done this, take a drink! 🍻
+              </p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => {
+                    updateRoom.mutate({
+                      gamecode: "never-have-i-ever",
+                      roomId: room.id,
+                      points: String(
+                        room?.players?.find((p) => p.id === actualPlayer)
+                          ?.points || 0
+                      ),
+                      drinks: String(
+                        //@ts-expect-error leave it
+                        room?.players?.find((p) => p.id === actualPlayer)
+                          ?.drinks + 1 || 0
+                      ),
+                      currentPlayerId: actualPlayer ?? "",
+                      currentQuestionId: String(room.currentQuestionId) ?? "",
+                    });
+                  }}
+                  className="px-6 py-3 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-semibold transition-colors"
+                >
+                  Took a Drink
+                </button>
+                {selectedGame === "never-have-i-ever" && (
+                  <button
+                    onClick={() => {
+                      nextQuestion.mutate({
+                        gamecode: "never-have-i-ever",
+                        roomId: room.id,
+                        currentQuestionId: String(room.currentQuestionId) ?? "",
+                      });
+                    }}
+                    className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Next Question
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+
         case "truth-or-drink":
           return (
             <div className="text-center">
@@ -131,8 +218,10 @@ export default function RoomPage() {
                   <button
                     onClick={() => {
                       updateRoom.mutate({
+                        gamecode: "truth-or-drink",
                         roomId: room.id,
                         points: String(
+                          //@ts-expect-error leave it
                           room?.players?.find(
                             (p) => p.id === room.currentPlayerId
                           )?.points + 1 || 0
@@ -153,6 +242,7 @@ export default function RoomPage() {
                   <button
                     onClick={() => {
                       updateRoom.mutate({
+                        gamecode: "truth-or-drink",
                         roomId: room.id,
                         points: String(
                           room?.players?.find(
@@ -160,6 +250,7 @@ export default function RoomPage() {
                           )?.points || 0
                         ),
                         drinks: String(
+                          //@ts-expect-error leave it
                           room?.players?.find(
                             (p) => p.id === room.currentPlayerId
                           )?.drinks + 1 || 0
@@ -186,28 +277,32 @@ export default function RoomPage() {
               <div className="text-xl mb-6 text-white">
                 Game in progress! Use the action buttons below.
               </div>
-              {actualPlayer === roomState?.currentPlayerId && (
-                <div className="flex gap-3 justify-center flex-wrap">
-                  <button
-                    onClick={() => {
-                      // addPoint(currentPlayer);
-                      // nextPlayer();
-                    }}
-                    className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
-                  >
-                    Success
-                  </button>
-                  <button
-                    onClick={() => {
-                      // addDrink(currentPlayer);
-                      // nextPlayer();
-                    }}
-                    className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
-                  >
-                    Failed - Drink!
-                  </button>
-                </div>
-              )}
+
+              {
+                //@ts-expect-error leave it
+                actualPlayer === roomState?.currentPlayerId && (
+                  <div className="flex gap-3 justify-center flex-wrap">
+                    <button
+                      onClick={() => {
+                        // addPoint(currentPlayer);
+                        // nextPlayer();
+                      }}
+                      className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
+                    >
+                      Success
+                    </button>
+                    <button
+                      onClick={() => {
+                        // addDrink(currentPlayer);
+                        // nextPlayer();
+                      }}
+                      className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
+                    >
+                      Failed - Drink!
+                    </button>
+                  </div>
+                )
+              }
             </div>
           );
       }

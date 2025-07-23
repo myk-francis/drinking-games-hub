@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Loading } from "@/components/ui/loading";
 
 export default function HomePage() {
   const router = useRouter();
@@ -49,7 +50,7 @@ export default function HomePage() {
     })
   );
 
-  if (isLoading) return <div>Loading...</div>;
+  if (isLoading) return <Loading />;
   if (error) return <div>Error: {error.message}</div>;
 
   const GameIcon = (gamecode: string) => {
