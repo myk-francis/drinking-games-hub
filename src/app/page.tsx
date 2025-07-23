@@ -19,6 +19,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 export default function HomePage() {
   const router = useRouter();
@@ -37,7 +38,7 @@ export default function HomePage() {
   const createRoom = useMutation(
     trpc.games.createRoom.mutationOptions({
       onSuccess: (data) => {
-        console.log("Room created successfully:", data);
+        toast.success("Room created successfully");
         // Optionally, redirect to the room or show a success message
         setRoomId(data.id);
       },

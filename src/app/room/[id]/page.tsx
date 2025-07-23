@@ -4,6 +4,8 @@ import { useParams } from "next/navigation";
 import { useTRPC } from "@/trpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import React from "react";
+import UserConfirmModal from "./modal";
+import { toast } from "sonner";
 
 export default function RoomPage() {
   const params = useParams();
@@ -13,14 +15,60 @@ export default function RoomPage() {
     data: room,
     isLoading,
     error,
-  } = useQuery(trpc.games.getRoomById.queryOptions({ roomId: String(roomId) }));
+  } = useQuery(
+    trpc.games.getRoomById.queryOptions(
+      { roomId: String(roomId) },
+      {
+        refetchInterval: 3000, // in milliseconds
+        refetchOnWindowFocus: false, // optional: disables refetching when tab/window gains focus
+      }
+    )
+  );
 
-  const [currentPlayerIndex, setCurrentPlayerIndex] = React.useState(0);
+  const updateRoom = useMutation(
+    trpc.games.addPlayerStats.mutationOptions({
+      onSuccess: (data) => {
+        toast.success("Got it next");
+        // trpc.games.getRoomById.invalidate({ roomId: String(roomId) });
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error updating room:", error);
+      },
+    })
+  );
+
+  const endRoom = useMutation(
+    trpc.games.endGame.mutationOptions({
+      onSuccess: (data) => {
+        toast.success("Thanks for playing!");
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error ending room:", error);
+      },
+    })
+  );
+
   const selectedGame = room?.game?.code || "never-have-i-ever";
 
   const game = room?.game;
   const questions = room?.game?.questions || [];
   const players = room?.players || [];
+
+  const [actualPlayer, setActualPlayer] = React.useState("");
+
+  const handleActualSelectPlayer = (id: string) => {
+    setActualPlayer(id);
+    localStorage.setItem("actualPlayerId", id);
+  };
+
+  React.useEffect(() => {
+    const storedPlayerId = localStorage.getItem("actualPlayerId");
+    if (storedPlayerId) {
+      setActualPlayer(storedPlayerId);
+    }
+  }, []);
 
   if (isLoading) return <div className="p-4">Loading...</div>;
   if (error)
@@ -29,51 +77,103 @@ export default function RoomPage() {
 
   if (!roomId) return <div className="p-4">Room ID is required</div>;
 
-  const GameContent = () => {
-    const currentPlayer = players[0].name;
+  const PlayerScore = ({ points, drinks, player }) => (
+    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center border border-white/20">
+      <div className="font-bold text-lg text-white mb-1">{player}</div>
+      <div className="text-2xl font-bold text-emerald-400 mb-1">
+        {points || 0} pts
+      </div>
+      <div className="text-sm text-orange-300">{drinks || 0} drinks</div>
+    </div>
+  );
 
-    const getRandomContent = (contentArray, used) => {
-      const unused = contentArray.filter((item) => !used.includes(item));
-      if (unused.length === 0)
-        return contentArray[Math.floor(Math.random() * contentArray.length)];
-      return unused[Math.floor(Math.random() * unused.length)];
-    };
+  if (room.gameEnded) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white p-6 flex items-center justify-center">
+        <div>
+          <h1 className="text-4xl font-bold mb-4">Game Over</h1>
+          <div className="flex gap-4">
+            {players.map((player) => (
+              <PlayerScore
+                key={player.id}
+                points={player.points}
+                drinks={player.drinks}
+                player={player.name}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const GameContent = () => {
+    const currentPlayer = room?.currentPlayerId
+      ? players.find((p) => p.id === room.currentPlayerId)?.name ||
+        "Unknown Player"
+      : "No player selected";
 
     const renderGameSpecificContent = () => {
       switch (selectedGame) {
         case "truth-or-drink":
-          const question = getRandomContent(
-            questions.map((q) => q.text),
-            []
-          );
           return (
             <div className="text-center">
               <div className="text-xl text-emerald-400 mb-4">
                 👤 {currentPlayer}&apos;s Turn
               </div>
               <div className="text-xl mb-6 text-white leading-relaxed">
-                {question}
+                {questions?.filter((q) => q.id === room?.currentQuestionId)[0]
+                  ?.text ||
+                  "No question available. Please wait for the next round."}
               </div>
-              <div className="flex gap-4 justify-center">
-                <button
-                  onClick={() => {
-                    // addPoint(currentPlayer);
-                    // nextPlayer();
-                  }}
-                  className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
-                >
-                  Answered Truthfully
-                </button>
-                <button
-                  onClick={() => {
-                    // addDrink(currentPlayer);
-                    // nextPlayer();
-                  }}
-                  className="px-6 py-3 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-semibold transition-colors"
-                >
-                  Took a Drink
-                </button>
-              </div>
+              {actualPlayer === room?.currentPlayerId && (
+                <div className="flex gap-4 justify-center">
+                  <button
+                    onClick={() => {
+                      updateRoom.mutate({
+                        roomId: room.id,
+                        points: String(
+                          room?.players?.find(
+                            (p) => p.id === room.currentPlayerId
+                          )?.points + 1 || 0
+                        ),
+                        drinks: String(
+                          room?.players?.find(
+                            (p) => p.id === room.currentPlayerId
+                          )?.drinks || 0
+                        ),
+                        currentPlayerId: room.currentPlayerId ?? "",
+                        currentQuestionId: String(room.currentQuestionId) ?? "",
+                      });
+                    }}
+                    className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Answered Truthfully
+                  </button>
+                  <button
+                    onClick={() => {
+                      updateRoom.mutate({
+                        roomId: room.id,
+                        points: String(
+                          room?.players?.find(
+                            (p) => p.id === room.currentPlayerId
+                          )?.points || 0
+                        ),
+                        drinks: String(
+                          room?.players?.find(
+                            (p) => p.id === room.currentPlayerId
+                          )?.drinks + 1 || 0
+                        ),
+                        currentPlayerId: room.currentPlayerId ?? "",
+                        currentQuestionId: String(room.currentQuestionId) ?? "",
+                      });
+                    }}
+                    className="px-6 py-3 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Took a Drink
+                  </button>
+                </div>
+              )}
             </div>
           );
 
@@ -86,26 +186,28 @@ export default function RoomPage() {
               <div className="text-xl mb-6 text-white">
                 Game in progress! Use the action buttons below.
               </div>
-              <div className="flex gap-3 justify-center flex-wrap">
-                <button
-                  onClick={() => {
-                    // addPoint(currentPlayer);
-                    // nextPlayer();
-                  }}
-                  className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
-                >
-                  Success
-                </button>
-                <button
-                  onClick={() => {
-                    // addDrink(currentPlayer);
-                    // nextPlayer();
-                  }}
-                  className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
-                >
-                  Failed - Drink!
-                </button>
-              </div>
+              {actualPlayer === roomState?.currentPlayerId && (
+                <div className="flex gap-3 justify-center flex-wrap">
+                  <button
+                    onClick={() => {
+                      // addPoint(currentPlayer);
+                      // nextPlayer();
+                    }}
+                    className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Success
+                  </button>
+                  <button
+                    onClick={() => {
+                      // addDrink(currentPlayer);
+                      // nextPlayer();
+                    }}
+                    className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Failed - Drink!
+                  </button>
+                </div>
+              )}
             </div>
           );
       }
@@ -120,6 +222,12 @@ export default function RoomPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white">
+      {actualPlayer === "" && (
+        <UserConfirmModal
+          players={players}
+          handleActualSelectPlayer={handleActualSelectPlayer}
+        />
+      )}
       <div className="container mx-auto px-4 py-6">
         {/* Header */}
         <div className="text-center mb-6">
@@ -131,8 +239,12 @@ export default function RoomPage() {
         <div className="mb-8">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {players.map((player) => (
-              // <PlayerScore key={player} player={player} />
-              <div key={player.id}></div>
+              <PlayerScore
+                key={player.id}
+                points={player.points}
+                drinks={player.drinks}
+                player={player.name}
+              />
             ))}
           </div>
         </div>
@@ -145,7 +257,9 @@ export default function RoomPage() {
         {/* Controls */}
         <div className="flex gap-4 justify-center">
           <button
-            // onClick={endGame}
+            onClick={() => {
+              endRoom.mutate({ roomId: String(roomId) });
+            }}
             className="flex items-center gap-2 px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
           >
             <Home className="w-5 h-5" />
