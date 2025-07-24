@@ -535,15 +535,15 @@ export const gamesRouter = createTRPCRouter({
           previousQuestionsIds = [];
         }
 
-        for (const player of room.players) {
-          await prisma.player.update({
-            where: { id: player.id },
-            data: {
-              points: 0,
-              drinks: 0,
-            },
-          });
-        }
+        await prisma.player.updateMany({
+          where: {
+            roomId: input.roomId,
+          },
+          data: {
+            points: 0, // Reset points for all players
+            drinks: 0, // Reset drinks for all players
+          },
+        });
 
         const updatedRoom = await prisma.room.update({
           where: { id: input.roomId },
