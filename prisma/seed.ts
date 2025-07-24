@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 const userData: Prisma.UserCreateInput[] = [
   {
     username: "myk",
-    passcode: "myk@francis",
+    passcode: "myk",
   },
   {
     username: "bikers",
