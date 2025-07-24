@@ -64,6 +64,39 @@ export default function RoomPage() {
       },
     })
   );
+  const nextRound = useMutation(
+    trpc.games.nextQuestion.mutationOptions({
+      onSuccess: (data) => {
+        toast.success("Next question coming up!");
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error question question:", error);
+      },
+    })
+  );
+  const generateCard = useMutation(
+    trpc.games.nextCard.mutationOptions({
+      onSuccess: (data) => {
+        toast.success("Next card coming up!");
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error changing card:", error);
+      },
+    })
+  );
+  const vote = useMutation(
+    trpc.games.votePlayer.mutationOptions({
+      onSuccess: (data) => {
+        toast.success("Vote submitted!");
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error voting :", error);
+      },
+    })
+  );
 
   const selectedGame = room?.game?.code || "never-have-i-ever";
 
@@ -78,7 +111,7 @@ export default function RoomPage() {
     localStorage.setItem("actualPlayerId", id);
   };
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     const storedPlayerId = localStorage.getItem("actualPlayerId");
     if (storedPlayerId) {
       setActualPlayer(storedPlayerId);
@@ -91,7 +124,7 @@ export default function RoomPage() {
     return () => {
       localStorage.removeItem("actualPlayerId");
     };
-  }, []);
+  }, [room]);
 
   if (isLoading) return <Loading />;
   if (error)
@@ -100,6 +133,10 @@ export default function RoomPage() {
   if (!room) return <div className="p-4">Room not found</div>;
 
   if (!roomId) return <div className="p-4">Room ID is required</div>;
+
+  const totalPoints = players.reduce((sum, player) => {
+    return sum + (player.points || 0); // handles undefined/null
+  }, 0);
 
   const PlayerScore = ({
     points,
@@ -113,7 +150,7 @@ export default function RoomPage() {
     <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center border border-white/20">
       <div className="font-bold text-lg text-white mb-1">{player}</div>
       <div className="text-2xl font-bold text-emerald-400 mb-1">
-        {points || 0} pts
+        {points || 0} {selectedGame === "most-likely" ? "votes" : "pts"}
       </div>
       <div className="text-sm text-orange-300">{drinks || 0} drinks</div>
     </div>
@@ -124,6 +161,10 @@ export default function RoomPage() {
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white p-6 flex items-center justify-center">
         <div>
           <h1 className="text-4xl font-bold mb-4">Game Over</h1>
+          <h1 className="text-2xl font-bold mb-4 ">Game: {game?.name ?? ""}</h1>
+          <h1 className="text-xl font-bold mb-4 ">
+            Game Status: {totalPoints} Drinks : Lame👽
+          </h1>
           <div className="flex gap-4">
             {players.map((player) => (
               <PlayerScore
@@ -265,6 +306,104 @@ export default function RoomPage() {
                   </button>
                 </div>
               )}
+            </div>
+          );
+
+        case "higher-lower":
+          return (
+            <div className="text-center">
+              <div className="text-xl text-emerald-400 mb-4">
+                👤 {currentPlayer}&apos;s Turn
+              </div>
+              <div className="text-6xl mb-6 text-white font-bold">
+                {room?.lastCard}
+              </div>
+              <p className="text-lg text-white/80 mb-6">
+                Will the next card be higher or lower (1-1000)?
+              </p>
+              {actualPlayer === room?.currentPlayerId && (
+                <div className="flex gap-4 justify-center">
+                  <button
+                    onClick={() => {
+                      generateCard.mutate({
+                        roomId: room.id,
+                        playersAns: "UP",
+                        currentPlayerId: room.currentPlayerId ?? "",
+                      });
+                    }}
+                    className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Higher ⬆️
+                  </button>
+                  <button
+                    onClick={() => {
+                      generateCard.mutate({
+                        roomId: room.id,
+                        playersAns: "DOWN",
+                        currentPlayerId: room.currentPlayerId ?? "",
+                      });
+                    }}
+                    className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Lower ⬇️
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+
+        case "most-likely":
+          return (
+            <div className="text-center">
+              <div className="text-xl text-emerald-400 mb-4">
+                👤 {currentPlayer}&apos;s Turn
+              </div>
+              <div className="text-2xl mb-6 text-white leading-relaxed">
+                {questions?.filter((q) => q.id === room?.currentQuestionId)[0]
+                  ?.text ||
+                  "No question available. Please wait for the next round."}
+              </div>
+              {actualPlayer === room?.currentPlayerId && (
+                <>
+                  <p className="text-lg text-white/80 mb-6">
+                    Pick who you think is most likely! 👉
+                  </p>
+                  <div className="flex gap-3 justify-center flex-wrap mb-4">
+                    {players.map((player) => {
+                      if (actualPlayer !== player.id) {
+                        return (
+                          <button
+                            key={player.id}
+                            onClick={() => {
+                              vote.mutate({
+                                roomId: room.id,
+                                votedPlayer: player.id,
+                                currentPlayerId: room.currentPlayerId ?? "",
+                                gamecode: "most-likely",
+                              });
+                            }}
+                            className="px-4 py-2 bg-purple-500 hover:bg-purple-600 rounded-lg text-white transition-colors"
+                          >
+                            Vote: {player.name}
+                          </button>
+                        );
+                      }
+                    })}
+                  </div>
+                </>
+              )}
+              <button
+                onClick={() => {
+                  nextRound.mutate({
+                    gamecode: "most-likely",
+                    roomId: room.id,
+                    currentQuestionId: String(room.currentQuestionId) ?? "",
+                  });
+                }}
+                className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 rounded-lg text-white font-semibold transition-colors"
+              >
+                Next Question
+              </button>
             </div>
           );
 
