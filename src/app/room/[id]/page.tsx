@@ -31,7 +31,7 @@ export default function RoomPage() {
 
   const updateRoom = useMutation(
     trpc.games.addPlayerStats.mutationOptions({
-      onSuccess: (data) => {
+      onSuccess: () => {
         toast.success("Got it next");
         // trpc.games.getRoomById.invalidate({ roomId: String(roomId) });
       },
@@ -44,7 +44,7 @@ export default function RoomPage() {
 
   const endRoom = useMutation(
     trpc.games.endGame.mutationOptions({
-      onSuccess: (data) => {
+      onSuccess: () => {
         toast.success("Thanks for playing!");
       },
       onError: (error) => {
@@ -55,7 +55,7 @@ export default function RoomPage() {
   );
   const nextQuestion = useMutation(
     trpc.games.nextQuestion.mutationOptions({
-      onSuccess: (data) => {
+      onSuccess: () => {
         toast.success("Next question coming up!");
       },
       onError: (error) => {
@@ -66,7 +66,7 @@ export default function RoomPage() {
   );
   const nextRound = useMutation(
     trpc.games.nextQuestion.mutationOptions({
-      onSuccess: (data) => {
+      onSuccess: () => {
         toast.success("Next question coming up!");
       },
       onError: (error) => {
@@ -77,7 +77,7 @@ export default function RoomPage() {
   );
   const generateCard = useMutation(
     trpc.games.nextCard.mutationOptions({
-      onSuccess: (data) => {
+      onSuccess: () => {
         toast.success("Next card coming up!");
       },
       onError: (error) => {
@@ -88,7 +88,7 @@ export default function RoomPage() {
   );
   const vote = useMutation(
     trpc.games.votePlayer.mutationOptions({
-      onSuccess: (data) => {
+      onSuccess: () => {
         toast.success("Vote submitted!");
       },
       onError: (error) => {

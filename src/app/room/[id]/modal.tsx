@@ -13,7 +13,8 @@ import { Button } from "@/components/ui/button";
 export default function UserConfirmModal({
   players,
   handleActualSelectPlayer,
-}: any) {
+}: // eslint-disable-next-line @typescript-eslint/no-explicit-any
+any) {
   const [open, setOpen] = useState(true);
 
   return (
