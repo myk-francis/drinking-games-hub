@@ -65,7 +65,7 @@ export default function RoomPage() {
     })
   );
   const nextRound = useMutation(
-    trpc.games.nextQuestion.mutationOptions({
+    trpc.games.nextRound.mutationOptions({
       onSuccess: () => {
         toast.success("Next question coming up!");
       },
@@ -135,7 +135,7 @@ export default function RoomPage() {
   if (!roomId) return <div className="p-4">Room ID is required</div>;
 
   const totalPoints = players.reduce((sum, player) => {
-    return sum + (player.points || 0); // handles undefined/null
+    return sum + (player.drinks || 0); // handles undefined/null
   }, 0);
 
   const PlayerScore = ({
