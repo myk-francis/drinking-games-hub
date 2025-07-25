@@ -190,13 +190,19 @@ export const gamesRouter = createTRPCRouter({
         );
 
         if (questionsWhichHaveNotPlayed?.length > 0) {
-          nextQuestionId = questionsWhichHaveNotPlayed[0];
+          nextQuestionId =
+            questionsWhichHaveNotPlayed[
+              Math.floor(Math.random() * questionsWhichHaveNotPlayed.length)
+            ];
           previousQuestionsIds = [
             ...previousQuestionsIds,
             parseInt(input.currentQuestionId),
           ];
         } else {
-          nextQuestionId = room.game.questions[0]?.id || null;
+          nextQuestionId =
+            room.game.questions[
+              Math.floor(Math.random() * room.game.questions.length)
+            ]?.id || null;
           previousQuestionsIds = [];
         }
 
@@ -285,13 +291,19 @@ export const gamesRouter = createTRPCRouter({
         );
 
         if (questionsWhichHaveNotPlayed?.length > 0) {
-          nextQuestionId = questionsWhichHaveNotPlayed[0];
+          nextQuestionId =
+            questionsWhichHaveNotPlayed[
+              Math.floor(Math.random() * questionsWhichHaveNotPlayed.length)
+            ];
           previousQuestionsIds = [
             ...previousQuestionsIds,
             parseInt(input.currentQuestionId),
           ];
         } else {
-          nextQuestionId = room.game.questions[0]?.id || null;
+          nextQuestionId =
+            room.game.questions[
+              Math.floor(Math.random() * room.game.questions.length)
+            ]?.id || null;
           previousQuestionsIds = [];
         }
 
@@ -525,13 +537,19 @@ export const gamesRouter = createTRPCRouter({
         );
 
         if (questionsWhichHaveNotPlayed?.length > 0) {
-          nextQuestionId = questionsWhichHaveNotPlayed[0];
+          nextQuestionId =
+            questionsWhichHaveNotPlayed[
+              Math.floor(Math.random() * questionsWhichHaveNotPlayed.length)
+            ];
           previousQuestionsIds = [
             ...previousQuestionsIds,
             parseInt(input.currentQuestionId),
           ];
         } else {
-          nextQuestionId = room.game.questions[0]?.id || null;
+          nextQuestionId =
+            room.game.questions[
+              Math.floor(Math.random() * room.game.questions.length)
+            ]?.id || null;
           previousQuestionsIds = [];
         }
 
