@@ -49,6 +49,9 @@ export default function LoginPage() {
               <Label htmlFor="username">Username</Label>
               <Input
                 id="username"
+                autoCapitalize="off"
+                autoComplete="off"
+                autoCorrect="off"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Enter your username"

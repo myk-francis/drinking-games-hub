@@ -172,12 +172,20 @@ export const gamesRouter = createTRPCRouter({
           (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id)
         );
 
-        if (playersWhoHaveNotPlayed.length > 0) {
-          nextPlayerId = playersWhoHaveNotPlayed[0];
-          previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
-        } else {
-          nextPlayerId = room.players[0].id;
+        if (players.length === 2) {
           previousPlayersIds = [];
+          previousPlayersIds.push(input.currentPlayerId);
+          nextPlayerId = players.filter(
+            (id) => !previousPlayersIds.includes(id)
+          )[0];
+        } else {
+          if (playersWhoHaveNotPlayed.length > 0) {
+            nextPlayerId = playersWhoHaveNotPlayed[0];
+            previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
+          } else {
+            nextPlayerId = room.players[0].id;
+            previousPlayersIds = [];
+          }
         }
 
         let nextQuestionId = null;
@@ -368,12 +376,20 @@ export const gamesRouter = createTRPCRouter({
           (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id)
         );
 
-        if (playersWhoHaveNotPlayed.length > 0) {
-          nextPlayerId = playersWhoHaveNotPlayed[0];
-          previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
-        } else {
-          nextPlayerId = room.players[0].id;
+        if (players.length === 2) {
           previousPlayersIds = [];
+          previousPlayersIds.push(input.currentPlayerId);
+          nextPlayerId = players.filter(
+            (id) => !previousPlayersIds.includes(id)
+          )[0];
+        } else {
+          if (playersWhoHaveNotPlayed.length > 0) {
+            nextPlayerId = playersWhoHaveNotPlayed[0];
+            previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
+          } else {
+            nextPlayerId = room.players[0].id;
+            previousPlayersIds = [];
+          }
         }
 
         const previousCards = room.previousCards || [];
@@ -459,12 +475,20 @@ export const gamesRouter = createTRPCRouter({
           (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id)
         );
 
-        if (playersWhoHaveNotPlayed.length > 0) {
-          nextPlayerId = playersWhoHaveNotPlayed[0];
-          previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
-        } else {
-          nextPlayerId = room.players[0].id;
+        if (players.length === 2) {
           previousPlayersIds = [];
+          previousPlayersIds.push(input.currentPlayerId);
+          nextPlayerId = players.filter(
+            (id) => !previousPlayersIds.includes(id)
+          )[0];
+        } else {
+          if (playersWhoHaveNotPlayed.length > 0) {
+            nextPlayerId = playersWhoHaveNotPlayed[0];
+            previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
+          } else {
+            nextPlayerId = room.players[0].id;
+            previousPlayersIds = [];
+          }
         }
 
         const votedPoints =
