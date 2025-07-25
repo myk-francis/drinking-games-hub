@@ -130,9 +130,21 @@ export default function RoomPage() {
   if (error)
     //@ts-expect-error leave it
     return <ErrorPage error={error} reset={() => window.location.reload()} />;
-  if (!room) return <div className="p-4">Room not found</div>;
 
-  if (!roomId) return <div className="p-4">Room ID is required</div>;
+  if (!room)
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white p-6 flex items-center justify-center">
+        <div>
+          <h1 className="text-2xl font-bold mb-4 ">
+            Sadly we cannot find your room😑
+          </h1>
+
+          <Link href="/" className="mt-6 inline-block self-center ">
+            <Button>Go back home</Button>
+          </Link>
+        </div>
+      </div>
+    );
 
   const totalPoints = players.reduce((sum, player) => {
     return sum + (player.drinks || 0); // handles undefined/null
