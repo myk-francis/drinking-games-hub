@@ -340,6 +340,7 @@ export const gamesRouter = createTRPCRouter({
         roomId: z.string(),
         currentPlayerId: z.string(),
         playersAns: z.string(),
+        card: z.number().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -393,6 +394,7 @@ export const gamesRouter = createTRPCRouter({
         }
 
         const previousCards = room.previousCards || [];
+        let correctPrediction = false;
         const currentCard = generateUniqueCard(previousCards);
 
         if (currentCard !== null) {
@@ -406,6 +408,7 @@ export const gamesRouter = createTRPCRouter({
             (currentCard || 0) < (room.lastCard || 0))
         ) {
           playerPoints += 1;
+          correctPrediction = true;
         } else {
           playerDrinks += 1;
         }
@@ -416,8 +419,10 @@ export const gamesRouter = createTRPCRouter({
             currentPlayerId: nextPlayerId,
             currentCard: currentCard,
             lastCard: currentCard,
+            lastPlayerId: input.currentPlayerId,
             previousCards: previousCards,
             previousPlayersIds: previousPlayersIds,
+            correctPrediction: correctPrediction,
             players: {
               update: {
                 where: {

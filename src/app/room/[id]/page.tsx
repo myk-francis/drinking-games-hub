@@ -170,14 +170,14 @@ export default function RoomPage() {
 
   if (room.gameEnded) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white p-6 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white p-6 flex items-center justify-center ">
         <div>
           <h1 className="text-4xl font-bold mb-4">Game Over</h1>
           <h1 className="text-2xl font-bold mb-4 ">Game: {game?.name ?? ""}</h1>
           <h1 className="text-xl font-bold mb-4 ">
             Game Status: {totalPoints} Drinks : Lame👽
           </h1>
-          <div className="flex gap-4">
+          <div className="flex gap-4 flex-wrap">
             {players.map((player) => (
               <PlayerScore
                 key={player.id}
@@ -324,11 +324,18 @@ export default function RoomPage() {
         case "higher-lower":
           return (
             <div className="text-center">
+              <div className="text-xl text-pink-400 mb-4">
+                {room?.lastPlayerId !== undefined &&
+                  room?.lastPlayerId &&
+                  `Result: ${
+                    room?.players?.find((p) => p.id === room.lastPlayerId)?.name
+                  } - ${room?.correctPrediction ? "Won ✅ " : "Lost ❌ "}`}
+              </div>
               <div className="text-xl text-emerald-400 mb-4">
                 👤 {currentPlayer}&apos;s Turn
               </div>
               <div className="text-6xl mb-6 text-white font-bold">
-                {room?.lastCard}
+                {room?.currentCard || 500}
               </div>
               <p className="text-lg text-white/80 mb-6">
                 Will the next card be higher or lower (1-1000)?

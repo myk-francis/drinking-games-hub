@@ -55,7 +55,9 @@ model Room {
   previousQuestionsId Int[]
   currentCard Int? @default(0)
   lastCard Int? @default(500)
+  lastPlayerId String?
   previousCards Int[] @default([500])
+  correctPrediction Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
