@@ -58,6 +58,7 @@ export const gamesRouter = createTRPCRouter({
       z.object({
         selectedGame: z.string().min(1, { message: " Game is required" }),
         players: z.array(z.string()).min(2).max(10),
+        userId: z.number().optional(), // Optional user ID for the creator
       })
     )
     .mutation(async ({ input }) => {
@@ -81,6 +82,7 @@ export const gamesRouter = createTRPCRouter({
         const createdRoom = await prisma.room.create({
           data: {
             gameId: game.id,
+            createdById: input.userId || 0, // Assuming a default user ID for now
             players: {
               create: players,
             },

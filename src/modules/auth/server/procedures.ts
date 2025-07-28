@@ -62,4 +62,25 @@ export const authRouter = createTRPCRouter({
     }
     return { success: true };
   }),
+
+  getCurrentUser: baseProcedure.query(async () => {
+    const sessionId = (await cookies()).get("sessionId")?.value;
+    if (!sessionId) {
+      return null; // No session found
+    }
+
+    const session = await prisma.session.findUnique({
+      where: { id: sessionId },
+      include: { user: true }, // Include user data
+    });
+
+    if (!session || !session.user) {
+      return null; // Session or user not found
+    }
+
+    return {
+      id: session.user.id,
+      username: session.user.username,
+    };
+  }),
 });

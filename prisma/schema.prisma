@@ -58,6 +58,8 @@ model Room {
   lastPlayerId String?
   previousCards Int[] @default([500])
   correctPrediction Boolean @default(false)
+  createdById Int
+  startedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

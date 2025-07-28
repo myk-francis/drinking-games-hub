@@ -25,7 +25,6 @@ export default function LoginPage() {
 
   const handleLogin = () => {
     // handle login logic here
-    console.log({ username, passcode });
     loginUser.mutate(
       { username, passcode },
       {

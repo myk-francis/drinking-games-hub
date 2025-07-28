@@ -50,6 +50,10 @@ export default function HomePage() {
     })
   );
 
+  const { data: currentUser } = useQuery(
+    trpc.auth.getCurrentUser.queryOptions()
+  );
+
   if (isLoading) return <Loading />;
   if (error) return <div>Error: {error.message}</div>;
 
@@ -110,7 +114,7 @@ export default function HomePage() {
       alert("Please select a game and add at least two players.");
       return;
     }
-    createRoom.mutate({ selectedGame, players });
+    createRoom.mutate({ selectedGame, players, userId: currentUser?.id || 0 });
   };
 
   const addPlayer = () => {
