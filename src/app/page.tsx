@@ -259,13 +259,15 @@ export default function HomePage() {
                   </div>
                 )}
 
-                <div>
-                  <Rounds
-                    rounds={rounds || []}
-                    handleSelect={setSelectedRounds}
-                    value={selectedRounds}
-                  />
-                </div>
+                {selectedGame === "higher-lower" && (
+                  <div>
+                    <Rounds
+                      rounds={rounds || []}
+                      handleSelect={setSelectedRounds}
+                      value={selectedRounds}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Action Buttons */}
