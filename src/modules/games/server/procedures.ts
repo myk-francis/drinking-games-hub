@@ -30,6 +30,22 @@ export const gamesRouter = createTRPCRouter({
 
     return games;
   }),
+  getRounds: baseProcedure.query(async () => {
+    const rounds = await prisma.parms.findMany({
+      where: {
+        type: "ROUNDS",
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+    });
+
+    return rounds.map((round) => ({
+      id: round.id,
+      name: round.name,
+      value: round.value,
+    }));
+  }),
   getRoomById: baseProcedure
     .input(
       z.object({
@@ -59,6 +75,7 @@ export const gamesRouter = createTRPCRouter({
         selectedGame: z.string().min(1, { message: " Game is required" }),
         players: z.array(z.string()).min(2).max(10),
         userId: z.number().optional(), // Optional user ID for the creator
+        selectedRounds: z.number(),
       })
     )
     .mutation(async ({ input }) => {
@@ -82,6 +99,8 @@ export const gamesRouter = createTRPCRouter({
         const createdRoom = await prisma.room.create({
           data: {
             gameId: game.id,
+            rounds: input.selectedRounds,
+            currentRound: input.selectedRounds > 0 ? 1 : 0,
             createdById: input.userId || 0, // Assuming a default user ID for now
             players: {
               create: players,
@@ -415,6 +434,12 @@ export const gamesRouter = createTRPCRouter({
           playerDrinks += 1;
         }
 
+        let currentRound = room.currentRound || 0;
+
+        if (room.rounds !== 0) {
+          currentRound += 1;
+        }
+
         const updatedRoom = await prisma.room.update({
           where: { id: input.roomId },
           data: {
@@ -425,6 +450,7 @@ export const gamesRouter = createTRPCRouter({
             previousCards: previousCards,
             previousPlayersIds: previousPlayersIds,
             correctPrediction: correctPrediction,
+            currentRound: currentRound,
             players: {
               update: {
                 where: {
@@ -438,6 +464,17 @@ export const gamesRouter = createTRPCRouter({
             },
           },
         });
+
+        if (room.rounds !== 0 && currentRound > room.rounds) {
+          const updatedRoom = await prisma.room.update({
+            where: { id: input.roomId },
+            data: {
+              gameEnded: true,
+            },
+          });
+
+          return updatedRoom;
+        }
 
         return updatedRoom;
       } catch (error) {

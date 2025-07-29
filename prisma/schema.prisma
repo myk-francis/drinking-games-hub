@@ -58,7 +58,9 @@ model Room {
   lastPlayerId String?
   previousCards Int[] @default([500])
   correctPrediction Boolean @default(false)
-  createdById Int
+  createdById Int 
+  rounds Int @default(0)
+  currentRound Int? @default(0)
   startedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -80,5 +82,13 @@ model Session {
   user      User     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
   expiresAt DateTime
+}
+
+model Parms {
+  id        Int   @id @default(autoincrement())
+  type      String
+  name      String
+  value     Int
+  createdAt DateTime @default(now())
 }
 

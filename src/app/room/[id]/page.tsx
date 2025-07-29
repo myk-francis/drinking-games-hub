@@ -190,6 +190,11 @@ export default function RoomPage() {
           <Link href="/" className="mt-6 inline-block self-center ">
             <Button>Go back home</Button>
           </Link>
+          <div className="mt-4">
+            <p className="text-white/70 italic">
+              Date: {room?.createdAt.toDateString()}
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -340,34 +345,35 @@ export default function RoomPage() {
               <p className="text-lg text-white/80 mb-6">
                 Will the next card be higher or lower (1-1000)?
               </p>
-              {actualPlayer === room?.currentPlayerId && (
-                <div className="flex gap-4 justify-center">
-                  <button
-                    onClick={() => {
-                      generateCard.mutate({
-                        roomId: room.id,
-                        playersAns: "UP",
-                        currentPlayerId: room.currentPlayerId ?? "",
-                      });
-                    }}
-                    className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
-                  >
-                    Higher ⬆️
-                  </button>
-                  <button
-                    onClick={() => {
-                      generateCard.mutate({
-                        roomId: room.id,
-                        playersAns: "DOWN",
-                        currentPlayerId: room.currentPlayerId ?? "",
-                      });
-                    }}
-                    className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
-                  >
-                    Lower ⬇️
-                  </button>
-                </div>
-              )}
+              {actualPlayer === room?.currentPlayerId &&
+                (room?.currentRound || 0) <= room?.rounds && (
+                  <div className="flex gap-4 justify-center">
+                    <button
+                      onClick={() => {
+                        generateCard.mutate({
+                          roomId: room.id,
+                          playersAns: "UP",
+                          currentPlayerId: room.currentPlayerId ?? "",
+                        });
+                      }}
+                      className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
+                    >
+                      Higher ⬆️
+                    </button>
+                    <button
+                      onClick={() => {
+                        generateCard.mutate({
+                          roomId: room.id,
+                          playersAns: "DOWN",
+                          currentPlayerId: room.currentPlayerId ?? "",
+                        });
+                      }}
+                      className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
+                    >
+                      Lower ⬇️
+                    </button>
+                  </div>
+                )}
             </div>
           );
 
@@ -485,7 +491,13 @@ export default function RoomPage() {
         {/* Header */}
         <div className="text-center mb-6">
           <h1 className="text-4xl font-bold mb-2">🍻 {game?.name}</h1>
-          <p className="text-white/70">Round in progress</p>
+          {room?.rounds === 0 ? (
+            <p className="text-white/70">Round in progress</p>
+          ) : (
+            <p className="text-white/70">
+              Round {room?.currentRound || 1} of {room?.rounds}
+            </p>
+          )}
         </div>
 
         {/* Scoreboard */}
