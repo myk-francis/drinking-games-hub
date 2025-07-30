@@ -71,7 +71,7 @@ export default function HomePage() {
       return <Music className="w-6 h-6" />;
     } else if (gamecode === "higher-lower") {
       return <Dice1 className="w-6 h-6" />;
-    } else if (gamecode === "charades-drink") {
+    } else if (gamecode === "verbal-charades") {
       return <Zap className="w-6 h-6" />;
     } else if (gamecode === "word-association") {
       return <Brain className="w-6 h-6" />;
@@ -97,7 +97,7 @@ export default function HomePage() {
       return "from-orange-500 to-red-500";
     } else if (gamecode === "higher-lower") {
       return "from-indigo-500 to-blue-500";
-    } else if (gamecode === "charades-drink") {
+    } else if (gamecode === "verbal-charades") {
       return "from-yellow-500 to-orange-500";
     } else if (gamecode === "word-association") {
       return "from-cyan-500 to-blue-500";
@@ -275,7 +275,16 @@ export default function HomePage() {
                 {!roomId && (
                   <button
                     onClick={handleCreateRoom}
-                    disabled={!selectedGame || players.length < 2}
+                    disabled={
+                      !selectedGame ||
+                      (selectedGame === "most-likely" && players.length < 3) ||
+                      (selectedGame === "verbal-charades" &&
+                        players.length < 4) ||
+                      (selectedGame === "higher-lower" && players.length < 2) ||
+                      (selectedGame === "never-have-i-ever" &&
+                        players.length < 2) ||
+                      (selectedGame === "truth-or-drink" && players.length < 2)
+                    }
                     className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
                   >
                     <Building className="w-5 h-5" />

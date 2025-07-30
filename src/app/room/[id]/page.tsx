@@ -86,6 +86,25 @@ export default function RoomPage() {
       },
     })
   );
+
+  const [timeLeft, setTimeLeft] = React.useState(60); // 60 seconds
+  const [isRunning, setIsRunning] = React.useState(false);
+  const timerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const nextCharadeCard = useMutation(
+    trpc.games.nextCharadeCard.mutationOptions({
+      onSuccess: () => {
+        toast.success("Next card coming up!");
+        setIsRunning(false);
+        setTimeLeft(60);
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error changing card:", error);
+      },
+    })
+  );
+
   const vote = useMutation(
     trpc.games.votePlayer.mutationOptions({
       onSuccess: () => {
@@ -125,6 +144,49 @@ export default function RoomPage() {
       localStorage.removeItem("actualPlayerId");
     };
   }, [room]);
+
+  // Convert seconds to MM:SS
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+      .toString()
+      .padStart(2, "0");
+    const secs = (seconds % 60).toString().padStart(2, "0");
+    return `${mins}:${secs}`;
+  };
+
+  React.useEffect(() => {
+    if (isRunning && timeLeft > 0) {
+      timerRef.current = setInterval(() => {
+        setTimeLeft((prev) => prev - 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isRunning, timeLeft]);
+
+  React.useEffect(() => {
+    if (timeLeft === 0 && timerRef.current) {
+      clearInterval(timerRef.current);
+      setIsRunning(false);
+    }
+  }, [timeLeft]);
+
+  const handleStart = () => {
+    if (timeLeft > 0) setIsRunning(true);
+  };
+
+  const handleStop = () => {
+    setIsRunning(false);
+  };
+
+  const handleReset = () => {
+    setIsRunning(false);
+    setTimeLeft(60);
+  };
 
   if (isLoading) return <Loading />;
   if (error)
@@ -432,6 +494,89 @@ export default function RoomPage() {
             </div>
           );
 
+        case "verbal-charades":
+          const PlayerOne = room?.playerOneId
+            ? players.find((p) => p.id === room.playerOneId)?.name ||
+              "Unknown Player"
+            : "No player selected";
+          const PlayerTwo = room?.playerTwoId
+            ? players.find((p) => p.id === room.playerTwoId)?.name ||
+              "Unknown Player"
+            : "No player selected";
+          return (
+            <div className="text-center">
+              <div className="text-xl text-emerald-400 mb-4">
+                👤 {PlayerOne} vs {PlayerTwo} {"📒"}
+              </div>
+              {actualPlayer === room?.playerOneId && (
+                <div className="text-6xl mb-6 text-white font-bold">
+                  {formatTime(timeLeft)}
+                </div>
+              )}
+              {actualPlayer === room?.playerTwoId ? (
+                <p className="text-lg text-white/80 mb-6">
+                  Dont let the drink catch up to you now 🍻
+                </p>
+              ) : (
+                <p className="text-lg text-white/80 mb-6">
+                  {questions?.filter((q) => q.id === room?.currentQuestionId)[0]
+                    ?.text ||
+                    "No question available. Please wait for the next round."}
+                </p>
+              )}
+              {actualPlayer === room?.playerOneId && timeLeft !== 0 && (
+                <div className="flex gap-4 justify-center">
+                  <button
+                    onClick={handleStop}
+                    disabled={!isRunning}
+                    className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Stop ⏰
+                  </button>
+                  <button
+                    onClick={() => handleStart()}
+                    disabled={isRunning || timeLeft === 0}
+                    className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Start ⏰
+                  </button>
+                </div>
+              )}
+              {actualPlayer === room?.playerOneId && timeLeft === 0 && (
+                <div className="flex gap-4 justify-center mt-4">
+                  <button
+                    onClick={() => {
+                      nextCharadeCard.mutate({
+                        roomId: room.id,
+                        result: "INCORRECT",
+                        playerOneId: room.playerOneId ?? "",
+                        playerTwoId: room.playerTwoId ?? "",
+                        currentQuestionId: String(room.currentQuestionId) ?? "",
+                      });
+                    }}
+                    className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Failed ❌
+                  </button>
+                  <button
+                    onClick={() => {
+                      nextCharadeCard.mutate({
+                        roomId: room.id,
+                        result: "CORRECT",
+                        playerOneId: room.playerOneId ?? "",
+                        playerTwoId: room.playerTwoId ?? "",
+                        currentQuestionId: String(room.currentQuestionId) ?? "",
+                      });
+                    }}
+                    className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Passed ✅
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+
         default:
           return (
             <div className="text-center">
@@ -439,7 +584,8 @@ export default function RoomPage() {
                 👤 {currentPlayer}&apos;s Turn
               </div>
               <div className="text-xl mb-6 text-white">
-                Game in progress! Use the action buttons below.
+                Game in progress! Use the action buttons below. (Game Under
+                Construction)
               </div>
 
               {
