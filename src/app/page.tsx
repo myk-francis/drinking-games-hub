@@ -260,7 +260,7 @@ export default function HomePage() {
                 )}
 
                 {selectedGame === "higher-lower" && (
-                  <div>
+                  <div className="mt-4">
                     <Rounds
                       rounds={rounds || []}
                       handleSelect={setSelectedRounds}
