@@ -183,10 +183,10 @@ export default function RoomPage() {
     setIsRunning(false);
   };
 
-  const handleReset = () => {
-    setIsRunning(false);
-    setTimeLeft(60);
-  };
+  // const handleReset = () => {
+  //   setIsRunning(false);
+  //   setTimeLeft(60);
+  // };
 
   if (isLoading) return <Loading />;
   if (error)
