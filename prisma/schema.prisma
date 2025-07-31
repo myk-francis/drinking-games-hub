@@ -67,6 +67,8 @@ model Room {
   createdById Int 
   rounds Int @default(0)
   currentRound Int? @default(0)
+  questionAVotes String[]
+  questionBVotes String[]
   startedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

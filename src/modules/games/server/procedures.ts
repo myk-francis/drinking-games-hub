@@ -21,7 +21,7 @@ export const gamesRouter = createTRPCRouter({
   getMany: baseProcedure.query(async () => {
     const games = await prisma.game.findMany({
       where: {
-        published: true, // Only fetch published games
+        published: false, // Only fetch published games
       },
       orderBy: {
         updatedAt: "asc",
@@ -316,6 +316,7 @@ export const gamesRouter = createTRPCRouter({
         throw new Error("Failed to update room");
       }
     }),
+
   nextQuestion: baseProcedure
     .input(
       z.object({
@@ -679,6 +680,7 @@ export const gamesRouter = createTRPCRouter({
         throw new Error("Failed to update question");
       }
     }),
+
   nextCharadeCard: baseProcedure
     .input(
       z.object({
@@ -823,6 +825,239 @@ export const gamesRouter = createTRPCRouter({
       } catch (error) {
         console.error("Failed to update room:", error);
         throw new Error("Failed to update room");
+      }
+    }),
+
+  voteQuestion: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string(),
+        vote: z.string(),
+        currentPlayerId: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const room = await prisma.room.findFirst({
+          where: {
+            id: input.roomId,
+          },
+          include: {
+            players: true,
+            game: {
+              include: {
+                questions: true, // Include questions if needed
+              },
+            },
+          },
+        });
+
+        if (!room) {
+          throw new Error("Room not found");
+        }
+
+        let nextPlayerId = "";
+
+        const players = room.players.map((obj) => obj.id);
+        let previousPlayersIds = room.previousPlayersIds || [];
+        const playersWhoHaveNotPlayed = players.filter(
+          (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id)
+        );
+
+        if (players.length === 2) {
+          previousPlayersIds = [];
+          previousPlayersIds.push(input.currentPlayerId);
+          nextPlayerId = players.filter(
+            (id) => !previousPlayersIds.includes(id)
+          )[0];
+        } else {
+          if (playersWhoHaveNotPlayed.length > 0) {
+            nextPlayerId = playersWhoHaveNotPlayed[0];
+            previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
+          } else {
+            nextPlayerId = room.players[0].id;
+            previousPlayersIds = [];
+          }
+        }
+
+        const questionAVotes = room.questionAVotes || [];
+        const questionBVotes = room.questionBVotes || [];
+
+        if (input.vote === "A") {
+          questionAVotes.push(input.currentPlayerId);
+        } else {
+          questionBVotes.push(input.currentPlayerId);
+        }
+
+        const updatedRoom = await prisma.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentPlayerId: nextPlayerId,
+            previousPlayersIds: previousPlayersIds,
+            questionAVotes: questionAVotes,
+            questionBVotes: questionBVotes,
+          },
+        });
+
+        return updatedRoom;
+      } catch (error) {
+        console.error("Failed to update room:", error);
+        throw new Error("Failed to update room");
+      }
+    }),
+
+  nextWouldRatherQuestion: baseProcedure
+    .input(
+      z.object({
+        gamecode: z.string(),
+        roomId: z.string(),
+        currentQuestionId: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const room = await prisma.room.findFirst({
+          where: {
+            id: input.roomId,
+          },
+          include: {
+            players: true,
+            game: {
+              include: {
+                questions: true, // Include questions if needed
+              },
+            },
+          },
+        });
+
+        if (!room) {
+          throw new Error("Room not found");
+        }
+
+        let nextQuestionId = null;
+
+        const questions = room.game.questions.map((obj) => obj.id);
+        let previousQuestionsIds = room.previousQuestionsId || [];
+        const questionsWhichHaveNotPlayed = questions.filter(
+          (id) =>
+            ![...previousQuestionsIds, input.currentQuestionId].includes(id)
+        );
+
+        if (questionsWhichHaveNotPlayed?.length > 0) {
+          nextQuestionId =
+            questionsWhichHaveNotPlayed[
+              Math.floor(Math.random() * questionsWhichHaveNotPlayed.length)
+            ];
+          previousQuestionsIds = [
+            ...previousQuestionsIds,
+            parseInt(input.currentQuestionId),
+          ];
+        } else {
+          nextQuestionId =
+            room.game.questions[
+              Math.floor(Math.random() * room.game.questions.length)
+            ]?.id || null;
+          previousQuestionsIds = [];
+        }
+
+        if (
+          room?.questionAVotes.length > 0 &&
+          room?.questionBVotes.length > 0 &&
+          room?.questionAVotes.length === room?.questionBVotes.length
+        ) {
+          for (const player of room.players) {
+            if (room.questionAVotes.includes(player.id)) {
+              await prisma.player.update({
+                where: { id: player.id },
+                data: {
+                  drinks: player?.drinks || 0 + 1,
+                },
+              });
+            }
+          }
+
+          for (const player of room.players) {
+            if (room.questionBVotes.includes(player.id)) {
+              await prisma.player.update({
+                where: { id: player.id },
+                data: {
+                  drinks: player?.drinks || 0 + 1,
+                },
+              });
+            }
+          }
+        }
+
+        if (
+          room?.questionAVotes.length > 0 &&
+          room?.questionBVotes.length > 0 &&
+          room?.questionAVotes.length > room?.questionBVotes.length
+        ) {
+          for (const player of room.players) {
+            if (room.questionBVotes.includes(player.id)) {
+              await prisma.player.update({
+                where: { id: player.id },
+                data: {
+                  drinks: player?.drinks || 0 + 1,
+                },
+              });
+            }
+          }
+
+          for (const player of room.players) {
+            if (room.questionAVotes.includes(player.id)) {
+              await prisma.player.update({
+                where: { id: player.id },
+                data: {
+                  points: player?.points || 0 + 1,
+                },
+              });
+            }
+          }
+        }
+
+        if (
+          room?.questionAVotes.length > 0 &&
+          room?.questionBVotes.length > 0 &&
+          room?.questionAVotes.length < room?.questionBVotes.length
+        ) {
+          for (const player of room.players) {
+            if (room.questionAVotes.includes(player.id)) {
+              await prisma.player.update({
+                where: { id: player.id },
+                data: {
+                  drinks: player?.drinks || 0 + 1,
+                },
+              });
+            }
+          }
+
+          for (const player of room.players) {
+            if (room.questionBVotes.includes(player.id)) {
+              await prisma.player.update({
+                where: { id: player.id },
+                data: {
+                  points: player?.points || 0 + 1,
+                },
+              });
+            }
+          }
+        }
+
+        const updatedRoom = await prisma.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentQuestionId: nextQuestionId ?? null,
+            previousQuestionsId: previousQuestionsIds,
+            questionAVotes: [],
+            questionBVotes: [],
+          },
+        });
+
+        return updatedRoom;
+      } catch (error) {
+        console.error("Failed to update question:", error);
+        throw new Error("Failed to update question");
       }
     }),
 });

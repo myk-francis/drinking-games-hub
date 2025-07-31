@@ -73,7 +73,7 @@ export default function HomePage() {
       return <Dice1 className="w-6 h-6" />;
     } else if (gamecode === "verbal-charades") {
       return <Zap className="w-6 h-6" />;
-    } else if (gamecode === "word-association") {
+    } else if (gamecode === "would-you-rather") {
       return <Brain className="w-6 h-6" />;
     } else if (gamecode === "Countdown Game") {
       return <Clock className="w-6 h-6" />;
@@ -99,7 +99,7 @@ export default function HomePage() {
       return "from-indigo-500 to-blue-500";
     } else if (gamecode === "verbal-charades") {
       return "from-yellow-500 to-orange-500";
-    } else if (gamecode === "word-association") {
+    } else if (gamecode === "would-you-rather") {
       return "from-cyan-500 to-blue-500";
     } else if (gamecode === "Countdown Game") {
       return "from-red-500 to-pink-500";
@@ -283,7 +283,10 @@ export default function HomePage() {
                       (selectedGame === "higher-lower" && players.length < 2) ||
                       (selectedGame === "never-have-i-ever" &&
                         players.length < 2) ||
-                      (selectedGame === "truth-or-drink" && players.length < 2)
+                      (selectedGame === "truth-or-drink" &&
+                        players.length < 2) ||
+                      (selectedGame === "would-you-rather" &&
+                        players.length < 3)
                     }
                     className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
                   >

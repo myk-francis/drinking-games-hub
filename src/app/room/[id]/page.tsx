@@ -86,6 +86,29 @@ export default function RoomPage() {
       },
     })
   );
+  const voteQuestion = useMutation(
+    trpc.games.voteQuestion.mutationOptions({
+      onSuccess: () => {
+        toast.success("Vote submitted!");
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error voting :", error);
+      },
+    })
+  );
+
+  const nextWouldRatherQuestion = useMutation(
+    trpc.games.nextWouldRatherQuestion.mutationOptions({
+      onSuccess: () => {
+        toast.success("Next question coming up!");
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error changing question:", error);
+      },
+    })
+  );
 
   const [timeLeft, setTimeLeft] = React.useState(60); // 60 seconds
   const [isRunning, setIsRunning] = React.useState(false);
@@ -187,6 +210,59 @@ export default function RoomPage() {
   //   setIsRunning(false);
   //   setTimeLeft(60);
   // };
+
+  const playerNamesA = room?.questionAVotes
+    .map((id) => {
+      const player = players.find((p) => p.id === id);
+      return player ? player.name : null;
+    })
+    .filter((name) => name !== null)
+    .join(", ");
+  const playerNamesB = room?.questionBVotes
+    .map((id) => {
+      const player = players.find((p) => p.id === id);
+      return player ? player.name : null;
+    })
+    .filter((name) => name !== null)
+    .join(", ");
+
+  const wouldRatherResult = React.useMemo(() => {
+    if (!room) {
+      return "";
+    }
+    if (
+      room?.questionAVotes?.length + room?.questionBVotes?.length !==
+      room?.players.length
+    ) {
+      return "Pick One🙃";
+    }
+
+    if (
+      room?.questionAVotes.length > 0 &&
+      room?.questionBVotes.length > 0 &&
+      room?.questionAVotes.length === room?.questionBVotes.length
+    ) {
+      return "Result: All players please take a shot 😅";
+    }
+
+    if (
+      room?.questionAVotes.length > 0 &&
+      room?.questionBVotes.length > 0 &&
+      room?.questionAVotes.length < room?.questionBVotes.length
+    ) {
+      return `Result: Players ${playerNamesA} please take a shot 😅`;
+    }
+
+    if (
+      room?.questionAVotes.length > 0 &&
+      room?.questionBVotes.length > 0 &&
+      room?.questionAVotes.length > room?.questionBVotes.length
+    ) {
+      return `Result: Players ${playerNamesB} please take a shot 😅`;
+    }
+
+    return `Result: Suprisingly Y'all are safe 😒`;
+  }, [room, playerNamesA, playerNamesB]);
 
   if (isLoading) return <Loading />;
   if (error)
@@ -573,6 +649,70 @@ export default function RoomPage() {
                     Passed ✅
                   </button>
                 </div>
+              )}
+            </div>
+          );
+
+        case "would-you-rather":
+          return (
+            <div className="text-center">
+              <div className="text-xl text-pink-400 mb-4">
+                {wouldRatherResult}
+              </div>
+              <div className="text-xl text-emerald-400 mb-4">
+                👤 {currentPlayer}&apos;s Turn
+              </div>
+              <div className="text-2xl mb-6 text-white font-bold">
+                {questions?.filter((q) => q.id === room?.currentQuestionId)[0]
+                  ?.text ||
+                  "No question available. Please wait for the next round."}
+              </div>
+
+              {actualPlayer === room?.currentPlayerId &&
+                !room.questionAVotes.includes(actualPlayer) &&
+                !room.questionBVotes.includes(actualPlayer) && (
+                  <div className="flex gap-4 justify-center">
+                    <button
+                      onClick={() => {
+                        voteQuestion.mutate({
+                          roomId: room.id,
+                          vote: "A",
+                          currentPlayerId: room.currentPlayerId ?? "",
+                        });
+                      }}
+                      className="px-6 py-3 bg-blue-500 hover:bg-blue-600 rounded-lg text-white font-semibold transition-colors"
+                    >
+                      Rather 🅰️
+                    </button>
+                    <button
+                      onClick={() => {
+                        voteQuestion.mutate({
+                          roomId: room.id,
+                          vote: "B",
+                          currentPlayerId: room.currentPlayerId ?? "",
+                        });
+                      }}
+                      className="px-6 py-3 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-semibold transition-colors"
+                    >
+                      Rather 🅱️
+                    </button>
+                  </div>
+                )}
+
+              {room?.questionAVotes.length + room?.questionBVotes.length ===
+                room?.players.length && (
+                <button
+                  onClick={() => {
+                    nextWouldRatherQuestion.mutate({
+                      gamecode: "would-you-rather",
+                      roomId: room.id,
+                      currentQuestionId: String(room.currentQuestionId) ?? "",
+                    });
+                  }}
+                  className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 rounded-lg text-white font-semibold transition-colors mt-4"
+                >
+                  Next Question
+                </button>
               )}
             </div>
           );
