@@ -21,7 +21,7 @@ export const gamesRouter = createTRPCRouter({
   getMany: baseProcedure.query(async () => {
     const games = await prisma.game.findMany({
       where: {
-        published: false, // Only fetch published games
+        published: true, // Only fetch published games
       },
       orderBy: {
         updatedAt: "asc",
@@ -152,7 +152,10 @@ export const gamesRouter = createTRPCRouter({
           data: {
             currentPlayerId: createdRoom.players[0].id,
             previousPlayersIds: [],
-            currentQuestionId: createdRoom.game.questions[0]?.id || null,
+            currentQuestionId:
+              createdRoom.game.questions[
+                Math.floor(Math.random() * createdRoom.game.questions.length)
+              ]?.id || null,
             previousQuestionsId: [],
             allPairIds: allPairs,
             previousPairIds: previousPairIds,

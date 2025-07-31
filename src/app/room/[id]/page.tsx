@@ -29,15 +29,19 @@ export default function RoomPage() {
     )
   );
 
+  const [clicked, setClicked] = React.useState(false);
+
   const updateRoom = useMutation(
     trpc.games.addPlayerStats.mutationOptions({
       onSuccess: () => {
         toast.success("Got it next");
+        setClicked(false);
         // trpc.games.getRoomById.invalidate({ roomId: String(roomId) });
       },
       onError: (error) => {
         toast.error("Something went wrong. Please try again.");
         console.error("Error updating room:", error);
+        setClicked(false);
       },
     })
   );
@@ -46,10 +50,12 @@ export default function RoomPage() {
     trpc.games.endGame.mutationOptions({
       onSuccess: () => {
         toast.success("Thanks for playing!");
+        setClicked(false);
       },
       onError: (error) => {
         toast.error("Something went wrong. Please try again.");
         console.error("Error ending room:", error);
+        setClicked(false);
       },
     })
   );
@@ -57,10 +63,12 @@ export default function RoomPage() {
     trpc.games.nextQuestion.mutationOptions({
       onSuccess: () => {
         toast.success("Next question coming up!");
+        setClicked(false);
       },
       onError: (error) => {
         toast.error("Something went wrong. Please try again.");
         console.error("Error changing question:", error);
+        setClicked(false);
       },
     })
   );
@@ -68,10 +76,12 @@ export default function RoomPage() {
     trpc.games.nextRound.mutationOptions({
       onSuccess: () => {
         toast.success("Next question coming up!");
+        setClicked(false);
       },
       onError: (error) => {
         toast.error("Something went wrong. Please try again.");
         console.error("Error question question:", error);
+        setClicked(false);
       },
     })
   );
@@ -79,10 +89,12 @@ export default function RoomPage() {
     trpc.games.nextCard.mutationOptions({
       onSuccess: () => {
         toast.success("Next card coming up!");
+        setClicked(false);
       },
       onError: (error) => {
         toast.error("Something went wrong. Please try again.");
         console.error("Error changing card:", error);
+        setClicked(false);
       },
     })
   );
@@ -90,10 +102,12 @@ export default function RoomPage() {
     trpc.games.voteQuestion.mutationOptions({
       onSuccess: () => {
         toast.success("Vote submitted!");
+        setClicked(false);
       },
       onError: (error) => {
         toast.error("Something went wrong. Please try again.");
         console.error("Error voting :", error);
+        setClicked(false);
       },
     })
   );
@@ -102,10 +116,12 @@ export default function RoomPage() {
     trpc.games.nextWouldRatherQuestion.mutationOptions({
       onSuccess: () => {
         toast.success("Next question coming up!");
+        setClicked(false);
       },
       onError: (error) => {
         toast.error("Something went wrong. Please try again.");
         console.error("Error changing question:", error);
+        setClicked(false);
       },
     })
   );
@@ -120,10 +136,12 @@ export default function RoomPage() {
         toast.success("Next card coming up!");
         setIsRunning(false);
         setTimeLeft(60);
+        setClicked(false);
       },
       onError: (error) => {
         toast.error("Something went wrong. Please try again.");
         console.error("Error changing card:", error);
+        setClicked(false);
       },
     })
   );
@@ -132,10 +150,12 @@ export default function RoomPage() {
     trpc.games.votePlayer.mutationOptions({
       onSuccess: () => {
         toast.success("Vote submitted!");
+        setClicked(false);
       },
       onError: (error) => {
         toast.error("Something went wrong. Please try again.");
         console.error("Error voting :", error);
+        setClicked(false);
       },
     })
   );
@@ -358,29 +378,32 @@ export default function RoomPage() {
                 Players who have done this, take a drink! 🍻
               </p>
               <div className="flex gap-4 justify-center">
-                <button
-                  onClick={() => {
-                    updateRoom.mutate({
-                      gamecode: "never-have-i-ever",
-                      roomId: room.id,
-                      points: String(
-                        room?.players?.find((p) => p.id === actualPlayer)
-                          ?.points || 0
-                      ),
-                      drinks: String(
-                        //@ts-expect-error leave it
-                        room?.players?.find((p) => p.id === actualPlayer)
-                          ?.drinks + 1 || 0
-                      ),
-                      currentPlayerId: actualPlayer ?? "",
-                      currentQuestionId: String(room.currentQuestionId) ?? "",
-                    });
-                  }}
-                  className="px-6 py-3 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-semibold transition-colors"
-                >
-                  Took a Drink
-                </button>
-                {selectedGame === "never-have-i-ever" && (
+                {!clicked && (
+                  <button
+                    onClick={() => {
+                      updateRoom.mutate({
+                        gamecode: "never-have-i-ever",
+                        roomId: room.id,
+                        points: String(
+                          room?.players?.find((p) => p.id === actualPlayer)
+                            ?.points || 0
+                        ),
+                        drinks: String(
+                          //@ts-expect-error leave it
+                          room?.players?.find((p) => p.id === actualPlayer)
+                            ?.drinks + 1 || 0
+                        ),
+                        currentPlayerId: actualPlayer ?? "",
+                        currentQuestionId: String(room.currentQuestionId) ?? "",
+                      });
+                      setClicked(true);
+                    }}
+                    className="px-6 py-3 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Took a Drink
+                  </button>
+                )}
+                {selectedGame === "never-have-i-ever" && !clicked && (
                   <button
                     onClick={() => {
                       nextQuestion.mutate({
@@ -388,6 +411,7 @@ export default function RoomPage() {
                         roomId: room.id,
                         currentQuestionId: String(room.currentQuestionId) ?? "",
                       });
+                      setClicked(true);
                     }}
                     className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 rounded-lg text-white font-semibold transition-colors"
                   >
@@ -409,7 +433,7 @@ export default function RoomPage() {
                   ?.text ||
                   "No question available. Please wait for the next round."}
               </div>
-              {actualPlayer === room?.currentPlayerId && (
+              {actualPlayer === room?.currentPlayerId && !clicked && (
                 <div className="flex gap-4 justify-center">
                   <button
                     onClick={() => {
@@ -430,6 +454,7 @@ export default function RoomPage() {
                         currentPlayerId: room.currentPlayerId ?? "",
                         currentQuestionId: String(room.currentQuestionId) ?? "",
                       });
+                      setClicked(true);
                     }}
                     className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
                   >
@@ -454,6 +479,7 @@ export default function RoomPage() {
                         currentPlayerId: room.currentPlayerId ?? "",
                         currentQuestionId: String(room.currentQuestionId) ?? "",
                       });
+                      setClicked(true);
                     }}
                     className="px-6 py-3 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-semibold transition-colors"
                   >
@@ -484,7 +510,8 @@ export default function RoomPage() {
                 Will the next card be higher or lower (1-1000)?
               </p>
               {actualPlayer === room?.currentPlayerId &&
-                (room?.currentRound || 0) <= room?.rounds && (
+                (room?.currentRound || 0) <= room?.rounds &&
+                !clicked && (
                   <div className="flex gap-4 justify-center">
                     <button
                       onClick={() => {
@@ -493,6 +520,7 @@ export default function RoomPage() {
                           playersAns: "UP",
                           currentPlayerId: room.currentPlayerId ?? "",
                         });
+                        setClicked(true);
                       }}
                       className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
                     >
@@ -505,6 +533,7 @@ export default function RoomPage() {
                           playersAns: "DOWN",
                           currentPlayerId: room.currentPlayerId ?? "",
                         });
+                        setClicked(true);
                       }}
                       className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
                     >
@@ -533,7 +562,7 @@ export default function RoomPage() {
                   </p>
                   <div className="flex gap-3 justify-center flex-wrap mb-4">
                     {players.map((player) => {
-                      if (actualPlayer !== player.id) {
+                      if (actualPlayer !== player.id && !clicked) {
                         return (
                           <button
                             key={player.id}
@@ -544,6 +573,7 @@ export default function RoomPage() {
                                 currentPlayerId: room.currentPlayerId ?? "",
                                 gamecode: "most-likely",
                               });
+                              setClicked(true);
                             }}
                             className="px-4 py-2 bg-purple-500 hover:bg-purple-600 rounded-lg text-white transition-colors"
                           >
@@ -555,18 +585,21 @@ export default function RoomPage() {
                   </div>
                 </>
               )}
-              <button
-                onClick={() => {
-                  nextRound.mutate({
-                    gamecode: "most-likely",
-                    roomId: room.id,
-                    currentQuestionId: String(room.currentQuestionId) ?? "",
-                  });
-                }}
-                className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 rounded-lg text-white font-semibold transition-colors"
-              >
-                Next Question
-              </button>
+              {!clicked && (
+                <button
+                  onClick={() => {
+                    nextRound.mutate({
+                      gamecode: "most-likely",
+                      roomId: room.id,
+                      currentQuestionId: String(room.currentQuestionId) ?? "",
+                    });
+                    setClicked(true);
+                  }}
+                  className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 rounded-lg text-white font-semibold transition-colors"
+                >
+                  Next Question
+                </button>
+              )}
             </div>
           );
 
@@ -600,56 +633,64 @@ export default function RoomPage() {
                     "No question available. Please wait for the next round."}
                 </p>
               )}
-              {actualPlayer === room?.playerOneId && timeLeft !== 0 && (
-                <div className="flex gap-4 justify-center">
-                  <button
-                    onClick={handleStop}
-                    disabled={!isRunning}
-                    className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
-                  >
-                    Stop ⏰
-                  </button>
-                  <button
-                    onClick={() => handleStart()}
-                    disabled={isRunning || timeLeft === 0}
-                    className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
-                  >
-                    Start ⏰
-                  </button>
-                </div>
-              )}
-              {actualPlayer === room?.playerOneId && timeLeft === 0 && (
-                <div className="flex gap-4 justify-center mt-4">
-                  <button
-                    onClick={() => {
-                      nextCharadeCard.mutate({
-                        roomId: room.id,
-                        result: "INCORRECT",
-                        playerOneId: room.playerOneId ?? "",
-                        playerTwoId: room.playerTwoId ?? "",
-                        currentQuestionId: String(room.currentQuestionId) ?? "",
-                      });
-                    }}
-                    className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
-                  >
-                    Failed ❌
-                  </button>
-                  <button
-                    onClick={() => {
-                      nextCharadeCard.mutate({
-                        roomId: room.id,
-                        result: "CORRECT",
-                        playerOneId: room.playerOneId ?? "",
-                        playerTwoId: room.playerTwoId ?? "",
-                        currentQuestionId: String(room.currentQuestionId) ?? "",
-                      });
-                    }}
-                    className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
-                  >
-                    Passed ✅
-                  </button>
-                </div>
-              )}
+              {actualPlayer === room?.playerOneId &&
+                timeLeft !== 0 &&
+                !clicked && (
+                  <div className="flex gap-4 justify-center">
+                    <button
+                      onClick={handleStop}
+                      disabled={!isRunning}
+                      className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
+                    >
+                      Stop ⏰
+                    </button>
+                    <button
+                      onClick={() => handleStart()}
+                      disabled={isRunning || timeLeft === 0}
+                      className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
+                    >
+                      Start ⏰
+                    </button>
+                  </div>
+                )}
+              {actualPlayer === room?.playerOneId &&
+                timeLeft === 0 &&
+                !clicked && (
+                  <div className="flex gap-4 justify-center mt-4">
+                    <button
+                      onClick={() => {
+                        nextCharadeCard.mutate({
+                          roomId: room.id,
+                          result: "INCORRECT",
+                          playerOneId: room.playerOneId ?? "",
+                          playerTwoId: room.playerTwoId ?? "",
+                          currentQuestionId:
+                            String(room.currentQuestionId) ?? "",
+                        });
+                        setClicked(true);
+                      }}
+                      className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
+                    >
+                      Failed ❌
+                    </button>
+                    <button
+                      onClick={() => {
+                        nextCharadeCard.mutate({
+                          roomId: room.id,
+                          result: "CORRECT",
+                          playerOneId: room.playerOneId ?? "",
+                          playerTwoId: room.playerTwoId ?? "",
+                          currentQuestionId:
+                            String(room.currentQuestionId) ?? "",
+                        });
+                        setClicked(true);
+                      }}
+                      className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
+                    >
+                      Passed ✅
+                    </button>
+                  </div>
+                )}
             </div>
           );
 
@@ -670,7 +711,8 @@ export default function RoomPage() {
 
               {actualPlayer === room?.currentPlayerId &&
                 !room.questionAVotes.includes(actualPlayer) &&
-                !room.questionBVotes.includes(actualPlayer) && (
+                !room.questionBVotes.includes(actualPlayer) &&
+                !clicked && (
                   <div className="flex gap-4 justify-center">
                     <button
                       onClick={() => {
@@ -679,6 +721,7 @@ export default function RoomPage() {
                           vote: "A",
                           currentPlayerId: room.currentPlayerId ?? "",
                         });
+                        setClicked(true);
                       }}
                       className="px-6 py-3 bg-blue-500 hover:bg-blue-600 rounded-lg text-white font-semibold transition-colors"
                     >
@@ -691,6 +734,7 @@ export default function RoomPage() {
                           vote: "B",
                           currentPlayerId: room.currentPlayerId ?? "",
                         });
+                        setClicked(true);
                       }}
                       className="px-6 py-3 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-semibold transition-colors"
                     >
@@ -708,6 +752,7 @@ export default function RoomPage() {
                       roomId: room.id,
                       currentQuestionId: String(room.currentQuestionId) ?? "",
                     });
+                    setClicked(true);
                   }}
                   className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 rounded-lg text-white font-semibold transition-colors mt-4"
                 >
