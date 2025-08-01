@@ -189,13 +189,13 @@ export default function RoomPage() {
   }, [room]);
 
   // Convert seconds to MM:SS
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 20)
+  function formatTime(seconds: number) {
+    const mins = Math.floor(seconds / 60)
       .toString()
       .padStart(2, "0");
-    const secs = (seconds % 20).toString().padStart(2, "0");
+    const secs = (seconds % 60).toString().padStart(2, "0");
     return `${mins}:${secs}`;
-  };
+  }
 
   React.useEffect(() => {
     if (isRunning && timeLeft > 0) {
@@ -224,7 +224,7 @@ export default function RoomPage() {
 
   const handleStop = () => {
     setIsRunning(false);
-    setTimeLeft(20);
+    setTimeLeft(0);
   };
 
   // const handleReset = () => {
@@ -634,26 +634,24 @@ export default function RoomPage() {
                     "No question available. Please wait for the next round."}
                 </p>
               )}
-              {actualPlayer === room?.playerOneId &&
-                timeLeft !== 0 &&
-                !clicked && (
-                  <div className="flex gap-4 justify-center">
-                    <button
-                      onClick={handleStop}
-                      disabled={!isRunning}
-                      className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
-                    >
-                      Stop ⏰
-                    </button>
-                    <button
-                      onClick={() => handleStart()}
-                      disabled={isRunning || timeLeft === 0}
-                      className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
-                    >
-                      Start ⏰
-                    </button>
-                  </div>
-                )}
+              {actualPlayer === room?.playerOneId && timeLeft !== 0 && (
+                <div className="flex gap-4 justify-center">
+                  <button
+                    onClick={handleStop}
+                    disabled={!isRunning}
+                    className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Stop ⏰
+                  </button>
+                  <button
+                    onClick={() => handleStart()}
+                    disabled={isRunning || timeLeft === 0}
+                    className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Start ⏰
+                  </button>
+                </div>
+              )}
               {actualPlayer === room?.playerOneId &&
                 timeLeft === 0 &&
                 !clicked && (
