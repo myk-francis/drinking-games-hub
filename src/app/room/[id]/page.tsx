@@ -126,7 +126,7 @@ export default function RoomPage() {
     })
   );
 
-  const [timeLeft, setTimeLeft] = React.useState(20); // 20 seconds
+  const [timeLeft, setTimeLeft] = React.useState(30); // 30 seconds
   const [isRunning, setIsRunning] = React.useState(false);
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
 
@@ -135,7 +135,7 @@ export default function RoomPage() {
       onSuccess: () => {
         toast.success("Next card coming up!");
         setIsRunning(false);
-        setTimeLeft(20);
+        setTimeLeft(30);
         setClicked(false);
       },
       onError: (error) => {
@@ -616,7 +616,7 @@ export default function RoomPage() {
           return (
             <div className="text-center">
               <div className="text-xl text-emerald-400 mb-4">
-                👤 {PlayerOne} vs {PlayerTwo} {"📒"}
+                👤 {PlayerOne} ➕ {PlayerTwo} {"📒"}
               </div>
               {actualPlayer === room?.playerOneId && (
                 <div className="text-6xl mb-6 text-white font-bold">
@@ -628,11 +628,14 @@ export default function RoomPage() {
                   Dont let the drink catch up to you now 🍻
                 </p>
               ) : (
-                <p className="text-lg text-white/80 mb-6">
-                  {questions?.filter((q) => q.id === room?.currentQuestionId)[0]
-                    ?.text ||
-                    "No question available. Please wait for the next round."}
-                </p>
+                !isRunning && (
+                  <p className="text-lg text-white/80 mb-6">
+                    {questions?.filter(
+                      (q) => q.id === room?.currentQuestionId
+                    )[0]?.text ||
+                      "No question available. Please wait for the next round."}
+                  </p>
+                )
               )}
               {actualPlayer === room?.playerOneId && timeLeft !== 0 && (
                 <div className="flex gap-4 justify-center">
