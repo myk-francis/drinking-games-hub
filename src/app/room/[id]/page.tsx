@@ -126,7 +126,7 @@ export default function RoomPage() {
     })
   );
 
-  const [timeLeft, setTimeLeft] = React.useState(60); // 60 seconds
+  const [timeLeft, setTimeLeft] = React.useState(20); // 20 seconds
   const [isRunning, setIsRunning] = React.useState(false);
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
 
@@ -135,7 +135,7 @@ export default function RoomPage() {
       onSuccess: () => {
         toast.success("Next card coming up!");
         setIsRunning(false);
-        setTimeLeft(60);
+        setTimeLeft(20);
         setClicked(false);
       },
       onError: (error) => {
@@ -190,10 +190,10 @@ export default function RoomPage() {
 
   // Convert seconds to MM:SS
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
+    const mins = Math.floor(seconds / 20)
       .toString()
       .padStart(2, "0");
-    const secs = (seconds % 60).toString().padStart(2, "0");
+    const secs = (seconds % 20).toString().padStart(2, "0");
     return `${mins}:${secs}`;
   };
 
@@ -224,6 +224,7 @@ export default function RoomPage() {
 
   const handleStop = () => {
     setIsRunning(false);
+    setTimeLeft(20);
   };
 
   // const handleReset = () => {
