@@ -16,19 +16,19 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
-type Round = {
+type Option = {
   id: number;
   name: string;
   value: number;
 };
 
-type RoundDropdownProps = {
-  rounds: Round[];
+type ComboBoxProps = {
+  options: Option[];
   value: number;
   handleSelect: (round: number) => void;
 };
 
-export function Rounds({ rounds, value, handleSelect }: RoundDropdownProps) {
+export function ComboBox({ options, value, handleSelect }: ComboBoxProps) {
   const [open, setOpen] = React.useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -38,7 +38,7 @@ export function Rounds({ rounds, value, handleSelect }: RoundDropdownProps) {
           aria-expanded={open}
           className="w-[200px] justify-between"
         >
-          {rounds.find((round) => round.value === value)?.name}
+          {options.find((option) => option.value === value)?.name}
           <ChevronsUpDown className="opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -47,20 +47,20 @@ export function Rounds({ rounds, value, handleSelect }: RoundDropdownProps) {
           <CommandList>
             <CommandEmpty>No framework found.</CommandEmpty>
             <CommandGroup>
-              {rounds.map((round) => (
+              {options.map((option) => (
                 <CommandItem
-                  key={round.id}
-                  value={String(round.value)}
+                  key={option.id}
+                  value={String(option.value)}
                   onSelect={(currentValue) => {
                     handleSelect(Number(currentValue));
                     setOpen(false);
                   }}
                 >
-                  {round.name}
+                  {option.name}
                   <Check
                     className={cn(
                       "ml-auto",
-                      value === round.value ? "opacity-100" : "opacity-0"
+                      value === option.value ? "opacity-100" : "opacity-0"
                     )}
                   />
                 </CommandItem>

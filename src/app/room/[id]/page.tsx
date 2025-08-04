@@ -163,7 +163,12 @@ export default function RoomPage() {
   const selectedGame = room?.game?.code || "never-have-i-ever";
 
   const game = room?.game;
-  const questions = room?.game?.questions || [];
+  const questions = room?.game?.questions;
+
+  const questionsTruthOrDrink = room?.game?.questions.filter(
+    (q) => q.edition === room?.rounds
+  );
+
   const players = room?.players || [];
 
   const [actualPlayer, setActualPlayer] = React.useState("");
@@ -430,8 +435,9 @@ export default function RoomPage() {
                 👤 {currentPlayer}&apos;s Turn
               </div>
               <div className="text-xl mb-6 text-white leading-relaxed">
-                {questions?.filter((q) => q.id === room?.currentQuestionId)[0]
-                  ?.text ||
+                {questionsTruthOrDrink?.filter(
+                  (q) => q.id === room?.currentQuestionId
+                )[0]?.text ||
                   "No question available. Please wait for the next round."}
               </div>
               {actualPlayer === room?.currentPlayerId && !clicked && (
@@ -745,7 +751,7 @@ export default function RoomPage() {
                   </div>
                 )}
 
-              {room?.questionAVotes.length + room?.questionBVotes.length ===
+              {room?.questionAVotes.length + room?.questionBVotes.length >=
                 room?.players.length && (
                 <button
                   onClick={() => {

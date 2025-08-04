@@ -49,6 +49,22 @@ export const gamesRouter = createTRPCRouter({
       value: round.value,
     }));
   }),
+  getEditions: baseProcedure.query(async () => {
+    const editions = await prisma.parms.findMany({
+      where: {
+        type: "EDITIONS",
+      },
+      orderBy: {
+        id: "asc",
+      },
+    });
+
+    return editions.map((round) => ({
+      id: round.id,
+      name: round.name,
+      value: round.value,
+    }));
+  }),
   getRoomById: baseProcedure
     .input(
       z.object({
@@ -132,7 +148,14 @@ export const gamesRouter = createTRPCRouter({
               ]
                 .sort()
                 .join("&");
+              const opositePairKey = [
+                createdRoom.players[j].id,
+                createdRoom.players[i].id,
+              ]
+                .sort()
+                .join("&");
               allPairs.push(pairKey);
+              allPairs.push(opositePairKey);
             }
           }
         }
@@ -146,16 +169,34 @@ export const gamesRouter = createTRPCRouter({
           playerTwoId = playerTwo;
         }
 
+        let currentQuestionId = null;
+
+        if (input.selectedGame === "truth-or-drink") {
+          currentQuestionId =
+            createdRoom.game.questions.filter(
+              (q) => q.edition === createdRoom.rounds
+            )[
+              Math.floor(
+                Math.random() *
+                  createdRoom.game.questions.filter(
+                    (q) => q.edition === createdRoom.rounds
+                  ).length
+              )
+            ]?.id || null;
+        } else {
+          currentQuestionId =
+            createdRoom.game.questions[
+              Math.floor(Math.random() * createdRoom.game.questions.length)
+            ]?.id || null;
+        }
+
         const createdRoomId = createdRoom.id;
         await prisma.room.update({
           where: { id: createdRoomId },
           data: {
             currentPlayerId: createdRoom.players[0].id,
             previousPlayersIds: [],
-            currentQuestionId:
-              createdRoom.game.questions[
-                Math.floor(Math.random() * createdRoom.game.questions.length)
-              ]?.id || null,
+            currentQuestionId: currentQuestionId,
             previousQuestionsId: [],
             allPairIds: allPairs,
             previousPairIds: previousPairIds,
@@ -249,27 +290,61 @@ export const gamesRouter = createTRPCRouter({
         let nextQuestionId = null;
 
         const questions = room.game.questions.map((obj) => obj.id);
+        const questionsForTruthOrDrink = room.game.questions
+          .filter((q) => q.edition === room.rounds)
+          .map((obj) => obj.id);
         let previousQuestionsIds = room.previousQuestionsId || [];
         const questionsWhichHaveNotPlayed = questions.filter(
           (id) =>
             ![...previousQuestionsIds, input.currentQuestionId].includes(id)
         );
+        const questionsWhichHaveNotPlayedForTruthOrDrink =
+          questionsForTruthOrDrink.filter(
+            (id) =>
+              ![...previousQuestionsIds, input.currentQuestionId].includes(id)
+          );
 
-        if (questionsWhichHaveNotPlayed?.length > 0) {
-          nextQuestionId =
-            questionsWhichHaveNotPlayed[
-              Math.floor(Math.random() * questionsWhichHaveNotPlayed.length)
+        if (input.gamecode === "truth-or-drink") {
+          if (questionsWhichHaveNotPlayedForTruthOrDrink?.length > 0) {
+            nextQuestionId =
+              questionsWhichHaveNotPlayedForTruthOrDrink[
+                Math.floor(
+                  Math.random() *
+                    questionsWhichHaveNotPlayedForTruthOrDrink.length
+                )
+              ];
+            previousQuestionsIds = [
+              ...previousQuestionsIds,
+              parseInt(input.currentQuestionId),
             ];
-          previousQuestionsIds = [
-            ...previousQuestionsIds,
-            parseInt(input.currentQuestionId),
-          ];
+          } else {
+            nextQuestionId =
+              room.game.questions.filter((q) => q.edition === room.rounds)[
+                Math.floor(
+                  Math.random() *
+                    room.game.questions.filter((q) => q.edition === room.rounds)
+                      .length
+                )
+              ]?.id || null;
+            previousQuestionsIds = [];
+          }
         } else {
-          nextQuestionId =
-            room.game.questions[
-              Math.floor(Math.random() * room.game.questions.length)
-            ]?.id || null;
-          previousQuestionsIds = [];
+          if (questionsWhichHaveNotPlayed?.length > 0) {
+            nextQuestionId =
+              questionsWhichHaveNotPlayed[
+                Math.floor(Math.random() * questionsWhichHaveNotPlayed.length)
+              ];
+            previousQuestionsIds = [
+              ...previousQuestionsIds,
+              parseInt(input.currentQuestionId),
+            ];
+          } else {
+            nextQuestionId =
+              room.game.questions[
+                Math.floor(Math.random() * room.game.questions.length)
+              ]?.id || null;
+            previousQuestionsIds = [];
+          }
         }
 
         let data = {};

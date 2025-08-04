@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loading } from "@/components/ui/loading";
-import { Rounds } from "@/components/apps-components/roundsDropdown";
+import { ComboBox } from "@/components/apps-components/comboBox";
 
 export default function HomePage() {
   const router = useRouter();
@@ -32,12 +32,14 @@ export default function HomePage() {
     error,
   } = useQuery(trpc.games.getMany.queryOptions());
   const { data: rounds } = useQuery(trpc.games.getRounds.queryOptions());
+  const { data: editions } = useQuery(trpc.games.getEditions.queryOptions());
   const [selectedGame, setSelectedGame] = React.useState(null);
   const [players, setPlayers] = React.useState<string[]>([]);
   const [playerInput, setPlayerInput] = React.useState("");
   const [roomId, setRoomId] = React.useState("");
   const [showShareLink, setShowShareLink] = React.useState(false);
   const [selectedRounds, setSelectedRounds] = React.useState<number>(0);
+  const [selectedEdition, setSelectedEdition] = React.useState<number>(0);
 
   const createRoom = useMutation(
     trpc.games.createRoom.mutationOptions({
@@ -121,7 +123,8 @@ export default function HomePage() {
       selectedGame,
       players,
       userId: currentUser?.id || 0,
-      selectedRounds,
+      selectedRounds:
+        selectedGame === "truth-or-drink" ? selectedEdition : selectedRounds,
     });
   };
 
@@ -261,10 +264,19 @@ export default function HomePage() {
 
                 {selectedGame === "higher-lower" && (
                   <div className="mt-4">
-                    <Rounds
-                      rounds={rounds || []}
+                    <ComboBox
+                      options={rounds || []}
                       handleSelect={setSelectedRounds}
                       value={selectedRounds}
+                    />
+                  </div>
+                )}
+                {selectedGame === "truth-or-drink" && (
+                  <div className="mt-4">
+                    <ComboBox
+                      options={editions || []}
+                      handleSelect={setSelectedEdition}
+                      value={selectedEdition}
                     />
                   </div>
                 )}
