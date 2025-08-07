@@ -76,9 +76,9 @@ export default function HomePage() {
     } else if (gamecode === "verbal-charades") {
       return <Zap className="w-6 h-6" />;
     } else if (gamecode === "would-you-rather") {
-      return <Brain className="w-6 h-6" />;
-    } else if (gamecode === "Countdown Game") {
       return <Clock className="w-6 h-6" />;
+    } else if (gamecode === "pick-a-card") {
+      return <Shuffle className="w-6 h-6" />;
     } else if (gamecode === "two-truths-lie") {
       return <Shuffle className="w-6 h-6" />;
     } else if (gamecode === "story-building") {
@@ -103,7 +103,7 @@ export default function HomePage() {
       return "from-yellow-500 to-orange-500";
     } else if (gamecode === "would-you-rather") {
       return "from-cyan-500 to-blue-500";
-    } else if (gamecode === "Countdown Game") {
+    } else if (gamecode === "pick-a-card") {
       return "from-red-500 to-pink-500";
     } else if (gamecode === "two-truths-lie") {
       return "from-emerald-500 to-green-500";
@@ -298,7 +298,8 @@ export default function HomePage() {
                       (selectedGame === "truth-or-drink" &&
                         players.length < 2) ||
                       (selectedGame === "would-you-rather" &&
-                        players.length < 3)
+                        players.length < 3) ||
+                      (selectedGame === "pick-a-card" && players.length < 3)
                     }
                     className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
                   >

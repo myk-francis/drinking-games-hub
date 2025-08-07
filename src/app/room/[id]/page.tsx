@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Loading } from "@/components/ui/loading";
 import ErrorPage from "@/app/error";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 export default function RoomPage() {
   const params = useParams();
@@ -33,6 +33,21 @@ export default function RoomPage() {
 
   const updateRoom = useMutation(
     trpc.games.addPlayerStats.mutationOptions({
+      onSuccess: () => {
+        toast.success("Got it next");
+        setClicked(false);
+        // trpc.games.getRoomById.invalidate({ roomId: String(roomId) });
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error updating room:", error);
+        setClicked(false);
+      },
+    })
+  );
+
+  const updatePlayerStatsPOD = useMutation(
+    trpc.games.updatePlayerStatsPOD.mutationOptions({
       onSuccess: () => {
         toast.success("Got it next");
         setClicked(false);
@@ -76,6 +91,19 @@ export default function RoomPage() {
     trpc.games.nextRound.mutationOptions({
       onSuccess: () => {
         toast.success("Next question coming up!");
+        setClicked(false);
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error question question:", error);
+        setClicked(false);
+      },
+    })
+  );
+  const nextCardPOD = useMutation(
+    trpc.games.nextCardPOD.mutationOptions({
+      onSuccess: () => {
+        toast.success("Next card coming up!");
         setClicked(false);
       },
       onError: (error) => {
@@ -251,6 +279,60 @@ export default function RoomPage() {
     })
     .filter((name) => name !== null)
     .join(", ");
+
+  const actionButtonText = React.useMemo(() => {
+    if (!room) {
+      return "";
+    }
+
+    const currentCardQuestion = room?.game.questions.find(
+      (q) => q.id === Number(room?.currentQuestionId)
+    );
+
+    const edition = currentCardQuestion?.edition;
+
+    if (edition === 1) {
+      return "Command Done";
+    }
+
+    if (edition === 2) {
+      return "Challenge Done";
+    }
+
+    if (edition === 4) {
+      return "Answered Truthfully";
+    }
+
+    return "";
+  }, [room]);
+
+  const questionTypePickACard = React.useMemo(() => {
+    if (!room) {
+      return "";
+    }
+
+    const currentCardQuestion = room?.game.questions.find(
+      (q) => q.id === Number(room?.currentQuestionId)
+    );
+
+    const edition = currentCardQuestion?.edition;
+
+    if (edition === 1) {
+      return "🟩 COMMAND CARD";
+    }
+
+    if (edition === 2) {
+      return "🟧 CHALLENGE CARD";
+    }
+    if (edition === 3) {
+      return "🟥 GAME TWIST CARD";
+    }
+    if (edition === 4) {
+      return "🟦 PERSONAL QUESTION";
+    }
+
+    return "🟩 QUESTION";
+  }, [room]);
 
   const wouldRatherResult = React.useMemo(() => {
     if (!room) {
@@ -494,6 +576,100 @@ export default function RoomPage() {
                   </button>
                 </div>
               )}
+            </div>
+          );
+
+        case "pick-a-card":
+          return (
+            <div className="text-center">
+              <div className="text-xl text-yellow-400 mb-4">
+                <p>{questionTypePickACard}</p>
+              </div>
+              <div className="text-xl text-emerald-400 mb-4">
+                👤 {currentPlayer}&apos;s Turn
+              </div>
+              <div className="text-xl mb-6 text-white leading-relaxed">
+                {questions?.filter((q) => q.id === room?.currentQuestionId)[0]
+                  ?.text ||
+                  "No question available. Please wait for the next round."}
+              </div>
+              {actualPlayer === room?.currentPlayerId &&
+                !clicked &&
+                questions?.filter((q) => q.id === room?.currentQuestionId)[0]
+                  ?.edition !== 3 && (
+                  <div className="flex gap-4 justify-center">
+                    <button
+                      onClick={() => {
+                        updatePlayerStatsPOD.mutate({
+                          gamecode: "pick-a-card",
+                          roomId: room.id,
+                          points: String(
+                            //@ts-expect-error leave it
+                            room?.players?.find(
+                              (p) => p.id === room.currentPlayerId
+                            )?.points + 1 || 0
+                          ),
+                          drinks: String(
+                            room?.players?.find(
+                              (p) => p.id === room.currentPlayerId
+                            )?.drinks || 0
+                          ),
+                          currentPlayerId: room.currentPlayerId ?? "",
+                          currentQuestionId:
+                            String(room.currentQuestionId) ?? "",
+                        });
+                        setClicked(true);
+                      }}
+                      className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
+                    >
+                      {actionButtonText}
+                    </button>
+                    <button
+                      onClick={() => {
+                        updatePlayerStatsPOD.mutate({
+                          gamecode: "pick-a-card",
+                          roomId: room.id,
+                          points: String(
+                            room?.players?.find(
+                              (p) => p.id === room.currentPlayerId
+                            )?.points || 0
+                          ),
+                          drinks: String(
+                            //@ts-expect-error leave it
+                            room?.players?.find(
+                              (p) => p.id === room.currentPlayerId
+                            )?.drinks + 1 || 0
+                          ),
+                          currentPlayerId: room.currentPlayerId ?? "",
+                          currentQuestionId:
+                            String(room.currentQuestionId) ?? "",
+                        });
+                        setClicked(true);
+                      }}
+                      className="px-6 py-3 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-semibold transition-colors"
+                    >
+                      Took a Drink
+                    </button>
+                  </div>
+                )}
+              {!clicked &&
+                questions?.filter((q) => q.id === room?.currentQuestionId)[0]
+                  ?.edition === 3 && (
+                  <button
+                    onClick={() => {
+                      nextCardPOD.mutate({
+                        gamecode: "pick-a-card",
+                        roomId: room.id,
+                        currentQuestionId: String(room.currentQuestionId) ?? "",
+                        currentPlayerId: room.currentPlayerId ?? "",
+                      });
+                      setClicked(true);
+                    }}
+                    className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Next Card
+                  </button>
+                )}
             </div>
           );
 
