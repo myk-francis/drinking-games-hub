@@ -1,5 +1,5 @@
 "use client";
-import { Home } from "lucide-react";
+import { Home, UserPlus2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useTRPC } from "@/trpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -9,7 +9,9 @@ import { toast } from "sonner";
 import { Loading } from "@/components/ui/loading";
 import ErrorPage from "@/app/error";
 import Link from "next/link";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import AddUserModal from "./addPlayerModal";
+import AddPlayerModal from "./addPlayerModal";
 
 export default function RoomPage() {
   const params = useParams();
@@ -154,6 +156,20 @@ export default function RoomPage() {
     })
   );
 
+  const addNewPlayer = useMutation(
+    trpc.games.addNewPlayer.mutationOptions({
+      onSuccess: () => {
+        toast.success("Added Player");
+        setClicked(false);
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error changing question:", error);
+        setClicked(false);
+      },
+    })
+  );
+
   const [timeLeft, setTimeLeft] = React.useState(30); // 30 seconds
   const [isRunning, setIsRunning] = React.useState(false);
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -200,6 +216,29 @@ export default function RoomPage() {
   const players = room?.players || [];
 
   const [actualPlayer, setActualPlayer] = React.useState("");
+  const [newPlayer, setNewPlayer] = React.useState("");
+  const [openAddPlayerModal, setOpenAddPlayerModal] = React.useState(false);
+
+  const handleAddPlayer = React.useCallback(() => {
+    if (!newPlayer.trim()) {
+      toast.error("Please enter a player name.");
+      return;
+    }
+
+    const playerExists = players.some((p) => p.name === newPlayer.trim());
+    if (playerExists) {
+      toast.error("Player already exists.");
+      return;
+    }
+
+    addNewPlayer.mutate({
+      gamecode: game?.code || "",
+      roomId: room?.id || "",
+      newPlayer: newPlayer.trim(),
+    });
+    setNewPlayer("");
+    setOpenAddPlayerModal(false);
+  }, [newPlayer, players, room, addNewPlayer, game]);
 
   const handleActualSelectPlayer = (id: string) => {
     setActualPlayer(id);
@@ -1002,6 +1041,17 @@ export default function RoomPage() {
           handleActualSelectPlayer={handleActualSelectPlayer}
         />
       )}
+      {actualPlayer === players[0].id && (
+        <AddPlayerModal
+          newPlayer={newPlayer}
+          setNewPlayer={setNewPlayer}
+          handleAddPlayer={handleAddPlayer}
+          openAddPlayerModal={openAddPlayerModal}
+          setOpenAddPlayerModal={setOpenAddPlayerModal}
+        />
+      )}
+
+      {/* Main Content */}
       <div className="container mx-auto px-4 py-6">
         {/* Header */}
         <div className="text-center mb-6">
@@ -1036,15 +1086,35 @@ export default function RoomPage() {
 
         {/* Controls */}
         <div className="flex gap-4 justify-center">
-          <button
-            onClick={() => {
-              endRoom.mutate({ roomId: String(roomId) });
-            }}
-            className="flex items-center gap-2 px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
-          >
-            <Home className="w-5 h-5" />
-            End Game
-          </button>
+          <div>
+            <button
+              onClick={() => {
+                endRoom.mutate({ roomId: String(roomId) });
+              }}
+              className="flex items-center gap-2 px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
+            >
+              <Home className="w-5 h-5" />
+              End Game
+            </button>
+
+            {actualPlayer === players[0].id && (
+              <button
+                onClick={() => {
+                  setOpenAddPlayerModal(true);
+                }}
+                className="flex items-center mt-4 gap-2 px-6 py-3 bg-pink-500 hover:bg-pink-600 rounded-lg text-white font-semibold transition-colors"
+              >
+                <UserPlus2 className="w-5 h-5" />
+                Add Player
+              </button>
+            )}
+
+            <p className="text-white/70 mt-4">
+              {`💋Player: ${
+                players.filter((player) => player.id === actualPlayer)[0]?.name
+              }💋` || "No Player Selected"}
+            </p>
+          </div>
         </div>
       </div>
     </div>

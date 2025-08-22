@@ -136,6 +136,7 @@ export const gamesRouter = createTRPCRouter({
         });
 
         const allPairs = [];
+        const createdRoomPlayers = createdRoom.players;
         const previousPairIds = [];
         let playerOneId = "";
         let playerTwoId = "";
@@ -143,17 +144,13 @@ export const gamesRouter = createTRPCRouter({
           for (let i = 0; i < createdRoom.players.length; i++) {
             for (let j = i + 1; j < createdRoom.players.length; j++) {
               const pairKey = [
-                createdRoom.players[i].id,
-                createdRoom.players[j].id,
-              ]
-                .sort()
-                .join("&");
+                createdRoomPlayers[i].id,
+                createdRoomPlayers[j].id,
+              ].join("&");
               const opositePairKey = [
-                createdRoom.players[j].id,
-                createdRoom.players[i].id,
-              ]
-                .sort()
-                .join("&");
+                createdRoomPlayers[j].id,
+                createdRoomPlayers[i].id,
+              ].join("&");
               allPairs.push(pairKey);
               allPairs.push(opositePairKey);
             }
@@ -232,6 +229,7 @@ export const gamesRouter = createTRPCRouter({
         throw new Error("Failed to end room");
       }
     }),
+
   addPlayerStats: baseProcedure
     .input(
       z.object({
@@ -1342,6 +1340,75 @@ export const gamesRouter = createTRPCRouter({
         });
 
         return updatedRoom;
+      } catch (error) {
+        console.error("Failed to update room:", error);
+        throw new Error("Failed to update room");
+      }
+    }),
+
+  addNewPlayer: baseProcedure
+    .input(
+      z.object({
+        gamecode: z.string(),
+        roomId: z.string(),
+        newPlayer: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const room = await prisma.room.findFirst({
+          where: {
+            id: input.roomId,
+          },
+          include: {
+            players: true,
+            game: {
+              include: {
+                questions: true, // Include questions if needed
+              },
+            },
+          },
+        });
+
+        if (!room) {
+          throw new Error("Room not found");
+        }
+
+        const newPlayer = await prisma.player.create({
+          data: {
+            name: input.newPlayer,
+            roomId: input.roomId,
+            points: 0,
+            drinks: 0,
+          },
+        });
+
+        if (input.gamecode === "verbal-charades") {
+          const allPairs = room.allPairIds || [];
+          const createdRoomPlayers = room.players;
+          if (input.gamecode === "verbal-charades") {
+            for (let i = 0; i < room.players.length; i++) {
+              const pairKey = [newPlayer.id, createdRoomPlayers[i].id].join(
+                "&"
+              );
+              const opositePairKey = [
+                createdRoomPlayers[i].id,
+                newPlayer.id,
+              ].join("&");
+              allPairs.push(pairKey);
+              allPairs.push(opositePairKey);
+            }
+          }
+
+          await prisma.room.update({
+            where: { id: input.roomId },
+            data: {
+              allPairIds: allPairs,
+            },
+          });
+        }
+
+        return true;
       } catch (error) {
         console.error("Failed to update room:", error);
         throw new Error("Failed to update room");
