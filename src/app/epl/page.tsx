@@ -29,8 +29,6 @@ const EPLPredictorUI = () => {
     trpc.auth.getCurrentUser.queryOptions()
   );
 
-  console.log(currentUser);
-
   useEffect(() => {
     if (!userLoading) {
       if (
@@ -168,7 +166,7 @@ const EPLPredictorUI = () => {
       );
       const result = await response.json();
       setPredictionResults(result);
-      console.log("Prediction result:", result);
+      // console.log("Prediction result:", result);
     } catch (error) {
       console.error("Error:", error);
       // You can add error state here if needed
@@ -235,10 +233,10 @@ const EPLPredictorUI = () => {
                   (result: { [key: string]: string }, index) => (
                     <div
                       key={index}
-                      className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200 hover:shadow-md transition-shadow"
+                      className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200 hover:shadow-md transition-shadow "
                     >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-3">
+                      <div className="flex-col  items-center justify-between mb-3 ">
+                        <div className="flex items-center space-x-3 ">
                           <div className="text-lg font-bold text-gray-800">
                             {result?.HomeTeam}
                           </div>
@@ -342,7 +340,7 @@ const EPLPredictorUI = () => {
                       onValueChange={setPredictHomeTeam}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select home team" />
+                        <SelectValue placeholder="Home team" />
                       </SelectTrigger>
                       <SelectContent>
                         {teams.map((team) => (
@@ -364,7 +362,7 @@ const EPLPredictorUI = () => {
                       onValueChange={setPredictAwayTeam}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select away team" />
+                        <SelectValue placeholder="Away team" />
                       </SelectTrigger>
                       <SelectContent>
                         {teams.map((team) => (
@@ -459,7 +457,7 @@ const EPLPredictorUI = () => {
                       onValueChange={setTrainHomeTeam}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select home team" />
+                        <SelectValue placeholder="Home team" />
                       </SelectTrigger>
                       <SelectContent>
                         {teams.map((team) => (
@@ -481,7 +479,7 @@ const EPLPredictorUI = () => {
                       onValueChange={setTrainAwayTeam}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select away team" />
+                        <SelectValue placeholder="Away team" />
                       </SelectTrigger>
                       <SelectContent>
                         {teams.map((team) => (

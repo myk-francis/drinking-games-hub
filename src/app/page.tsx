@@ -339,6 +339,18 @@ export default function HomePage() {
                   </button>
                 </div>
               )}
+
+              {currentUser?.username === "myk" && (
+                <div className="wfull mt-6 text-center flex flex-row justify-center items-center gap-2">
+                  <button
+                    onClick={() => router.push("/epl")}
+                    className="flex items-center gap-2 px-8 py-3 bg-indigo-500 hover:bg-indigo-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
+                  >
+                    <Play className="w-5 h-5" />
+                    EPL
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
