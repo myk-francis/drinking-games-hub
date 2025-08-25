@@ -7,7 +7,7 @@ export function middleware(req) {
   const session = req.cookies.get("sessionId");
 
   // Define protected routes
-  const protectedRoutes = ["/"]; // Add your protected routes here
+  const protectedRoutes = ["/", "/epl"]; // Add your protected routes here
 
   if (protectedRoutes.some((route) => req.nextUrl.pathname.startsWith(route))) {
     // If the user is trying to access a protected route

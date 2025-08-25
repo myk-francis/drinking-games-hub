@@ -10,7 +10,6 @@ import { Loading } from "@/components/ui/loading";
 import ErrorPage from "@/app/error";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import AddUserModal from "./addPlayerModal";
 import AddPlayerModal from "./addPlayerModal";
 
 export default function RoomPage() {
