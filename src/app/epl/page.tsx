@@ -18,10 +18,25 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Plus, Send, Target, Calendar, Clock } from "lucide-react";
+import {
+  Trash2,
+  Plus,
+  Send,
+  Target,
+  CalendarDaysIcon,
+  Clock,
+} from "lucide-react";
 import { useTRPC } from "@/trpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { redirect } from "next/navigation";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+
+import { ChevronDownIcon } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
 
 const EPLPredictorUI = () => {
   const trpc = useTRPC();
@@ -80,6 +95,9 @@ const EPLPredictorUI = () => {
     "Sheffield United",
   ];
 
+  const [open, setOpen] = React.useState(false);
+  const [date, setDate] = React.useState<Date | undefined>(new Date());
+
   // Predict section state
   const [predictHomeTeam, setPredictHomeTeam] = useState("");
   const [predictAwayTeam, setPredictAwayTeam] = useState("");
@@ -89,6 +107,8 @@ const EPLPredictorUI = () => {
   const [trainHomeTeam, setTrainHomeTeam] = useState("");
   const [trainAwayTeam, setTrainAwayTeam] = useState("");
   const [totalGoals, setTotalGoals] = useState("");
+  const [totalCorners, setTotalCorners] = useState("");
+  const [totalBookings, setTotalBookings] = useState("");
   const [trainingData, setTrainingData] = useState([]);
 
   // Results state
@@ -126,19 +146,22 @@ const EPLPredictorUI = () => {
       totalGoals &&
       trainHomeTeam !== trainAwayTeam
     ) {
-      const currentDate = new Date();
+      const currentDate = new Date(date || Date.now());
       const newData = {
         HomeTeam: trainHomeTeam,
         AwayTeam: trainAwayTeam,
-        Month: currentDate.getMonth() + 1,
-        Weekday: currentDate.getDay(),
+        Date: currentDate.toISOString().split("T")[0],
         TotalGoals: parseInt(totalGoals),
+        TotalCorners: parseInt(totalCorners),
+        TotalBookings: parseInt(totalBookings),
       };
       //@ts-expect-error // Ignore type error for simplicity
       setTrainingData([...trainingData, newData]);
       setTrainHomeTeam("");
       setTrainAwayTeam("");
       setTotalGoals("");
+      setTotalCorners("");
+      setTotalBookings("");
     }
   };
 
@@ -156,6 +179,7 @@ const EPLPredictorUI = () => {
     try {
       const response = await fetch(
         "https://ml-epl-stats-predictor-production.up.railway.app/predict/",
+        // "http://localhost:8000/predict/",
         {
           method: "POST",
           headers: {
@@ -183,6 +207,7 @@ const EPLPredictorUI = () => {
     try {
       const response = await fetch(
         "https://ml-epl-stats-predictor-production.up.railway.app/train-new/",
+        // "http://localhost:8000/train/",
         {
           method: "POST",
           headers: {
@@ -193,7 +218,9 @@ const EPLPredictorUI = () => {
       );
       const result = await response.json();
 
-      setTrainingResults("Training result:" + String(result.accuracy));
+      setTrainingResults(
+        `Training result:" \n Goals: ${result.accuracies.goals} \n Bookings: ${result.accuracies.bookings} \n Corners: ${result.accuracies.corners}`
+      );
       // Handle response here
     } catch (error) {
       console.error("Error:", error);
@@ -252,20 +279,20 @@ const EPLPredictorUI = () => {
                             variant="outline"
                             className="bg-blue-50 text-blue-700 border-blue-200"
                           >
-                            <Calendar className="h-3 w-3 mr-1" />
-                            {result?.Year}
+                            <CalendarDaysIcon className="h-3 w-3 mr-1" />
+                            {new Date(Date.now()).getFullYear()}
                           </Badge>
                           <Badge
                             variant="outline"
                             className="bg-purple-50 text-purple-700 border-purple-200"
                           >
                             <Clock className="h-3 w-3 mr-1" />
-                            Month {result?.Month}
+                            Month {new Date(Date.now()).getMonth() + 1}
                           </Badge>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between">
+                      <div className="flex-col items-center  space-y-2">
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-gray-600">
                             Weekday:
@@ -280,7 +307,7 @@ const EPLPredictorUI = () => {
                                 "Thursday",
                                 "Friday",
                                 "Saturday",
-                              ][parseInt(result?.Weekday) || 0]
+                              ][new Date(Date.now()).getDay() || 0]
                             }
                           </Badge>
                         </div>
@@ -289,12 +316,37 @@ const EPLPredictorUI = () => {
                           <Target className="h-4 w-4 text-green-600" />
                           <div
                             className={`px-3 py-1 rounded-full font-medium text-sm ${
-                              result?.Prediction === "2 or more goals"
+                              result?.GoalsPrediction === "2 or more goals"
                                 ? "bg-green-100 text-green-800 border border-green-200"
                                 : "bg-orange-100 text-orange-800 border border-orange-200"
                             }`}
                           >
-                            {result?.Prediction}
+                            {result?.GoalsPrediction}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Target className="h-4 w-4 text-green-600" />
+                          <div
+                            className={`px-3 py-1 rounded-full font-medium text-sm ${
+                              result?.BookingsPrediction ===
+                              "3 or more bookings"
+                                ? "bg-green-100 text-green-800 border border-green-200"
+                                : "bg-orange-100 text-orange-800 border border-orange-200"
+                            }`}
+                          >
+                            {result?.BookingsPrediction}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Target className="h-4 w-4 text-green-600" />
+                          <div
+                            className={`px-3 py-1 rounded-full font-medium text-sm ${
+                              result?.CornersPrediction === "10 or more corners"
+                                ? "bg-green-100 text-green-800 border border-green-200"
+                                : "bg-orange-100 text-orange-800 border border-orange-200"
+                            }`}
+                          >
+                            {result?.CornersPrediction}
                           </div>
                         </div>
                       </div>
@@ -497,6 +549,37 @@ const EPLPredictorUI = () => {
                 </div>
 
                 <div className="space-y-2">
+                  <div className="flex flex-col gap-3">
+                    <Label htmlFor="date" className="px-1">
+                      Date of birth
+                    </Label>
+                    <Popover open={open} onOpenChange={setOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          id="date"
+                          className="w-48 justify-between font-normal"
+                        >
+                          {date ? date.toLocaleDateString() : "Select date"}
+                          <ChevronDownIcon />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-auto overflow-hidden p-0"
+                        align="start"
+                      >
+                        <Calendar
+                          mode="single"
+                          selected={date}
+                          captionLayout="dropdown"
+                          onSelect={(date) => {
+                            setDate(date);
+                            setOpen(false);
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                   <Label htmlFor="total-goals">Total Goals</Label>
                   <Input
                     id="total-goals"
@@ -504,7 +587,25 @@ const EPLPredictorUI = () => {
                     min="0"
                     value={totalGoals}
                     onChange={(e) => setTotalGoals(e.target.value)}
-                    placeholder="Enter total goals scored"
+                    placeholder="Enter goals"
+                  />
+                  <Label htmlFor="total-bookings">Total Bookings</Label>
+                  <Input
+                    id="total-bookings"
+                    type="number"
+                    min="0"
+                    value={totalBookings}
+                    onChange={(e) => setTotalBookings(e.target.value)}
+                    placeholder="Enter bookings"
+                  />
+                  <Label htmlFor="total-corners">Total Corners</Label>
+                  <Input
+                    id="total-corners"
+                    type="number"
+                    min="0"
+                    value={totalCorners}
+                    onChange={(e) => setTotalCorners(e.target.value)}
+                    placeholder="Enter corners"
                   />
                 </div>
 
@@ -514,6 +615,8 @@ const EPLPredictorUI = () => {
                     !trainHomeTeam ||
                     !trainAwayTeam ||
                     !totalGoals ||
+                    !totalBookings ||
+                    !totalCorners ||
                     trainHomeTeam === trainAwayTeam
                   }
                   className="w-full bg-purple-600 hover:bg-purple-700"
@@ -574,7 +677,11 @@ const EPLPredictorUI = () => {
                   )}
                 </Button>
 
-                <p className="mt-4 text-green-700 text-lg">{trainingResults}</p>
+                <div className="h-10 w-3/4 text-wrap">
+                  <p className="mt-4 text-green-700 text-sm text-wrap">
+                    {trainingResults}
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>
