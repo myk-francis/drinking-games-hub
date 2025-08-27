@@ -169,26 +169,6 @@ export default function RoomPage() {
     })
   );
 
-  const [timeLeft, setTimeLeft] = React.useState(30); // 30 seconds
-  const [isRunning, setIsRunning] = React.useState(false);
-  const timerRef = React.useRef<NodeJS.Timeout | null>(null);
-
-  const nextCharadeCard = useMutation(
-    trpc.games.nextCharadeCard.mutationOptions({
-      onSuccess: () => {
-        toast.success("Next card coming up!");
-        setIsRunning(false);
-        setTimeLeft(30);
-        setClicked(false);
-      },
-      onError: (error) => {
-        toast.error("Something went wrong. Please try again.");
-        console.error("Error changing card:", error);
-        setClicked(false);
-      },
-    })
-  );
-
   const vote = useMutation(
     trpc.games.votePlayer.mutationOptions({
       onSuccess: () => {
@@ -212,11 +192,49 @@ export default function RoomPage() {
     (q) => q.edition === room?.rounds
   );
 
-  const players = room?.players || [];
+  const players = React.useMemo(() => room?.players || [], [room?.players]);
 
   const [actualPlayer, setActualPlayer] = React.useState("");
   const [newPlayer, setNewPlayer] = React.useState("");
   const [openAddPlayerModal, setOpenAddPlayerModal] = React.useState(false);
+
+  const [timeLeft, setTimeLeft] = React.useState(
+    selectedGame === "verbal-charades" ? 30 : 60
+  ); // 30 seconds
+  const [isRunning, setIsRunning] = React.useState(false);
+  const timerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const nextCharadeCard = useMutation(
+    trpc.games.nextCharadeCard.mutationOptions({
+      onSuccess: () => {
+        toast.success("Next card coming up!");
+        setIsRunning(false);
+        setTimeLeft(30);
+        setClicked(false);
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error changing card:", error);
+        setClicked(false);
+      },
+    })
+  );
+
+  const nextCatherineCard = useMutation(
+    trpc.games.nextCatherineCard.mutationOptions({
+      onSuccess: () => {
+        toast.success("Next card coming up!");
+        setIsRunning(false);
+        setTimeLeft(60);
+        setClicked(false);
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error changing card:", error);
+        setClicked(false);
+      },
+    })
+  );
 
   const handleAddPlayer = React.useCallback(() => {
     if (!newPlayer.trim()) {
@@ -902,6 +920,88 @@ export default function RoomPage() {
                           result: "CORRECT",
                           playerOneId: room.playerOneId ?? "",
                           playerTwoId: room.playerTwoId ?? "",
+                          currentQuestionId:
+                            String(room.currentQuestionId) ?? "",
+                        });
+                        setClicked(true);
+                      }}
+                      className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
+                    >
+                      Passed ✅
+                    </button>
+                  </div>
+                )}
+            </div>
+          );
+
+        case "catherines-special":
+          return (
+            <div className="text-center">
+              <div className="text-xl text-emerald-400 mb-4">
+                👤 {currentPlayer}&apos;s Turn
+              </div>
+              {actualPlayer === room?.currentPlayerId && (
+                <div className="text-6xl mb-6 text-white font-bold">
+                  {formatTime(timeLeft)}
+                </div>
+              )}
+              <p className="text-lg text-white/80 mb-6">
+                {questions?.filter((q) => q.id === room?.currentQuestionId)[0]
+                  ?.text ||
+                  "No question available. Please wait for the next round."}
+              </p>
+              {((actualPlayer === room?.currentPlayerId && timeLeft === 0) ||
+                actualPlayer !== room?.currentPlayerId) && (
+                <p className="text-lg text-white/80 mb-6">
+                  Answer:{" "}
+                  {questions?.filter((q) => q.id === room?.currentQuestionId)[0]
+                    ?.answer ||
+                    "No answer available. Please wait for the next round."}
+                </p>
+              )}
+              {actualPlayer === room?.currentPlayerId && timeLeft !== 0 && (
+                <div className="flex gap-4 justify-center">
+                  <button
+                    onClick={handleStop}
+                    disabled={!isRunning}
+                    className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Stop ⏰
+                  </button>
+                  <button
+                    onClick={() => handleStart()}
+                    disabled={isRunning || timeLeft === 0}
+                    className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Start ⏰
+                  </button>
+                </div>
+              )}
+              {actualPlayer === room?.currentPlayerId &&
+                timeLeft === 0 &&
+                !clicked && (
+                  <div className="flex gap-4 justify-center mt-4">
+                    <button
+                      onClick={() => {
+                        nextCatherineCard.mutate({
+                          roomId: room.id,
+                          result: "INCORRECT",
+                          currentPlayerId: room.currentPlayerId ?? "",
+                          currentQuestionId:
+                            String(room.currentQuestionId) ?? "",
+                        });
+                        setClicked(true);
+                      }}
+                      className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
+                    >
+                      Failed ❌
+                    </button>
+                    <button
+                      onClick={() => {
+                        nextCatherineCard.mutate({
+                          roomId: room.id,
+                          result: "CORRECT",
+                          currentPlayerId: room.currentPlayerId ?? "",
                           currentQuestionId:
                             String(room.currentQuestionId) ?? "",
                         });

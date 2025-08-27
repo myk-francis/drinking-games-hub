@@ -79,7 +79,7 @@ export default function HomePage() {
       return <Clock className="w-6 h-6" />;
     } else if (gamecode === "pick-a-card") {
       return <Shuffle className="w-6 h-6" />;
-    } else if (gamecode === "two-truths-lie") {
+    } else if (gamecode === "catherines-special") {
       return <Shuffle className="w-6 h-6" />;
     } else if (gamecode === "story-building") {
       return <Star className="w-6 h-6" />;
@@ -105,7 +105,7 @@ export default function HomePage() {
       return "from-cyan-500 to-blue-500";
     } else if (gamecode === "pick-a-card") {
       return "from-red-500 to-pink-500";
-    } else if (gamecode === "two-truths-lie") {
+    } else if (gamecode === "catherines-special") {
       return "from-emerald-500 to-green-500";
     } else if (gamecode === "story-building") {
       return "from-teal-500 to-cyan-500";
@@ -296,6 +296,8 @@ export default function HomePage() {
                       (selectedGame === "never-have-i-ever" &&
                         players.length < 2) ||
                       (selectedGame === "truth-or-drink" &&
+                        players.length < 2) ||
+                      (selectedGame === "catherines-special" &&
                         players.length < 2) ||
                       (selectedGame === "would-you-rather" &&
                         players.length < 3) ||

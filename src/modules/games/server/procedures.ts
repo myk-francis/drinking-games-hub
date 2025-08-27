@@ -21,7 +21,7 @@ export const gamesRouter = createTRPCRouter({
   getMany: baseProcedure.query(async () => {
     const games = await prisma.game.findMany({
       where: {
-        published: true, // Only fetch published games
+        published: false, // Only fetch published games
       },
       orderBy: {
         updatedAt: "asc",
@@ -891,10 +891,126 @@ export const gamesRouter = createTRPCRouter({
           await prisma.player.update({
             where: { id: input.playerTwoId },
             data: {
-              points:
-                room.players.find((p) => p.id === input.playerTwoId)?.points ||
-                0,
               drinks: playerTwoDrinks + 1,
+            },
+          });
+        }
+
+        return true;
+      } catch (error) {
+        console.error("Failed to update room:", error);
+        throw new Error("Failed to update room");
+      }
+    }),
+
+  nextCatherineCard: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string(),
+        result: z.string(),
+        currentPlayerId: z.string(),
+        currentQuestionId: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const room = await prisma.room.findFirst({
+          where: {
+            id: input.roomId,
+          },
+          include: {
+            players: true,
+            game: {
+              include: {
+                questions: true, // Include questions if needed
+              },
+            },
+          },
+        });
+
+        if (!room) {
+          throw new Error("Room not found");
+        }
+
+        let nextPlayerId = "";
+
+        const players = room.players.map((obj) => obj.id);
+        let previousPlayersIds = room.previousPlayersIds || [];
+        const playersWhoHaveNotPlayed = players.filter(
+          (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id)
+        );
+
+        if (players.length === 2) {
+          previousPlayersIds = [];
+          previousPlayersIds.push(input.currentPlayerId);
+          nextPlayerId = players.filter(
+            (id) => !previousPlayersIds.includes(id)
+          )[0];
+        } else {
+          if (playersWhoHaveNotPlayed.length > 0) {
+            nextPlayerId = playersWhoHaveNotPlayed[0];
+            previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
+          } else {
+            nextPlayerId = room.players[0].id;
+            previousPlayersIds = [];
+          }
+        }
+
+        let nextQuestionId = null;
+
+        const questions = room.game.questions.map((obj) => obj.id);
+        let previousQuestionsIds = room.previousQuestionsId || [];
+        const questionsWhichHaveNotPlayed = questions.filter(
+          (id) =>
+            ![...previousQuestionsIds, input.currentQuestionId].includes(id)
+        );
+
+        if (questionsWhichHaveNotPlayed?.length > 0) {
+          nextQuestionId =
+            questionsWhichHaveNotPlayed[
+              Math.floor(Math.random() * questionsWhichHaveNotPlayed.length)
+            ];
+          previousQuestionsIds = [
+            ...previousQuestionsIds,
+            parseInt(input.currentQuestionId),
+          ];
+        } else {
+          nextQuestionId =
+            room.game.questions[
+              Math.floor(Math.random() * room.game.questions.length)
+            ]?.id || null;
+          previousQuestionsIds = [];
+        }
+
+        await prisma.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentQuestionId: nextQuestionId ?? null,
+            previousQuestionsId: previousQuestionsIds,
+            previousPlayersIds: previousPlayersIds,
+            currentPlayerId: nextPlayerId,
+          },
+        });
+
+        const currentPlayerPoints =
+          room.players.find((player) => player.id === input.currentPlayerId)
+            ?.points || 0;
+        const currentPlayerDrinks =
+          room.players.find((player) => player.id === input.currentPlayerId)
+            ?.drinks || 0;
+
+        if (input.result === "CORRECT") {
+          await prisma.player.update({
+            where: { id: input.currentPlayerId },
+            data: {
+              points: currentPlayerPoints + 1,
+            },
+          });
+        } else {
+          await prisma.player.update({
+            where: { id: input.currentPlayerId },
+            data: {
+              drinks: currentPlayerDrinks + 1,
             },
           });
         }
