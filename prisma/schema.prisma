@@ -41,6 +41,7 @@ model Question {
   gameId    Int
   game      Game    @relation(fields: [gameId], references: [id], onDelete: Cascade)
   edition   Int?
+  answer    String? 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
