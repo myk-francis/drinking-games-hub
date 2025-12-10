@@ -21,7 +21,7 @@ export const gamesRouter = createTRPCRouter({
   getMany: baseProcedure.query(async () => {
     const games = await prisma.game.findMany({
       where: {
-        published: true, // Only fetch published games
+        published: false, // Only fetch published games
       },
       orderBy: {
         updatedAt: "asc",
@@ -191,7 +191,10 @@ export const gamesRouter = createTRPCRouter({
         await prisma.room.update({
           where: { id: createdRoomId },
           data: {
-            currentPlayerId: createdRoom.players[0].id,
+            currentPlayerId:
+              createdRoom.players[
+                Math.floor(Math.random() * createdRoom.players.length)
+              ]?.id,
             previousPlayersIds: [],
             currentQuestionId: currentQuestionId,
             previousQuestionsId: [],
@@ -1402,19 +1405,32 @@ export const gamesRouter = createTRPCRouter({
           (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id)
         );
 
-        if (players.length === 2) {
-          previousPlayersIds = [];
-          previousPlayersIds.push(input.currentPlayerId);
-          nextPlayerId = players.filter(
-            (id) => !previousPlayersIds.includes(id)
-          )[0];
+        if (input.gamecode === "imposter") {
+          const availablePlayers = players.filter(
+            (id) => id !== input.currentPlayerId
+          );
+          nextPlayerId =
+            availablePlayers[
+              Math.floor(Math.random() * availablePlayers.length)
+            ];
         } else {
-          if (playersWhoHaveNotPlayed.length > 0) {
-            nextPlayerId = playersWhoHaveNotPlayed[0];
-            previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
-          } else {
-            nextPlayerId = room.players[0].id;
+          if (players.length === 2) {
             previousPlayersIds = [];
+            previousPlayersIds.push(input.currentPlayerId);
+            nextPlayerId = players.filter(
+              (id) => !previousPlayersIds.includes(id)
+            )[0];
+          } else {
+            if (playersWhoHaveNotPlayed.length > 0) {
+              nextPlayerId = playersWhoHaveNotPlayed[0];
+              previousPlayersIds = [
+                ...previousPlayersIds,
+                input.currentPlayerId,
+              ];
+            } else {
+              nextPlayerId = room.players[0].id;
+              previousPlayersIds = [];
+            }
           }
         }
 

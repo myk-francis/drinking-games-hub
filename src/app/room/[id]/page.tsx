@@ -566,6 +566,71 @@ export default function RoomPage() {
             </div>
           );
 
+        case "imposter":
+          return (
+            <div className="text-center">
+              <div className="text-2xl mb-6 text-white leading-relaxed">
+                {actualPlayer === room?.currentPlayerId
+                  ? "IMPOSTER 🤡"
+                  : questions?.filter(
+                      (q) => q.id === room?.currentQuestionId
+                    )[0]?.text ||
+                    "No question available. Please wait for the next round."}
+              </div>
+              <p className="text-lg text-white/80 mb-6">
+                {actualPlayer === room?.currentPlayerId
+                  ? "Try to blend in and avoid detection! 🤫"
+                  : "Who is the imposter 👀‼️"}
+              </p>
+              <div className="flex gap-4 justify-center">
+                {!clicked && (
+                  <button
+                    onClick={() => {
+                      updateRoom.mutate({
+                        gamecode: "imposter",
+                        roomId: room.id,
+                        points: String(
+                          room?.players?.find((p) => p.id === actualPlayer)
+                            ?.points || 0
+                        ),
+                        drinks: String(
+                          //@ts-expect-error leave it
+                          room?.players?.find((p) => p.id === actualPlayer)
+                            ?.drinks + 1 || 0
+                        ),
+                        currentPlayerId: actualPlayer ?? "",
+                        currentQuestionId: String(room.currentQuestionId) ?? "",
+                      });
+                      setClicked(true);
+                    }}
+                    className="px-6 py-3 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Took a Drink
+                  </button>
+                )}
+                {selectedGame === "imposter" &&
+                  actualPlayer === room?.currentPlayerId &&
+                  !clicked && (
+                    <button
+                      onClick={() => {
+                        nextCardPOD.mutate({
+                          gamecode: "imposter",
+                          roomId: room.id,
+                          currentQuestionId:
+                            String(room.currentQuestionId) ?? "",
+                          currentPlayerId: room.currentPlayerId ?? "",
+                        });
+                        setClicked(true);
+                      }}
+                      className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 rounded-lg text-white font-semibold transition-colors"
+                    >
+                      Next Card
+                    </button>
+                  )}
+              </div>
+            </div>
+          );
+
         case "truth-or-drink":
           return (
             <div className="text-center">

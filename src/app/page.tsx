@@ -12,6 +12,8 @@ import {
   Star,
   Building,
   Share2,
+  Wand2Icon,
+  Gamepad2,
 } from "lucide-react";
 import React from "react";
 import { useTRPC } from "@/trpc/client";
@@ -80,9 +82,11 @@ export default function HomePage() {
     } else if (gamecode === "pick-a-card") {
       return <Shuffle className="w-6 h-6" />;
     } else if (gamecode === "catherines-special") {
-      return <Shuffle className="w-6 h-6" />;
+      return <Wand2Icon className="w-6 h-6" />;
     } else if (gamecode === "story-building") {
       return <Star className="w-6 h-6" />;
+    } else if (gamecode === "imposter") {
+      return <Gamepad2 className="w-6 h-6" />;
     } else {
       return <Heart className="w-6 h-6" />;
     }
@@ -109,6 +113,8 @@ export default function HomePage() {
       return "from-emerald-500 to-green-500";
     } else if (gamecode === "story-building") {
       return "from-teal-500 to-cyan-500";
+    } else if (gamecode === "imposter") {
+      return "from-yellow-500 to-rose-500";
     } else {
       return "from-teal-500 to-cyan-500";
     }
@@ -301,7 +307,8 @@ export default function HomePage() {
                         players.length < 2) ||
                       (selectedGame === "would-you-rather" &&
                         players.length < 3) ||
-                      (selectedGame === "pick-a-card" && players.length < 3)
+                      (selectedGame === "pick-a-card" && players.length < 3) ||
+                      (selectedGame === "imposter" && players.length < 4)
                     }
                     className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
                   >
@@ -342,7 +349,7 @@ export default function HomePage() {
                 </div>
               )}
 
-              {currentUser?.username === "myk" && (
+              {/* {currentUser?.username === "myk" && (
                 <div className="wfull mt-6 text-center flex flex-row justify-center items-center gap-2">
                   <button
                     onClick={() => router.push("/epl")}
@@ -352,7 +359,7 @@ export default function HomePage() {
                     EPL
                   </button>
                 </div>
-              )}
+              )} */}
             </div>
           </div>
         </div>
