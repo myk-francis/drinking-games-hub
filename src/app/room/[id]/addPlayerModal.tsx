@@ -28,7 +28,7 @@ any) {
           <DialogHeader>
             <DialogTitle>Choose a player</DialogTitle>
             <DialogDescription>
-              <div className="flex flex-col space-y-2">
+              <span className="flex flex-col space-y-2">
                 <Input
                   type="text"
                   placeholder="Enter player name"
@@ -38,7 +38,7 @@ any) {
                 <Button variant="default" onClick={() => handleAddPlayer()}>
                   Add
                 </Button>
-              </div>
+              </span>
             </DialogDescription>
           </DialogHeader>
         </DialogContent>

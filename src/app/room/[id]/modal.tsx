@@ -24,7 +24,7 @@ any) {
           <DialogHeader>
             <DialogTitle>Choose a player</DialogTitle>
             <DialogDescription>
-              <div className="flex flex-col space-y-2">
+              <span className="flex flex-col space-y-2">
                 {players.map((player: { id: string; name: string }) => (
                   <Button
                     key={player.id}
@@ -34,7 +34,7 @@ any) {
                     {player.name}
                   </Button>
                 ))}
-              </div>
+              </span>
             </DialogDescription>
           </DialogHeader>
         </DialogContent>

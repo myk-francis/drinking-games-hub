@@ -14,6 +14,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [passcode, setPasscode] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const trpc = useTRPC();
   const loginUser = useMutation(
     trpc.auth.login.mutationOptions({
@@ -24,13 +25,19 @@ export default function LoginPage() {
   );
 
   const handleLogin = () => {
+    setIsLoading(true);
     // handle login logic here
     loginUser.mutate(
       { username, passcode },
       {
         onSuccess: () => {
+          setIsLoading(false);
           toast.success("Login successful!");
           router.push("/"); // Redirect to home
+        },
+
+        onError: () => {
+          setIsLoading(false);
         },
       }
     );
@@ -67,7 +74,15 @@ export default function LoginPage() {
               />
             </div>
             <Button className="w-full mt-4" onClick={handleLogin}>
-              Sign In
+              {isLoading ? (
+                <span
+                  role="status"
+                  aria-label="Loading"
+                  className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"
+                />
+              ) : (
+                "Sign In"
+              )}
             </Button>
           </div>
         </CardContent>

@@ -1,5 +1,5 @@
 "use client";
-import { Home, UserPlus2 } from "lucide-react";
+import { Home, UserPlus2, QrCodeIcon } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useTRPC } from "@/trpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -11,6 +11,7 @@ import ErrorPage from "@/app/error";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import AddPlayerModal from "./addPlayerModal";
+import { QRCodeCanvas } from "qrcode.react";
 
 export default function RoomPage() {
   const params = useParams();
@@ -202,6 +203,7 @@ export default function RoomPage() {
     selectedGame === "verbal-charades" ? 30 : 60
   ); // 30 seconds
   const [isRunning, setIsRunning] = React.useState(false);
+  const [showQRCode, setShowQRCode] = React.useState(false);
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
 
   const nextCharadeCard = useMutation(
@@ -1245,7 +1247,20 @@ export default function RoomPage() {
 
         {/* Game Content */}
         <div className="bg-white/10 backdrop-blur-sm rounded-xl p-8 mb-6 border border-white/20">
-          <GameContent />
+          {showQRCode ? (
+            <div className="wfull mt-6  flex flex-row justify-center items-center">
+              <QRCodeCanvas
+                value={window.location.href}
+                size={220}
+                bgColor="#ffffff"
+                fgColor="#000000"
+                level="H"
+                includeMargin
+              />
+            </div>
+          ) : (
+            <GameContent />
+          )}
         </div>
 
         {/* Controls */}
@@ -1255,7 +1270,7 @@ export default function RoomPage() {
               onClick={() => {
                 endRoom.mutate({ roomId: String(roomId) });
               }}
-              className="flex items-center gap-2 px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
+              className="flex items-center w-40 gap-2 px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
             >
               <Home className="w-5 h-5" />
               End Game
@@ -1266,12 +1281,26 @@ export default function RoomPage() {
                 onClick={() => {
                   setOpenAddPlayerModal(true);
                 }}
-                className="flex items-center mt-4 gap-2 px-6 py-3 bg-pink-500 hover:bg-pink-600 rounded-lg text-white font-semibold transition-colors"
+                className="flex items-center w-40 mt-4 gap-2 px-6 py-3 bg-pink-500 hover:bg-pink-600 rounded-lg text-white font-semibold transition-colors"
               >
                 <UserPlus2 className="w-5 h-5" />
                 Add Player
               </button>
             )}
+
+            <button
+              onClick={() => {
+                if (showQRCode) {
+                  setShowQRCode(false);
+                } else {
+                  setShowQRCode(true);
+                }
+              }}
+              className="flex items-center w-40 mt-4 gap-2 px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
+            >
+              <QrCodeIcon className="w-5 h-5" />
+              {showQRCode ? "Hide" : "Show"} QR
+            </button>
 
             <p className="text-white/70 mt-4">
               {`💋Player: ${

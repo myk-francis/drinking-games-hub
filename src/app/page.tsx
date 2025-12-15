@@ -24,6 +24,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loading } from "@/components/ui/loading";
 import { ComboBox } from "@/components/apps-components/comboBox";
+import { QRCodeCanvas } from "qrcode.react";
 
 export default function HomePage() {
   const router = useRouter();
@@ -38,6 +39,7 @@ export default function HomePage() {
   const [selectedGame, setSelectedGame] = React.useState(null);
   const [players, setPlayers] = React.useState<string[]>([]);
   const [playerInput, setPlayerInput] = React.useState("");
+  const [gameUrl, setGameUrl] = React.useState("");
   const [roomId, setRoomId] = React.useState("");
   const [showShareLink, setShowShareLink] = React.useState(false);
   const [selectedRounds, setSelectedRounds] = React.useState<number>(0);
@@ -49,6 +51,8 @@ export default function HomePage() {
         toast.success("Room created successfully");
         // Optionally, redirect to the room or show a success message
         setRoomId(data.id);
+        const url = String(process.env.NEXT_PUBLIC_APP_URL) + `/room/${roomId}`;
+        setGameUrl(url);
       },
       onError: (error) => {
         console.error("Error creating room:", error);
@@ -349,17 +353,18 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* {currentUser?.username === "myk" && (
-                <div className="wfull mt-6 text-center flex flex-row justify-center items-center gap-2">
-                  <button
-                    onClick={() => router.push("/epl")}
-                    className="flex items-center gap-2 px-8 py-3 bg-indigo-500 hover:bg-indigo-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
-                  >
-                    <Play className="w-5 h-5" />
-                    EPL
-                  </button>
+              {gameUrl !== "" && (
+                <div className="wfull mt-6  flex flex-row justify-center items-center">
+                  <QRCodeCanvas
+                    value={gameUrl}
+                    size={220}
+                    bgColor="#ffffff"
+                    fgColor="#000000"
+                    level="H"
+                    includeMargin
+                  />
                 </div>
-              )} */}
+              )}
             </div>
           </div>
         </div>

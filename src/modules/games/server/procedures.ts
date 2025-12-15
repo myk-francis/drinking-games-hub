@@ -283,7 +283,13 @@ export const gamesRouter = createTRPCRouter({
             nextPlayerId = playersWhoHaveNotPlayed[0];
             previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
           } else {
-            nextPlayerId = room.players[0].id;
+            const availablePlayers = players.filter(
+              (id) => id !== input.currentPlayerId
+            );
+            nextPlayerId =
+              availablePlayers[
+                Math.floor(Math.random() * availablePlayers.length)
+              ];
             previousPlayersIds = [];
           }
         }
@@ -523,7 +529,13 @@ export const gamesRouter = createTRPCRouter({
             nextPlayerId = playersWhoHaveNotPlayed[0];
             previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
           } else {
-            nextPlayerId = room.players[0].id;
+            const availablePlayers = players.filter(
+              (id) => id !== input.currentPlayerId
+            );
+            nextPlayerId =
+              availablePlayers[
+                Math.floor(Math.random() * availablePlayers.length)
+              ];
             previousPlayersIds = [];
           }
         }
@@ -644,7 +656,13 @@ export const gamesRouter = createTRPCRouter({
             nextPlayerId = playersWhoHaveNotPlayed[0];
             previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
           } else {
-            nextPlayerId = room.players[0].id;
+            const availablePlayers = players.filter(
+              (id) => id !== input.currentPlayerId
+            );
+            nextPlayerId =
+              availablePlayers[
+                Math.floor(Math.random() * availablePlayers.length)
+              ];
             previousPlayersIds = [];
           }
         }
@@ -954,7 +972,13 @@ export const gamesRouter = createTRPCRouter({
             nextPlayerId = playersWhoHaveNotPlayed[0];
             previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
           } else {
-            nextPlayerId = room.players[0].id;
+            const availablePlayers = players.filter(
+              (id) => id !== input.currentPlayerId
+            );
+            nextPlayerId =
+              availablePlayers[
+                Math.floor(Math.random() * availablePlayers.length)
+              ];
             previousPlayersIds = [];
           }
         }
@@ -1072,7 +1096,13 @@ export const gamesRouter = createTRPCRouter({
             nextPlayerId = playersWhoHaveNotPlayed[0];
             previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
           } else {
-            nextPlayerId = room.players[0].id;
+            const availablePlayers = players.filter(
+              (id) => id !== input.currentPlayerId
+            );
+            nextPlayerId =
+              availablePlayers[
+                Math.floor(Math.random() * availablePlayers.length)
+              ];
             previousPlayersIds = [];
           }
         }
@@ -1308,7 +1338,13 @@ export const gamesRouter = createTRPCRouter({
             nextPlayerId = playersWhoHaveNotPlayed[0];
             previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
           } else {
-            nextPlayerId = room.players[0].id;
+            const availablePlayers = players.filter(
+              (id) => id !== input.currentPlayerId
+            );
+            nextPlayerId =
+              availablePlayers[
+                Math.floor(Math.random() * availablePlayers.length)
+              ];
             previousPlayersIds = [];
           }
         }
@@ -1428,7 +1464,13 @@ export const gamesRouter = createTRPCRouter({
                 input.currentPlayerId,
               ];
             } else {
-              nextPlayerId = room.players[0].id;
+              const availablePlayers = players.filter(
+                (id) => id !== input.currentPlayerId
+              );
+              nextPlayerId =
+                availablePlayers[
+                  Math.floor(Math.random() * availablePlayers.length)
+                ];
               previousPlayersIds = [];
             }
           }
