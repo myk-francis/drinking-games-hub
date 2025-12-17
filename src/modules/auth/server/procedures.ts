@@ -28,7 +28,7 @@ export const authRouter = createTRPCRouter({
 
       // Create session
       const sessionId = nanoid();
-      const expires = new Date(Date.now() + 1000 * 60 * 60 * 24); // 1 day
+      const expires = new Date(Date.now() + 1000 * 60 * 60 * 72); // 1 day
 
       await prisma.session.create({
         data: {
@@ -81,6 +81,7 @@ export const authRouter = createTRPCRouter({
     return {
       id: session.user.id,
       username: session.user.username,
+      isAdmin: session.user.isAdmin,
     };
   }),
 });

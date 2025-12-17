@@ -23,5 +23,5 @@ export function middleware(req) {
 
 // Enable middleware for these paths
 export const config = {
-  matcher: ["/"], // Add paths that you want to protect
+  matcher: ["/", "/profile", "/transaction"], // Add paths that you want to protect
 };

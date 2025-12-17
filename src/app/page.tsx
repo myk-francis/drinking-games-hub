@@ -181,8 +181,11 @@ export default function HomePage() {
   const startGame = () => {
     router.push(`/room/${roomId}`);
   };
-  const ProfilePage = () => {
+  const goToProfilePage = () => {
     router.push(`/profile`);
+  };
+  const goToTransactionPage = () => {
+    router.push(`/transactions`);
   };
 
   //@ts-expect-error any type
@@ -364,13 +367,27 @@ export default function HomePage() {
                 </div>
               )}
 
-              <button
-                onClick={ProfilePage}
-                className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
-              >
-                <Play className="w-5 h-5" />
-                Profile
-              </button>
+              <div className="wfull mt-6 text-center flex flex-row justify-center items-center gap-2">
+                <button
+                  onClick={goToProfilePage}
+                  className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
+                >
+                  <Play className="w-5 h-5" />
+                  Profile
+                </button>
+              </div>
+
+              {currentUser?.isAdmin && (
+                <div className="wfull mt-6 text-center flex flex-row justify-center items-center gap-2">
+                  <button
+                    onClick={goToTransactionPage}
+                    className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
+                  >
+                    <Play className="w-5 h-5" />
+                    Transactions
+                  </button>
+                </div>
+              )}
 
               {gameUrl !== "" && (
                 <div className="wfull mt-6  flex flex-row justify-center items-center">
