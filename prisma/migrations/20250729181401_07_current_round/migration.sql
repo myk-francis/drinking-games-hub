@@ -1,3 +1,0 @@
--- AlterTable
-ALTER TABLE "Room" ADD COLUMN     "currentRound" INTEGER DEFAULT 0,
-ALTER COLUMN "rounds" SET DEFAULT 0;

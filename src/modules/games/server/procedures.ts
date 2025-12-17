@@ -93,7 +93,7 @@ export const gamesRouter = createTRPCRouter({
       z.object({
         selectedGame: z.string().min(1, { message: " Game is required" }),
         players: z.array(z.string()).min(2).max(10),
-        userId: z.number().optional(), // Optional user ID for the creator
+        userId: z.string(),
         selectedRounds: z.number(),
       })
     )
@@ -120,7 +120,7 @@ export const gamesRouter = createTRPCRouter({
             gameId: game.id,
             rounds: input.selectedRounds,
             currentRound: input.selectedRounds > 0 ? 1 : 0,
-            createdById: input.userId || 0, // Assuming a default user ID for now
+            userId: input.userId, // Assuming a default user ID for now
             players: {
               create: players,
             },

@@ -61,9 +61,17 @@ export default function HomePage() {
     })
   );
 
-  const { data: currentUser } = useQuery(
+  const { data: currentUser, isLoading: userLoading } = useQuery(
     trpc.auth.getCurrentUser.queryOptions()
   );
+
+  React.useEffect(() => {
+    if (!userLoading) {
+      if (currentUser === null || currentUser === undefined) {
+        router.push("/login");
+      }
+    }
+  }, [currentUser, userLoading, router]);
 
   if (isLoading) return <Loading />;
   if (error) return <div>Error: {error.message}</div>;
@@ -132,7 +140,7 @@ export default function HomePage() {
     createRoom.mutate({
       selectedGame,
       players,
-      userId: currentUser?.id || 0,
+      userId: currentUser?.id || "",
       selectedRounds:
         selectedGame === "truth-or-drink" ? selectedEdition : selectedRounds,
     });
@@ -172,6 +180,9 @@ export default function HomePage() {
 
   const startGame = () => {
     router.push(`/room/${roomId}`);
+  };
+  const ProfilePage = () => {
+    router.push(`/profile`);
   };
 
   //@ts-expect-error any type
@@ -352,6 +363,14 @@ export default function HomePage() {
                   </button>
                 </div>
               )}
+
+              <button
+                onClick={ProfilePage}
+                className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
+              >
+                <Play className="w-5 h-5" />
+                Profile
+              </button>
 
               {gameUrl !== "" && (
                 <div className="wfull mt-6  flex flex-row justify-center items-center">

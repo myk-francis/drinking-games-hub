@@ -1,22 +1,11 @@
 // app/error.tsx
 "use client";
 
-import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
 
-export default function ErrorPage({
-  error,
-  reset,
-}: {
-  error: Error;
-  reset: () => void;
-}) {
-  useEffect(() => {
-    console.error(error);
-  }, [error]);
-
+export default function ErrorPage({ reset }: { reset: () => void }) {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white">
       <Card className="w-full max-w-md text-center p-6 shadow-xl">
