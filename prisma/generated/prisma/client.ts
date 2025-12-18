@@ -79,3 +79,8 @@ export type Parms = Prisma.ParmsModel
  * 
  */
 export type Transaction = Prisma.TransactionModel
+/**
+ * Model Comment
+ * 
+ */
+export type Comment = Prisma.CommentModel

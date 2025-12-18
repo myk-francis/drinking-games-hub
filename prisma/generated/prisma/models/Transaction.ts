@@ -29,11 +29,13 @@ export type AggregateTransaction = {
 export type TransactionAvgAggregateOutputType = {
   amount: number | null
   assignedRooms: number | null
+  usedRooms: number | null
 }
 
 export type TransactionSumAggregateOutputType = {
   amount: number | null
   assignedRooms: number | null
+  usedRooms: number | null
 }
 
 export type TransactionMinAggregateOutputType = {
@@ -43,7 +45,7 @@ export type TransactionMinAggregateOutputType = {
   profileName: string | null
   amount: number | null
   assignedRooms: number | null
-  usedRooms: string | null
+  usedRooms: number | null
   expiryDate: Date | null
   createdAt: Date | null
 }
@@ -55,7 +57,7 @@ export type TransactionMaxAggregateOutputType = {
   profileName: string | null
   amount: number | null
   assignedRooms: number | null
-  usedRooms: string | null
+  usedRooms: number | null
   expiryDate: Date | null
   createdAt: Date | null
 }
@@ -77,11 +79,13 @@ export type TransactionCountAggregateOutputType = {
 export type TransactionAvgAggregateInputType = {
   amount?: true
   assignedRooms?: true
+  usedRooms?: true
 }
 
 export type TransactionSumAggregateInputType = {
   amount?: true
   assignedRooms?: true
+  usedRooms?: true
 }
 
 export type TransactionMinAggregateInputType = {
@@ -214,7 +218,7 @@ export type TransactionGroupByOutputType = {
   profileName: string
   amount: number
   assignedRooms: number
-  usedRooms: string
+  usedRooms: number
   expiryDate: Date
   createdAt: Date
   _count: TransactionCountAggregateOutputType | null
@@ -249,7 +253,7 @@ export type TransactionWhereInput = {
   profileName?: Prisma.StringFilter<"Transaction"> | string
   amount?: Prisma.IntFilter<"Transaction"> | number
   assignedRooms?: Prisma.IntFilter<"Transaction"> | number
-  usedRooms?: Prisma.StringFilter<"Transaction"> | string
+  usedRooms?: Prisma.IntFilter<"Transaction"> | number
   expiryDate?: Prisma.DateTimeFilter<"Transaction"> | Date | string
   createdAt?: Prisma.DateTimeFilter<"Transaction"> | Date | string
 }
@@ -276,7 +280,7 @@ export type TransactionWhereUniqueInput = Prisma.AtLeast<{
   profileName?: Prisma.StringFilter<"Transaction"> | string
   amount?: Prisma.IntFilter<"Transaction"> | number
   assignedRooms?: Prisma.IntFilter<"Transaction"> | number
-  usedRooms?: Prisma.StringFilter<"Transaction"> | string
+  usedRooms?: Prisma.IntFilter<"Transaction"> | number
   expiryDate?: Prisma.DateTimeFilter<"Transaction"> | Date | string
   createdAt?: Prisma.DateTimeFilter<"Transaction"> | Date | string
 }, "id">
@@ -308,7 +312,7 @@ export type TransactionScalarWhereWithAggregatesInput = {
   profileName?: Prisma.StringWithAggregatesFilter<"Transaction"> | string
   amount?: Prisma.IntWithAggregatesFilter<"Transaction"> | number
   assignedRooms?: Prisma.IntWithAggregatesFilter<"Transaction"> | number
-  usedRooms?: Prisma.StringWithAggregatesFilter<"Transaction"> | string
+  usedRooms?: Prisma.IntWithAggregatesFilter<"Transaction"> | number
   expiryDate?: Prisma.DateTimeWithAggregatesFilter<"Transaction"> | Date | string
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Transaction"> | Date | string
 }
@@ -320,7 +324,7 @@ export type TransactionCreateInput = {
   profileName: string
   amount: number
   assignedRooms: number
-  usedRooms: string
+  usedRooms: number
   expiryDate: Date | string
   createdAt?: Date | string
 }
@@ -332,7 +336,7 @@ export type TransactionUncheckedCreateInput = {
   profileName: string
   amount: number
   assignedRooms: number
-  usedRooms: string
+  usedRooms: number
   expiryDate: Date | string
   createdAt?: Date | string
 }
@@ -344,7 +348,7 @@ export type TransactionUpdateInput = {
   profileName?: Prisma.StringFieldUpdateOperationsInput | string
   amount?: Prisma.IntFieldUpdateOperationsInput | number
   assignedRooms?: Prisma.IntFieldUpdateOperationsInput | number
-  usedRooms?: Prisma.StringFieldUpdateOperationsInput | string
+  usedRooms?: Prisma.IntFieldUpdateOperationsInput | number
   expiryDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -356,7 +360,7 @@ export type TransactionUncheckedUpdateInput = {
   profileName?: Prisma.StringFieldUpdateOperationsInput | string
   amount?: Prisma.IntFieldUpdateOperationsInput | number
   assignedRooms?: Prisma.IntFieldUpdateOperationsInput | number
-  usedRooms?: Prisma.StringFieldUpdateOperationsInput | string
+  usedRooms?: Prisma.IntFieldUpdateOperationsInput | number
   expiryDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -368,7 +372,7 @@ export type TransactionCreateManyInput = {
   profileName: string
   amount: number
   assignedRooms: number
-  usedRooms: string
+  usedRooms: number
   expiryDate: Date | string
   createdAt?: Date | string
 }
@@ -380,7 +384,7 @@ export type TransactionUpdateManyMutationInput = {
   profileName?: Prisma.StringFieldUpdateOperationsInput | string
   amount?: Prisma.IntFieldUpdateOperationsInput | number
   assignedRooms?: Prisma.IntFieldUpdateOperationsInput | number
-  usedRooms?: Prisma.StringFieldUpdateOperationsInput | string
+  usedRooms?: Prisma.IntFieldUpdateOperationsInput | number
   expiryDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -392,7 +396,7 @@ export type TransactionUncheckedUpdateManyInput = {
   profileName?: Prisma.StringFieldUpdateOperationsInput | string
   amount?: Prisma.IntFieldUpdateOperationsInput | number
   assignedRooms?: Prisma.IntFieldUpdateOperationsInput | number
-  usedRooms?: Prisma.StringFieldUpdateOperationsInput | string
+  usedRooms?: Prisma.IntFieldUpdateOperationsInput | number
   expiryDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -412,6 +416,7 @@ export type TransactionCountOrderByAggregateInput = {
 export type TransactionAvgOrderByAggregateInput = {
   amount?: Prisma.SortOrder
   assignedRooms?: Prisma.SortOrder
+  usedRooms?: Prisma.SortOrder
 }
 
 export type TransactionMaxOrderByAggregateInput = {
@@ -441,6 +446,7 @@ export type TransactionMinOrderByAggregateInput = {
 export type TransactionSumOrderByAggregateInput = {
   amount?: Prisma.SortOrder
   assignedRooms?: Prisma.SortOrder
+  usedRooms?: Prisma.SortOrder
 }
 
 
@@ -505,7 +511,7 @@ export type $TransactionPayload<ExtArgs extends runtime.Types.Extensions.Interna
     profileName: string
     amount: number
     assignedRooms: number
-    usedRooms: string
+    usedRooms: number
     expiryDate: Date
     createdAt: Date
   }, ExtArgs["result"]["transaction"]>
@@ -937,7 +943,7 @@ export interface TransactionFieldRefs {
   readonly profileName: Prisma.FieldRef<"Transaction", 'String'>
   readonly amount: Prisma.FieldRef<"Transaction", 'Int'>
   readonly assignedRooms: Prisma.FieldRef<"Transaction", 'Int'>
-  readonly usedRooms: Prisma.FieldRef<"Transaction", 'String'>
+  readonly usedRooms: Prisma.FieldRef<"Transaction", 'Int'>
   readonly expiryDate: Prisma.FieldRef<"Transaction", 'DateTime'>
   readonly createdAt: Prisma.FieldRef<"Transaction", 'DateTime'>
 }

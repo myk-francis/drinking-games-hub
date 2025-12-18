@@ -12,7 +12,6 @@ export const transactionRouter = createTRPCRouter({
         profileName: z.string(),
         amount: z.number().int(),
         assignedRooms: z.number().int(),
-        usedRooms: z.string(),
         expiryDate: z.string().or(z.date()),
       })
     )
@@ -24,7 +23,7 @@ export const transactionRouter = createTRPCRouter({
           profileName: input.profileName,
           amount: input.amount,
           assignedRooms: input.assignedRooms,
-          usedRooms: input.usedRooms,
+          usedRooms: 0,
           expiryDate: new Date(input.expiryDate),
         },
       });
@@ -40,7 +39,6 @@ export const transactionRouter = createTRPCRouter({
         profileName: z.string().optional(),
         amount: z.number().int().optional(),
         assignedRooms: z.number().int().optional(),
-        usedRooms: z.string().optional(),
         expiryDate: z.string().or(z.date()).optional(),
       })
     )

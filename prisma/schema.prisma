@@ -56,6 +56,7 @@ model Room {
   game      Game    @relation(fields: [gameId], references: [id], onDelete: Cascade)
   userId    String
   user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments  Comment[]
   players   Player[]
   currentPlayerId String?
   playerOneId String?
@@ -112,8 +113,18 @@ model Transaction {
   profileName       String
   amount            Int
   assignedRooms     Int
-  usedRooms         String
+  usedRooms         Int
   expiryDate        DateTime
   createdAt         DateTime @default(now())
+}
+
+model Comment {
+  id        Int     @id @default(autoincrement())
+  content   String
+  playerName String
+  roomId    String
+  room      Room    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 

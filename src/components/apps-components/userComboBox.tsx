@@ -17,18 +17,22 @@ import {
 } from "@/components/ui/popover";
 
 type Option = {
-  id: number;
+  id: string;
   name: string;
-  value: number;
+  value: string;
 };
 
-type ComboBoxProps = {
+type UserComboBoxProps = {
   options: Option[];
-  value: number;
-  handleSelect: (round: number) => void;
+  value: string;
+  handleSelect: (value: string) => void;
 };
 
-export function ComboBox({ options, value, handleSelect }: ComboBoxProps) {
+export function UserComboBox({
+  options,
+  value,
+  handleSelect,
+}: UserComboBoxProps) {
   const [open, setOpen] = React.useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -36,13 +40,13 @@ export function ComboBox({ options, value, handleSelect }: ComboBoxProps) {
         <Button
           role="combobox"
           aria-expanded={open}
-          className="w-[300px] justify-between"
+          className="w-full justify-between"
         >
           {options.find((option) => option.value === value)?.name}
           <ChevronsUpDown className="opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-0">
+      <PopoverContent className="w-full p-0">
         <Command>
           <CommandList>
             <CommandEmpty>No option found.</CommandEmpty>
@@ -52,7 +56,7 @@ export function ComboBox({ options, value, handleSelect }: ComboBoxProps) {
                   key={option.id}
                   value={String(option.value)}
                   onSelect={(currentValue) => {
-                    handleSelect(Number(currentValue));
+                    handleSelect(currentValue);
                     setOpen(false);
                   }}
                 >

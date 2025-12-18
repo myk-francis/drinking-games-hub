@@ -15,6 +15,118 @@ import { useTRPC } from "@/trpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Loading } from "@/components/ui/loading";
+import { UserComboBox } from "@/components/apps-components/userComboBox";
+import { Transaction } from "../../../prisma/generated/prisma/client";
+import { set } from "zod";
+
+const monthOptions = [
+  { value: "1", name: "1 MONTH", id: "1" },
+  { value: "2", name: "2 MONTHS", id: "2" },
+  { value: "3", name: "3 MONTHS", id: "3" },
+  { value: "4", name: "4 MONTHS", id: "4" },
+];
+
+const TransactionForm = ({
+  selectedUser,
+  setSelectedUser,
+  profileType,
+  setProfileType,
+  profileName,
+  setProfileName,
+  amount,
+  setAmount,
+  assignedRooms,
+  setAssignedRooms,
+  selectedMonths,
+  setSelectedMonths,
+  users,
+  handleSubmit,
+  editingId,
+}: {
+  selectedUser: string;
+  setSelectedUser: (value: string) => void;
+  profileType: string;
+  setProfileType: (value: string) => void;
+  profileName: string;
+  setProfileName: (value: string) => void;
+  amount: number;
+  setAmount: (value: number) => void;
+  assignedRooms: number;
+  setAssignedRooms: (value: number) => void;
+  users: { id: string; name: string; value: string }[] | [];
+  handleSubmit: (e: React.FormEvent) => void;
+  editingId: string | null;
+  setEditingId?: (id: string | null) => void;
+  setSelectedMonths: (value: string) => void;
+  selectedMonths: string;
+}) => (
+  <div className="space-y-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <Label htmlFor="userId">User ID</Label>
+        <UserComboBox
+          options={users || []}
+          handleSelect={setSelectedUser}
+          value={selectedUser}
+        />
+      </div>
+      <div>
+        <Label htmlFor="profileType">Profile Type</Label>
+        <Input
+          id="profileType"
+          name="profileType"
+          value={profileType}
+          onChange={(e) => setProfileType(e.target.value || "")}
+          required
+        />
+      </div>
+      <div>
+        <Label htmlFor="profileName">Profile Name</Label>
+        <Input
+          id="profileName"
+          name="profileName"
+          value={profileName}
+          onChange={(e) => setProfileName(e.target.value || "")}
+          required
+        />
+      </div>
+      <div>
+        <Label htmlFor="amount">Amount</Label>
+        <Input
+          id="amount"
+          name="amount"
+          type="number"
+          value={amount}
+          onChange={(e) => setAmount(parseInt(e.target.value || ""))}
+          required
+        />
+      </div>
+      <div>
+        <Label htmlFor="assignedRooms">Assigned Rooms</Label>
+        <Input
+          id="assignedRooms"
+          name="assignedRooms"
+          type="number"
+          value={assignedRooms}
+          onChange={(e) => setAssignedRooms(parseInt(e.target.value || ""))}
+          required
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="expiryDate">Expiry Date</Label>
+        <UserComboBox
+          options={monthOptions}
+          handleSelect={setSelectedMonths}
+          value={selectedMonths}
+        />
+      </div>
+    </div>
+    <Button onClick={handleSubmit} className="w-full">
+      {editingId ? "Update Transaction" : "Create Transaction"}
+    </Button>
+  </div>
+);
 
 export default function TransactionPage() {
   const trpc = useTRPC();
@@ -24,15 +136,7 @@ export default function TransactionPage() {
     trpc.auth.getCurrentUser.queryOptions()
   );
 
-  const [formData, setFormData] = useState({
-    userId: "",
-    profileType: "",
-    profileName: "",
-    amount: "",
-    assignedRooms: "",
-    usedRooms: "",
-    expiryDate: "",
-  });
+  const { data: users } = useQuery(trpc.auth.getUsers.queryOptions());
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -72,20 +176,23 @@ export default function TransactionPage() {
   const transactions = transactionsData?.transactions || [];
 
   const resetForm = () => {
-    setFormData({
-      userId: "",
-      profileType: "",
-      profileName: "",
-      amount: "",
-      assignedRooms: "",
-      usedRooms: "",
-      expiryDate: "",
-    });
+    setEditingId(null);
+    setSelectedUser(users ? users[0].id : "");
+    setProfileType("");
+    setProfileName("");
+    setAmount(0);
+    setAssignedRooms(0);
+    setExpiryDate(undefined);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+  const ReturnDateAfterMonths = (months: number) => {
+    const now = new Date();
+    const expiryDate = new Date(
+      now.getFullYear(),
+      now.getMonth() + months,
+      now.getDate()
+    );
+    return expiryDate;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -94,37 +201,32 @@ export default function TransactionPage() {
     if (editingId) {
       editMutation.mutate({
         id: editingId,
-        userId: formData.userId,
-        profileType: formData.profileType,
-        profileName: formData.profileName,
-        amount: parseInt(formData.amount),
-        assignedRooms: parseInt(formData.assignedRooms),
-        usedRooms: formData.usedRooms,
-        expiryDate: formData.expiryDate,
+        userId: selectedUser,
+        profileType: profileType,
+        profileName: profileName,
+        amount: amount,
+        assignedRooms: assignedRooms,
+        expiryDate: expiryDate,
       });
     } else {
       createMutation.mutate({
-        userId: formData.userId,
-        profileType: formData.profileType,
-        profileName: formData.profileName,
-        amount: parseInt(formData.amount),
-        assignedRooms: parseInt(formData.assignedRooms),
-        usedRooms: formData.usedRooms,
-        expiryDate: formData.expiryDate,
+        userId: selectedUser,
+        profileType: profileType,
+        profileName: profileName,
+        amount: amount,
+        assignedRooms: assignedRooms,
+        expiryDate: ReturnDateAfterMonths(Number(selectedMonths)) || "",
       });
     }
   };
 
-  const handleEdit = (transaction: any) => {
-    setFormData({
-      userId: transaction.userId,
-      profileType: transaction.profileType,
-      profileName: transaction.profileName,
-      amount: transaction.amount.toString(),
-      assignedRooms: transaction.assignedRooms.toString(),
-      usedRooms: transaction.usedRooms,
-      expiryDate: new Date(transaction.expiryDate).toISOString().split("T")[0],
-    });
+  const handleEdit = (transaction: Transaction) => {
+    setSelectedUser(transaction.userId);
+    setProfileType(transaction.profileType);
+    setProfileName(transaction.profileName);
+    setAmount(transaction.amount);
+    setAssignedRooms(transaction.assignedRooms);
+    setExpiryDate(new Date(transaction.expiryDate));
     setEditingId(transaction.id);
     setIsDialogOpen(true);
   };
@@ -135,112 +237,36 @@ export default function TransactionPage() {
     }
   };
 
-  const TransactionForm = () => (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="userId">User ID</Label>
-          <Input
-            id="userId"
-            name="userId"
-            value={formData.userId}
-            onChange={handleInputChange}
-            required
-          />
-        </div>
-        <div>
-          <Label htmlFor="profileType">Profile Type</Label>
-          <Input
-            id="profileType"
-            name="profileType"
-            value={formData.profileType}
-            onChange={handleInputChange}
-            required
-          />
-        </div>
-        <div>
-          <Label htmlFor="profileName">Profile Name</Label>
-          <Input
-            id="profileName"
-            name="profileName"
-            value={formData.profileName}
-            onChange={handleInputChange}
-            required
-          />
-        </div>
-        <div>
-          <Label htmlFor="amount">Amount</Label>
-          <Input
-            id="amount"
-            name="amount"
-            type="number"
-            value={formData.amount}
-            onChange={handleInputChange}
-            required
-          />
-        </div>
-        <div>
-          <Label htmlFor="assignedRooms">Assigned Rooms</Label>
-          <Input
-            id="assignedRooms"
-            name="assignedRooms"
-            type="number"
-            value={formData.assignedRooms}
-            onChange={handleInputChange}
-            required
-          />
-        </div>
-        <div>
-          <Label htmlFor="usedRooms">Used Rooms</Label>
-          <Input
-            id="usedRooms"
-            name="usedRooms"
-            value={formData.usedRooms}
-            onChange={handleInputChange}
-            required
-          />
-        </div>
-        <div>
-          <Label htmlFor="expiryDate">Expiry Date</Label>
-          <Input
-            id="expiryDate"
-            name="expiryDate"
-            type="date"
-            value={formData.expiryDate}
-            onChange={handleInputChange}
-            required
-          />
-        </div>
-      </div>
-      <Button
-        onClick={handleSubmit}
-        className="w-full"
-        // disabled={createMutation.isLoading || editMutation.isLoading}
-      >
-        {false && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        {editingId ? "Update Transaction" : "Create Transaction"}
-      </Button>
-    </div>
-  );
+  const [selectedUser, setSelectedUser] = useState(users ? users[0].id : "");
+  const [profileType, setProfileType] = useState("");
+  const [profileName, setProfileName] = useState("");
+  const [amount, setAmount] = useState(0);
+  const [assignedRooms, setAssignedRooms] = useState(0);
+  const [expiryDate, setExpiryDate] = useState<Date | undefined>(undefined);
+  const [selectedMonths, setSelectedMonths] = useState<string>("1");
 
   React.useEffect(() => {
     if (!userLoading) {
       if (
         currentUser === null ||
         currentUser === undefined ||
-        currentUser.username !== "myk"
+        currentUser.isAdmin === false
       ) {
         router.push("/login");
       }
     }
   }, [currentUser, userLoading, router]);
 
+  const usersName = React.useCallback(
+    (userID: string) => {
+      const user = users?.find((user) => user.id === userID);
+      return user ? user.name : "Unknown User";
+    },
+    [users]
+  );
+
   if (isLoading) {
-    return (
-      <div className="container mx-auto p-4 flex items-center justify-center min-h-screen">
-        <Loading />;
-      </div>
-    );
+    return <Loading />;
   }
 
   return (
@@ -253,7 +279,24 @@ export default function TransactionPage() {
             <CardTitle>Create New Transaction</CardTitle>
           </CardHeader>
           <CardContent>
-            <TransactionForm />
+            <TransactionForm
+              users={users || []}
+              handleSubmit={handleSubmit}
+              editingId={editingId}
+              setEditingId={setEditingId}
+              selectedUser={selectedUser}
+              setSelectedUser={setSelectedUser}
+              profileType={profileType}
+              setProfileType={setProfileType}
+              profileName={profileName}
+              setProfileName={setProfileName}
+              amount={amount}
+              setAmount={setAmount}
+              assignedRooms={assignedRooms}
+              setAssignedRooms={setAssignedRooms}
+              setSelectedMonths={setSelectedMonths}
+              selectedMonths={selectedMonths}
+            />
           </CardContent>
         </Card>
 
@@ -272,11 +315,11 @@ export default function TransactionPage() {
                   <table className="w-full">
                     <thead>
                       <tr className="border-b">
-                        <th className="text-left p-2">User ID</th>
+                        <th className="text-left p-2">User</th>
                         <th className="text-left p-2">Profile Type</th>
                         <th className="text-left p-2">Profile Name</th>
                         <th className="text-left p-2">Amount</th>
-                        <th className="text-left p-2">Rooms</th>
+                        <th className="text-left p-2">Used/Remain</th>
                         <th className="text-left p-2">Expiry Date</th>
                         <th className="text-left p-2">Created</th>
                         <th className="text-left p-2">Actions</th>
@@ -286,11 +329,13 @@ export default function TransactionPage() {
                       {transactions.map((transaction) => (
                         <tr key={transaction.id} className="border-b">
                           <td className="p-2 font-mono text-sm">
-                            {transaction.userId}
+                            {usersName(transaction.userId)}
                           </td>
                           <td className="p-2">{transaction.profileType}</td>
                           <td className="p-2">{transaction.profileName}</td>
-                          <td className="p-2">${transaction.amount}</td>
+                          <td className="p-2">
+                            {transaction.amount.toLocaleString()} sh
+                          </td>
                           <td className="p-2">
                             {transaction.usedRooms}/{transaction.assignedRooms}
                           </td>
@@ -415,7 +460,24 @@ export default function TransactionPage() {
             <DialogHeader>
               <DialogTitle>Edit Transaction</DialogTitle>
             </DialogHeader>
-            <TransactionForm />
+            <TransactionForm
+              users={users || []}
+              handleSubmit={handleSubmit}
+              editingId={editingId}
+              setEditingId={setEditingId}
+              selectedUser={selectedUser}
+              setSelectedUser={setSelectedUser}
+              profileType={profileType}
+              setProfileType={setProfileType}
+              profileName={profileName}
+              setProfileName={setProfileName}
+              amount={amount}
+              setAmount={setAmount}
+              assignedRooms={assignedRooms}
+              setAssignedRooms={setAssignedRooms}
+              setSelectedMonths={setSelectedMonths}
+              selectedMonths={selectedMonths}
+            />
           </DialogContent>
         </Dialog>
       </div>
