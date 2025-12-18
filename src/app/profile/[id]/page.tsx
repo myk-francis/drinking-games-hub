@@ -66,7 +66,9 @@ export default function ProfilePage() {
   );
 
   const { data: transactionProfile } = useQuery(
-    trpc.transaction.getUserTransaction.queryOptions()
+    trpc.transaction.getUserTransactionAdmin.queryOptions({
+      userId: profileId,
+    })
   );
 
   const { data: summary, isLoading: summaryLoading } = useQuery(

@@ -125,17 +125,15 @@ export default function ProfilePage() {
                 </span>
               </p>
               {(transactionProfile?.profileType === "GUEST" ||
-                transactionProfile?.profileType === "ADMIN" ||
                 transactionProfile?.profileType === "PREMIUM") && (
                 <p className="font-medium mt-2">
-                  User:{" "}
+                  Expiration:{" "}
                   {transactionProfile?.expiryDate
                     ? transactionProfile?.expiryDate.toDateString()
                     : ""}
                 </p>
               )}
               {(transactionProfile?.profileType === "GUEST" ||
-                transactionProfile?.profileType === "ADMIN" ||
                 transactionProfile?.profileType === "PREMIUM") && (
                 <p className="font-medium mt-2">
                   Rooms: {transactionProfile?.usedRooms} /{" "}
