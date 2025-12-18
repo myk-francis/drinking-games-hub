@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import ErrorPage from "@/app/error";
 import { Loading } from "@/components/ui/loading";
 import { UserComboBox } from "@/components/apps-components/userComboBox";
+import Link from "next/link";
 
 const getLastSixMonths = () => {
   const result = [];
@@ -70,11 +71,7 @@ export default function ProfilePage() {
 
   React.useEffect(() => {
     if (!userLoading) {
-      if (
-        currentUser === null ||
-        currentUser === undefined ||
-        currentUser.username !== "myk"
-      ) {
+      if (currentUser === null || currentUser === undefined) {
         router.push("/login");
       }
     }
@@ -121,12 +118,21 @@ export default function ProfilePage() {
                 </span>
               </p>
               {(transactionProfile?.profileType === "GUEST" ||
+                transactionProfile?.profileType === "ADMIN" ||
                 transactionProfile?.profileType === "PREMIUM") && (
                 <p className="font-medium mt-2">
                   User:{" "}
                   {transactionProfile?.expiryDate
                     ? transactionProfile?.expiryDate.toDateString()
                     : ""}
+                </p>
+              )}
+              {(transactionProfile?.profileType === "GUEST" ||
+                transactionProfile?.profileType === "ADMIN" ||
+                transactionProfile?.profileType === "PREMIUM") && (
+                <p className="font-medium mt-2">
+                  Rooms: {transactionProfile?.usedRooms} /{" "}
+                  {transactionProfile?.assignedRooms}
                 </p>
               )}
             </div>
@@ -170,7 +176,8 @@ export default function ProfilePage() {
             <ScrollArea className="max-h-[420px] pr-2">
               <div className="space-y-3">
                 {rooms?.map((room) => (
-                  <div
+                  <Link
+                    href={`/room/${room.id}`}
                     key={room.id}
                     className="flex items-center justify-between rounded-lg border p-3"
                   >
@@ -193,7 +200,7 @@ export default function ProfilePage() {
                         drinks
                       </Badge>
                     </div>
-                  </div>
+                  </Link>
                 ))}
                 {rooms?.length === 0 && (
                   <p className="text-center text-muted-foreground">

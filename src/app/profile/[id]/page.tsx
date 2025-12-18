@@ -13,6 +13,7 @@ import ErrorPage from "@/app/error";
 import { Loading } from "@/components/ui/loading";
 import { UserComboBox } from "@/components/apps-components/userComboBox";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 
 const getLastSixMonths = () => {
   const result = [];
@@ -179,7 +180,8 @@ export default function ProfilePage() {
             <ScrollArea className="max-h-[420px] pr-2">
               <div className="space-y-3">
                 {rooms?.map((room) => (
-                  <div
+                  <Link
+                    href={`/room/${room.id}`}
                     key={room.id}
                     className="flex items-center justify-between rounded-lg border p-3"
                   >
@@ -202,7 +204,7 @@ export default function ProfilePage() {
                         drinks
                       </Badge>
                     </div>
-                  </div>
+                  </Link>
                 ))}
                 {rooms?.length === 0 && (
                   <p className="text-center text-muted-foreground">

@@ -25,6 +25,8 @@ import { toast } from "sonner";
 import { Loading } from "@/components/ui/loading";
 import { ComboBox } from "@/components/apps-components/comboBox";
 import { QRCodeCanvas } from "qrcode.react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import Link from "next/link";
 
 export default function HomePage() {
   const router = useRouter();
@@ -85,6 +87,18 @@ export default function HomePage() {
           transactionProfile.profileType === "PREMIUM") &&
         transactionProfile.usedRooms > transactionProfile.assignedRooms
       ) {
+        setPermissionToCreateRoooms(false);
+      }
+
+      if (
+        (transactionProfile.profileType === "GUEST" ||
+          transactionProfile.profileType === "PREMIUM") &&
+        new Date() > transactionProfile?.expiryDate
+      ) {
+        setPermissionToCreateRoooms(false);
+      }
+
+      if (!transactionProfile) {
         setPermissionToCreateRoooms(false);
       }
     }
@@ -198,9 +212,7 @@ export default function HomePage() {
   const startGame = () => {
     router.push(`/room/${roomId}`);
   };
-  const goToProfilePage = () => {
-    router.push(`/profile`);
-  };
+
   const goToTransactionPage = () => {
     router.push(`/transactions`);
   };
@@ -237,6 +249,28 @@ export default function HomePage() {
     <main className="">
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white">
         <div className="container mx-auto px-4 py-6">
+          <div className="w-full my-1 flex flex-row items-center justify-between">
+            {transactionProfile?.profileType === "GUEST" ||
+            transactionProfile?.profileType === "PREMIUM" ? (
+              <div className="p-2 bg-white/20 rounded">
+                <p className="text-sm">
+                  Rooms: ({transactionProfile?.usedRooms} /
+                  {transactionProfile?.assignedRooms})
+                </p>
+              </div>
+            ) : (
+              <div className="p-2 bg-white/20 rounded">
+                <p className="text-sm">👑</p>
+              </div>
+            )}
+            <Link href="/profile" className="cursor-pointer">
+              <Avatar className="h-14 w-14 dark">
+                <AvatarFallback>
+                  {currentUser?.username?.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            </Link>
+          </div>
           {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">
@@ -383,16 +417,6 @@ export default function HomePage() {
                   </button>
                 </div>
               )}
-
-              <div className="wfull mt-6 text-center flex flex-row justify-center items-center gap-2">
-                <button
-                  onClick={goToProfilePage}
-                  className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
-                >
-                  <Play className="w-5 h-5" />
-                  Profile
-                </button>
-              </div>
 
               {currentUser?.isAdmin && (
                 <div className="wfull mt-6 text-center flex flex-row justify-center items-center gap-2">

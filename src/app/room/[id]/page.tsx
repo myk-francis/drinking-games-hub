@@ -12,6 +12,214 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import AddPlayerModal from "./addPlayerModal";
 import { QRCodeCanvas } from "qrcode.react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+
+import { Star } from "lucide-react";
+
+const getRandomTailwindColor = () => {
+  const colors = [
+    "text-red-500",
+    "text-orange-500",
+    "text-green-500",
+    "text-amber-500",
+    "text-indigo-500",
+    "text-blue-500",
+  ];
+
+  return colors[Math.floor(Math.random() * colors.length)];
+};
+
+type GameComment = {
+  id: string;
+  comment: string;
+  playerName: string;
+  rating: number;
+  createdAt: Date;
+};
+
+const animations = [
+  {
+    animation: "fade-in",
+    duration: "0.5s",
+  },
+  {
+    animation: "slide-up",
+    duration: "0.5s",
+  },
+  {
+    animation: "scale-in",
+    duration: "0.4s",
+  },
+  {
+    animation: "slide-left",
+    duration: "0.5s",
+  },
+];
+
+export function GameComments({ comments }: { comments: GameComment[] }) {
+  if (!comments.length) return null;
+
+  return (
+    <div className="mt-8 max-w-3xl mx-auto">
+      <h2 className="text-xl font-bold text-white mb-4">Player Feedback</h2>
+
+      <div className="space-y-4">
+        {comments.map((c, index) => (
+          <div
+            key={c.id}
+            style={{
+              animation: `${animations[index % animations.length].animation} ${
+                animations[index % animations.length].duration
+              } ease-out both`,
+            }}
+            className={`
+              bg-zinc-950/80 
+              border border-white/10 
+              rounded-xl 
+              p-4 
+              text-white
+              shadow-lg
+              `}
+          >
+            {/* ⭐ Rating */}
+            <div className="flex items-center gap-1 mb-2">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Star
+                  key={star}
+                  className={`h-4 w-4 ${
+                    star <= c.rating
+                      ? "fill-yellow-400 text-yellow-400"
+                      : "text-white/30"
+                  }`}
+                />
+              ))}
+            </div>
+
+            {/* 📝 Comment */}
+            <p className="text-white/90 whitespace-pre-line">
+              <span className={`capitalize ${getRandomTailwindColor()}`}>
+                {c.playerName}
+              </span>{" "}
+              ~ <span className="italic">{c.comment}</span>
+            </p>
+
+            {/* 🕒 Date */}
+            <p className="text-xs text-white/40 mt-3">
+              {c.createdAt.toDateString()}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const MAX_CHARS = 250;
+
+export function EndGameFeedback({
+  handleCreateComment,
+  roomId,
+  setComment,
+  comment,
+  setRating,
+  rating,
+}: {
+  handleCreateComment: (
+    comment: string,
+    rating: number,
+    roomId: string
+  ) => void;
+  roomId: string;
+  setComment: React.Dispatch<React.SetStateAction<string>>;
+  comment: string;
+  setRating: React.Dispatch<React.SetStateAction<number>>;
+  rating: number;
+}) {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button className="border-white/20 text-white">Leave feedback</Button>
+      </DialogTrigger>
+
+      <DialogContent className="sm:max-w-md bg-zinc-950 border border-white/10 text-white">
+        <DialogHeader>
+          <DialogTitle className="text-white">Rate this game</DialogTitle>
+        </DialogHeader>
+
+        {/* ⭐ Rating */}
+        <div className="flex items-center gap-2 mb-4">
+          {[1, 2, 3, 4, 5].map((star) => (
+            <button
+              key={star}
+              type="button"
+              onClick={() => setRating(star)}
+              className="transition hover:scale-110"
+            >
+              <Star
+                className={`h-7 w-7 ${
+                  star <= rating
+                    ? "fill-yellow-400 text-yellow-400"
+                    : "text-white/30"
+                }`}
+              />
+            </button>
+          ))}
+        </div>
+
+        {/* 📝 Comment */}
+        <div className="space-y-2">
+          <Textarea
+            placeholder="What did you think about the game?"
+            value={comment}
+            onChange={(e) =>
+              e.target.value.length <= MAX_CHARS && setComment(e.target.value)
+            }
+            rows={4}
+            className="
+              bg-zinc-900 
+              border-white/10 
+              text-white 
+              placeholder:text-white/40
+              focus-visible:ring-1 
+              focus-visible:ring-yellow-400
+            "
+          />
+
+          <div className="text-xs text-white/50 text-right">
+            {comment.length}/{MAX_CHARS} characters
+          </div>
+        </div>
+
+        <DialogFooter className="mt-4">
+          <Button
+            disabled={rating === 0}
+            className="
+              bg-yellow-400 
+              text-black 
+              hover:bg-yellow-300
+              disabled:opacity-50
+            "
+            onClick={() => {
+              handleCreateComment(comment, rating, roomId);
+              setComment("");
+              setRating(1);
+            }}
+          >
+            Submit feedback
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function RoomPage() {
   const params = useParams();
@@ -31,7 +239,27 @@ export default function RoomPage() {
     )
   );
 
+  const { data: comments } = useQuery(
+    trpc.comments.getCommentsByRoomId.queryOptions({ roomId: String(roomId) })
+  );
+
   const [clicked, setClicked] = React.useState(false);
+
+  const [playerRating, setPlayerRating] = React.useState<number>(1);
+  const [comment, setComment] = React.useState<string>("");
+
+  const createComment = useMutation(
+    trpc.comments.createComment.mutationOptions({
+      onSuccess: () => {
+        toast.success("Comment added successfully");
+        setCommentSet(true);
+      },
+      onError: (error) => {
+        console.error("Error adding comment:", error);
+        // alert("Failed to create room. Please try again.");
+      },
+    })
+  );
 
   const updateRoom = useMutation(
     trpc.games.addPlayerStats.mutationOptions({
@@ -206,6 +434,14 @@ export default function RoomPage() {
   const [showQRCode, setShowQRCode] = React.useState(false);
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
 
+  const playerAddedComment = React.useMemo(() => {
+    return comments?.length || 0 >= players.length;
+  }, [comments, players]);
+
+  const [commentSet, setCommentSet] = React.useState<boolean>(
+    playerAddedComment ? true : false
+  );
+
   const nextCharadeCard = useMutation(
     trpc.games.nextCharadeCard.mutationOptions({
       onSuccess: () => {
@@ -221,6 +457,22 @@ export default function RoomPage() {
       },
     })
   );
+
+  const handleCreateComment = (
+    comment: string,
+    rating: number,
+    roomId: string
+  ) => {
+    if (!roomId || comment.trim() === "" || commentSet || !actualPlayer) return;
+
+    createComment.mutate({
+      playerId: actualPlayer || "",
+      playerName: players.find((p) => p.id === actualPlayer)?.name || "",
+      playerRating: String(rating),
+      roomId: String(roomId),
+      comment,
+    });
+  };
 
   const nextCatherineCard = useMutation(
     trpc.games.nextCatherineCard.mutationOptions({
@@ -491,13 +743,41 @@ export default function RoomPage() {
               />
             ))}
           </div>
-          <Link href="/" className="mt-6 inline-block self-center ">
-            <Button>Go back home</Button>
-          </Link>
+          <div className="">
+            <Link href="/" className="mt-6 inline-block self-center mr-2">
+              <Button>Go back home</Button>
+            </Link>
+            {!commentSet && (
+              <EndGameFeedback
+                handleCreateComment={handleCreateComment}
+                roomId={room?.id || ""}
+                setComment={setComment}
+                comment={comment}
+                setRating={setPlayerRating}
+                rating={playerRating}
+              />
+            )}
+          </div>
           <div className="mt-4">
             <p className="text-white/70 italic">
               Date: {room?.createdAt.toDateString()}
             </p>
+          </div>
+
+          <div className="mt-10">
+            <GameComments
+              comments={
+                comments?.map((c) => {
+                  return {
+                    id: c.id,
+                    comment: c.content,
+                    rating: c.raiting,
+                    createdAt: c.createdAt,
+                    playerName: c.playerName,
+                  };
+                }) ?? []
+              }
+            />
           </div>
         </div>
       </div>

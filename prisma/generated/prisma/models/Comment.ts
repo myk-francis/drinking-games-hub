@@ -28,16 +28,20 @@ export type AggregateComment = {
 
 export type CommentAvgAggregateOutputType = {
   id: number | null
+  raiting: number | null
 }
 
 export type CommentSumAggregateOutputType = {
   id: number | null
+  raiting: number | null
 }
 
 export type CommentMinAggregateOutputType = {
   id: number | null
   content: string | null
+  raiting: number | null
   playerName: string | null
+  playerId: string | null
   roomId: string | null
   createdAt: Date | null
   updatedAt: Date | null
@@ -46,7 +50,9 @@ export type CommentMinAggregateOutputType = {
 export type CommentMaxAggregateOutputType = {
   id: number | null
   content: string | null
+  raiting: number | null
   playerName: string | null
+  playerId: string | null
   roomId: string | null
   createdAt: Date | null
   updatedAt: Date | null
@@ -55,7 +61,9 @@ export type CommentMaxAggregateOutputType = {
 export type CommentCountAggregateOutputType = {
   id: number
   content: number
+  raiting: number
   playerName: number
+  playerId: number
   roomId: number
   createdAt: number
   updatedAt: number
@@ -65,16 +73,20 @@ export type CommentCountAggregateOutputType = {
 
 export type CommentAvgAggregateInputType = {
   id?: true
+  raiting?: true
 }
 
 export type CommentSumAggregateInputType = {
   id?: true
+  raiting?: true
 }
 
 export type CommentMinAggregateInputType = {
   id?: true
   content?: true
+  raiting?: true
   playerName?: true
+  playerId?: true
   roomId?: true
   createdAt?: true
   updatedAt?: true
@@ -83,7 +95,9 @@ export type CommentMinAggregateInputType = {
 export type CommentMaxAggregateInputType = {
   id?: true
   content?: true
+  raiting?: true
   playerName?: true
+  playerId?: true
   roomId?: true
   createdAt?: true
   updatedAt?: true
@@ -92,7 +106,9 @@ export type CommentMaxAggregateInputType = {
 export type CommentCountAggregateInputType = {
   id?: true
   content?: true
+  raiting?: true
   playerName?: true
+  playerId?: true
   roomId?: true
   createdAt?: true
   updatedAt?: true
@@ -188,7 +204,9 @@ export type CommentGroupByArgs<ExtArgs extends runtime.Types.Extensions.Internal
 export type CommentGroupByOutputType = {
   id: number
   content: string
+  raiting: number
   playerName: string
+  playerId: string
   roomId: string
   createdAt: Date
   updatedAt: Date
@@ -220,7 +238,9 @@ export type CommentWhereInput = {
   NOT?: Prisma.CommentWhereInput | Prisma.CommentWhereInput[]
   id?: Prisma.IntFilter<"Comment"> | number
   content?: Prisma.StringFilter<"Comment"> | string
+  raiting?: Prisma.IntFilter<"Comment"> | number
   playerName?: Prisma.StringFilter<"Comment"> | string
+  playerId?: Prisma.StringFilter<"Comment"> | string
   roomId?: Prisma.StringFilter<"Comment"> | string
   createdAt?: Prisma.DateTimeFilter<"Comment"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Comment"> | Date | string
@@ -230,7 +250,9 @@ export type CommentWhereInput = {
 export type CommentOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   content?: Prisma.SortOrder
+  raiting?: Prisma.SortOrder
   playerName?: Prisma.SortOrder
+  playerId?: Prisma.SortOrder
   roomId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -243,7 +265,9 @@ export type CommentWhereUniqueInput = Prisma.AtLeast<{
   OR?: Prisma.CommentWhereInput[]
   NOT?: Prisma.CommentWhereInput | Prisma.CommentWhereInput[]
   content?: Prisma.StringFilter<"Comment"> | string
+  raiting?: Prisma.IntFilter<"Comment"> | number
   playerName?: Prisma.StringFilter<"Comment"> | string
+  playerId?: Prisma.StringFilter<"Comment"> | string
   roomId?: Prisma.StringFilter<"Comment"> | string
   createdAt?: Prisma.DateTimeFilter<"Comment"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Comment"> | Date | string
@@ -253,7 +277,9 @@ export type CommentWhereUniqueInput = Prisma.AtLeast<{
 export type CommentOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   content?: Prisma.SortOrder
+  raiting?: Prisma.SortOrder
   playerName?: Prisma.SortOrder
+  playerId?: Prisma.SortOrder
   roomId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -270,7 +296,9 @@ export type CommentScalarWhereWithAggregatesInput = {
   NOT?: Prisma.CommentScalarWhereWithAggregatesInput | Prisma.CommentScalarWhereWithAggregatesInput[]
   id?: Prisma.IntWithAggregatesFilter<"Comment"> | number
   content?: Prisma.StringWithAggregatesFilter<"Comment"> | string
+  raiting?: Prisma.IntWithAggregatesFilter<"Comment"> | number
   playerName?: Prisma.StringWithAggregatesFilter<"Comment"> | string
+  playerId?: Prisma.StringWithAggregatesFilter<"Comment"> | string
   roomId?: Prisma.StringWithAggregatesFilter<"Comment"> | string
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Comment"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Comment"> | Date | string
@@ -278,7 +306,9 @@ export type CommentScalarWhereWithAggregatesInput = {
 
 export type CommentCreateInput = {
   content: string
+  raiting: number
   playerName: string
+  playerId: string
   createdAt?: Date | string
   updatedAt?: Date | string
   room: Prisma.RoomCreateNestedOneWithoutCommentsInput
@@ -287,7 +317,9 @@ export type CommentCreateInput = {
 export type CommentUncheckedCreateInput = {
   id?: number
   content: string
+  raiting: number
   playerName: string
+  playerId: string
   roomId: string
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -295,7 +327,9 @@ export type CommentUncheckedCreateInput = {
 
 export type CommentUpdateInput = {
   content?: Prisma.StringFieldUpdateOperationsInput | string
+  raiting?: Prisma.IntFieldUpdateOperationsInput | number
   playerName?: Prisma.StringFieldUpdateOperationsInput | string
+  playerId?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   room?: Prisma.RoomUpdateOneRequiredWithoutCommentsNestedInput
@@ -304,7 +338,9 @@ export type CommentUpdateInput = {
 export type CommentUncheckedUpdateInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   content?: Prisma.StringFieldUpdateOperationsInput | string
+  raiting?: Prisma.IntFieldUpdateOperationsInput | number
   playerName?: Prisma.StringFieldUpdateOperationsInput | string
+  playerId?: Prisma.StringFieldUpdateOperationsInput | string
   roomId?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -313,7 +349,9 @@ export type CommentUncheckedUpdateInput = {
 export type CommentCreateManyInput = {
   id?: number
   content: string
+  raiting: number
   playerName: string
+  playerId: string
   roomId: string
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -321,7 +359,9 @@ export type CommentCreateManyInput = {
 
 export type CommentUpdateManyMutationInput = {
   content?: Prisma.StringFieldUpdateOperationsInput | string
+  raiting?: Prisma.IntFieldUpdateOperationsInput | number
   playerName?: Prisma.StringFieldUpdateOperationsInput | string
+  playerId?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -329,7 +369,9 @@ export type CommentUpdateManyMutationInput = {
 export type CommentUncheckedUpdateManyInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   content?: Prisma.StringFieldUpdateOperationsInput | string
+  raiting?: Prisma.IntFieldUpdateOperationsInput | number
   playerName?: Prisma.StringFieldUpdateOperationsInput | string
+  playerId?: Prisma.StringFieldUpdateOperationsInput | string
   roomId?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -348,7 +390,9 @@ export type CommentOrderByRelationAggregateInput = {
 export type CommentCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   content?: Prisma.SortOrder
+  raiting?: Prisma.SortOrder
   playerName?: Prisma.SortOrder
+  playerId?: Prisma.SortOrder
   roomId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -356,12 +400,15 @@ export type CommentCountOrderByAggregateInput = {
 
 export type CommentAvgOrderByAggregateInput = {
   id?: Prisma.SortOrder
+  raiting?: Prisma.SortOrder
 }
 
 export type CommentMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   content?: Prisma.SortOrder
+  raiting?: Prisma.SortOrder
   playerName?: Prisma.SortOrder
+  playerId?: Prisma.SortOrder
   roomId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -370,7 +417,9 @@ export type CommentMaxOrderByAggregateInput = {
 export type CommentMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   content?: Prisma.SortOrder
+  raiting?: Prisma.SortOrder
   playerName?: Prisma.SortOrder
+  playerId?: Prisma.SortOrder
   roomId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -378,6 +427,7 @@ export type CommentMinOrderByAggregateInput = {
 
 export type CommentSumOrderByAggregateInput = {
   id?: Prisma.SortOrder
+  raiting?: Prisma.SortOrder
 }
 
 export type CommentCreateNestedManyWithoutRoomInput = {
@@ -424,7 +474,9 @@ export type CommentUncheckedUpdateManyWithoutRoomNestedInput = {
 
 export type CommentCreateWithoutRoomInput = {
   content: string
+  raiting: number
   playerName: string
+  playerId: string
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -432,7 +484,9 @@ export type CommentCreateWithoutRoomInput = {
 export type CommentUncheckedCreateWithoutRoomInput = {
   id?: number
   content: string
+  raiting: number
   playerName: string
+  playerId: string
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -469,7 +523,9 @@ export type CommentScalarWhereInput = {
   NOT?: Prisma.CommentScalarWhereInput | Prisma.CommentScalarWhereInput[]
   id?: Prisma.IntFilter<"Comment"> | number
   content?: Prisma.StringFilter<"Comment"> | string
+  raiting?: Prisma.IntFilter<"Comment"> | number
   playerName?: Prisma.StringFilter<"Comment"> | string
+  playerId?: Prisma.StringFilter<"Comment"> | string
   roomId?: Prisma.StringFilter<"Comment"> | string
   createdAt?: Prisma.DateTimeFilter<"Comment"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Comment"> | Date | string
@@ -478,14 +534,18 @@ export type CommentScalarWhereInput = {
 export type CommentCreateManyRoomInput = {
   id?: number
   content: string
+  raiting: number
   playerName: string
+  playerId: string
   createdAt?: Date | string
   updatedAt?: Date | string
 }
 
 export type CommentUpdateWithoutRoomInput = {
   content?: Prisma.StringFieldUpdateOperationsInput | string
+  raiting?: Prisma.IntFieldUpdateOperationsInput | number
   playerName?: Prisma.StringFieldUpdateOperationsInput | string
+  playerId?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -493,7 +553,9 @@ export type CommentUpdateWithoutRoomInput = {
 export type CommentUncheckedUpdateWithoutRoomInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   content?: Prisma.StringFieldUpdateOperationsInput | string
+  raiting?: Prisma.IntFieldUpdateOperationsInput | number
   playerName?: Prisma.StringFieldUpdateOperationsInput | string
+  playerId?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -501,7 +563,9 @@ export type CommentUncheckedUpdateWithoutRoomInput = {
 export type CommentUncheckedUpdateManyWithoutRoomInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   content?: Prisma.StringFieldUpdateOperationsInput | string
+  raiting?: Prisma.IntFieldUpdateOperationsInput | number
   playerName?: Prisma.StringFieldUpdateOperationsInput | string
+  playerId?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -511,7 +575,9 @@ export type CommentUncheckedUpdateManyWithoutRoomInput = {
 export type CommentSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   content?: boolean
+  raiting?: boolean
   playerName?: boolean
+  playerId?: boolean
   roomId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -521,7 +587,9 @@ export type CommentSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
 export type CommentSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   content?: boolean
+  raiting?: boolean
   playerName?: boolean
+  playerId?: boolean
   roomId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -531,7 +599,9 @@ export type CommentSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exten
 export type CommentSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   content?: boolean
+  raiting?: boolean
   playerName?: boolean
+  playerId?: boolean
   roomId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -541,13 +611,15 @@ export type CommentSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exten
 export type CommentSelectScalar = {
   id?: boolean
   content?: boolean
+  raiting?: boolean
   playerName?: boolean
+  playerId?: boolean
   roomId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type CommentOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "content" | "playerName" | "roomId" | "createdAt" | "updatedAt", ExtArgs["result"]["comment"]>
+export type CommentOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "content" | "raiting" | "playerName" | "playerId" | "roomId" | "createdAt" | "updatedAt", ExtArgs["result"]["comment"]>
 export type CommentInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   room?: boolean | Prisma.RoomDefaultArgs<ExtArgs>
 }
@@ -566,7 +638,9 @@ export type $CommentPayload<ExtArgs extends runtime.Types.Extensions.InternalArg
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
     content: string
+    raiting: number
     playerName: string
+    playerId: string
     roomId: string
     createdAt: Date
     updatedAt: Date
@@ -996,7 +1070,9 @@ export interface Prisma__CommentClient<T, Null = never, ExtArgs extends runtime.
 export interface CommentFieldRefs {
   readonly id: Prisma.FieldRef<"Comment", 'Int'>
   readonly content: Prisma.FieldRef<"Comment", 'String'>
+  readonly raiting: Prisma.FieldRef<"Comment", 'Int'>
   readonly playerName: Prisma.FieldRef<"Comment", 'String'>
+  readonly playerId: Prisma.FieldRef<"Comment", 'String'>
   readonly roomId: Prisma.FieldRef<"Comment", 'String'>
   readonly createdAt: Prisma.FieldRef<"Comment", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"Comment", 'DateTime'>

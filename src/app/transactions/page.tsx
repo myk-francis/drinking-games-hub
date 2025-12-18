@@ -146,6 +146,7 @@ export default function TransactionPage() {
     isLoading,
     refetch,
   } = useQuery(trpc.transaction.getManyTransactions.queryOptions());
+
   const createMutation = useMutation(
     trpc.transaction.createTransaction.mutationOptions({
       onSuccess: () => {
@@ -154,6 +155,7 @@ export default function TransactionPage() {
       },
     })
   );
+
   const editMutation = useMutation(
     trpc.transaction.editTransaction.mutationOptions({
       onSuccess: () => {

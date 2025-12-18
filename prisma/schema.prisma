@@ -121,7 +121,9 @@ model Transaction {
 model Comment {
   id        Int     @id @default(autoincrement())
   content   String
+  raiting    Int
   playerName String
+  playerId String
   roomId    String
   room      Room    @relation(fields: [roomId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())

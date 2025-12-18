@@ -198,7 +198,9 @@ export type TransactionScalarFieldEnum = (typeof TransactionScalarFieldEnum)[key
 export const CommentScalarFieldEnum = {
   id: 'id',
   content: 'content',
+  raiting: 'raiting',
   playerName: 'playerName',
+  playerId: 'playerId',
   roomId: 'roomId',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
