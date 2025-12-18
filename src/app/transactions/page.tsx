@@ -439,6 +439,16 @@ export default function TransactionPage() {
                               variant="outline"
                               size="sm"
                               className="flex-1"
+                              onClick={() => handleRedirect(transaction.userId)}
+                              // disabled={deleteMutation.isLoading}
+                            >
+                              <ArrowUpRight className="h-4 w-4 mr-2" />
+                              Go
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
                               onClick={() => handleEdit(transaction)}
                               // disabled={deleteMutation.isLoading}
                             >
