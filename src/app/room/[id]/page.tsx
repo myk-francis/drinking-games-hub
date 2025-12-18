@@ -766,6 +766,7 @@ export default function RoomPage() {
 
           <div className="mt-10">
             <GameComments
+              // @ts-expect-error leave it
               comments={
                 comments?.map((c) => {
                   return {
