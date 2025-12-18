@@ -400,6 +400,10 @@ export default function TransactionPage() {
                       <CardContent className="pt-6">
                         <div className="space-y-2">
                           <div className="flex justify-between">
+                            <span className="font-semibold">User:</span>
+                            <span>{usersName(transaction.userId)}</span>
+                          </div>
+                          <div className="flex justify-between">
                             <span className="font-semibold">Profile Name:</span>
                             <span>{transaction.profileName}</span>
                           </div>

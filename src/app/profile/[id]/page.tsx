@@ -142,7 +142,7 @@ export default function ProfilePage() {
               {(transactionProfile?.profileType === "GUEST" ||
                 transactionProfile?.profileType === "PREMIUM") && (
                 <p className="font-medium mt-2">
-                  User:{" "}
+                  Expiration:{" "}
                   {transactionProfile?.expiryDate
                     ? transactionProfile?.expiryDate.toDateString()
                     : ""}
