@@ -135,6 +135,8 @@ function EndGameFeedback({
   comment,
   setRating,
   rating,
+  openDialog,
+  setOpenDialog,
 }: {
   handleCreateComment: (
     comment: string,
@@ -146,11 +148,20 @@ function EndGameFeedback({
   comment: string;
   setRating: React.Dispatch<React.SetStateAction<number>>;
   rating: number;
+  openDialog: boolean;
+  setOpenDialog: React.Dispatch<React.SetStateAction<boolean>>;
 }) {
   return (
-    <Dialog>
+    <Dialog open={openDialog} onOpenChange={setOpenDialog}>
       <DialogTrigger asChild>
-        <Button className="border-white/20 text-white">Leave feedback</Button>
+        <Button
+          onClick={() => {
+            setOpenDialog(true);
+          }}
+          className="border-white/20 text-white"
+        >
+          Leave feedback
+        </Button>
       </DialogTrigger>
 
       <DialogContent className="sm:max-w-md bg-zinc-950 border border-white/10 text-white">
@@ -212,6 +223,8 @@ function EndGameFeedback({
               disabled:opacity-50
             "
             onClick={() => {
+              if (!roomId || comment.trim() === "") return;
+
               handleCreateComment(comment, rating, roomId);
               setComment("");
               setRating(1);
@@ -256,7 +269,7 @@ export default function RoomPage() {
     trpc.comments.createComment.mutationOptions({
       onSuccess: () => {
         toast.success("Comment added successfully");
-        setCommentSet(true);
+        setOpenDialog(false);
       },
       onError: (error) => {
         console.error("Error adding comment:", error);
@@ -430,6 +443,8 @@ export default function RoomPage() {
   const [actualPlayer, setActualPlayer] = React.useState("");
   const [newPlayer, setNewPlayer] = React.useState("");
   const [openAddPlayerModal, setOpenAddPlayerModal] = React.useState(false);
+  const [showAddPlayerModal, setShowAddPlayerModal] = React.useState(false);
+  const [openDialog, setOpenDialog] = React.useState(false);
 
   const [timeLeft, setTimeLeft] = React.useState(
     selectedGame === "verbal-charades" ? 30 : 60
@@ -439,12 +454,8 @@ export default function RoomPage() {
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
 
   const playerAddedComment = React.useMemo(() => {
-    return comments?.length || 0 >= players.length;
+    return (comments?.length || 0) >= players.length;
   }, [comments, players]);
-
-  const [commentSet, setCommentSet] = React.useState<boolean>(
-    playerAddedComment ? true : false
-  );
 
   const nextCharadeCard = useMutation(
     trpc.games.nextCharadeCard.mutationOptions({
@@ -467,7 +478,8 @@ export default function RoomPage() {
     rating: number,
     roomId: string
   ) => {
-    if (!roomId || comment.trim() === "" || commentSet || !actualPlayer) return;
+    if (!roomId || comment.trim() === "" || playerAddedComment || !actualPlayer)
+      return;
 
     createComment.mutate({
       playerId: actualPlayer || "",
@@ -518,6 +530,7 @@ export default function RoomPage() {
   const handleActualSelectPlayer = (id: string) => {
     setActualPlayer(id);
     localStorage.setItem("actualPlayerId", id);
+    setShowAddPlayerModal(false);
   };
 
   React.useLayoutEffect(() => {
@@ -731,6 +744,12 @@ export default function RoomPage() {
   if (room.gameEnded) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white p-6 flex items-center justify-center ">
+        {showAddPlayerModal && (
+          <UserConfirmModal
+            players={players}
+            handleActualSelectPlayer={handleActualSelectPlayer}
+          />
+        )}
         <div>
           <h1 className="text-4xl font-bold mb-4">Game Over</h1>
           <h1 className="text-2xl font-bold mb-4 ">Game: {game?.name ?? ""}</h1>
@@ -751,7 +770,7 @@ export default function RoomPage() {
             <Link href="/" className="mt-6 inline-block self-center mr-2">
               <Button>Go back home</Button>
             </Link>
-            {!commentSet && (
+            {!playerAddedComment && actualPlayer && (
               <EndGameFeedback
                 handleCreateComment={handleCreateComment}
                 roomId={room?.id || ""}
@@ -759,7 +778,18 @@ export default function RoomPage() {
                 comment={comment}
                 setRating={setPlayerRating}
                 rating={playerRating}
+                openDialog={openDialog}
+                setOpenDialog={setOpenDialog}
               />
+            )}
+            {actualPlayer === "" && !playerAddedComment && (
+              <Button
+                onClick={() => {
+                  setShowAddPlayerModal(true);
+                }}
+              >
+                Leave feedback
+              </Button>
             )}
           </div>
           <div className="mt-4">

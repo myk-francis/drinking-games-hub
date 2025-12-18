@@ -1,6 +1,7 @@
 import { baseProcedure, createTRPCRouter } from "@/trpc/init";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
+import { cookies } from "next/headers";
 
 function generateUniqueCard(previousCards: number[]): number | null {
   const maxAttempts = 1000;
@@ -99,6 +100,46 @@ export const gamesRouter = createTRPCRouter({
     )
     .mutation(async ({ input }) => {
       try {
+        const sessionId = (await cookies()).get("sessionId")?.value;
+        if (!sessionId) return null;
+
+        const session = await prisma.session.findUnique({
+          where: { id: sessionId },
+          include: { user: true },
+        });
+
+        if (!session?.user) return null;
+
+        const transaction = await prisma.transaction.findFirst({
+          where: {
+            userId: session.user.id,
+          },
+          orderBy: {
+            createdAt: "desc", // Sorts by newest first
+          },
+        });
+
+        if (
+          !transaction ||
+          (transaction.assignedRooms <= transaction.usedRooms &&
+            (transaction.profileType === "GUEST" ||
+              transaction.profileType === "PREMIUM"))
+        ) {
+          throw new Error("No available rooms. Please purchase more rooms.");
+        }
+
+        if (
+          transaction.profileType === "GUEST" ||
+          transaction.profileType === "PREMIUM"
+        ) {
+          await prisma.transaction.update({
+            where: { id: transaction.id },
+            data: {
+              usedRooms: transaction.usedRooms + 1,
+            },
+          });
+        }
+
         const game = await prisma.game.findFirst({
           where: {
             code: input.selectedGame,

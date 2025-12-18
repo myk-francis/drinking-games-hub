@@ -57,7 +57,7 @@ export default function HomePage() {
       onSuccess: (data) => {
         toast.success("Room created successfully");
         // Optionally, redirect to the room or show a success message
-        setRoomId(data.id);
+        setRoomId(data?.id || "");
         const url = String(process.env.NEXT_PUBLIC_APP_URL) + `/room/${roomId}`;
         setGameUrl(url);
       },

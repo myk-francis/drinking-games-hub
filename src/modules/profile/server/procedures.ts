@@ -120,6 +120,18 @@ export const profileRouter = createTRPCRouter({
               drinks: true,
             },
           },
+          game: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          comments: {
+            select: {
+              id: true,
+              raiting: true,
+            },
+          },
         },
       });
 
@@ -127,6 +139,9 @@ export const profileRouter = createTRPCRouter({
 
       let totalPlayers = 0;
       let totalDrinks = 0;
+      let totalGames = 0;
+      let totalComments = 0;
+      let totalRatings = 0;
 
       rooms.forEach((room) => {
         totalPlayers += room.players.length;
@@ -134,12 +149,24 @@ export const profileRouter = createTRPCRouter({
         room.players.forEach((player) => {
           totalDrinks += player.drinks ?? 0;
         });
+
+        if (room.game) {
+          totalGames += 1;
+        }
+        totalComments += room.comments.length;
+
+        room.comments.forEach((comment) => {
+          totalRatings += comment.raiting;
+        });
       });
 
       return {
         totalRooms,
         totalPlayers,
         totalDrinks,
+        totalGames,
+        totalComments,
+        totalRatings: totalRatings / totalComments || 0,
       };
     }),
 

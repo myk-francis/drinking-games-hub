@@ -5,7 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Users, Wine, Gamepad2 } from "lucide-react";
+import {
+  Users,
+  Wine,
+  Gamepad2,
+  Star,
+  Gamepad2Icon,
+  MessageSquare,
+} from "lucide-react";
 import { useTRPC } from "@/trpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -156,6 +163,21 @@ export default function ProfilePage() {
             label="Players"
             value={summary?.totalPlayers || 0}
           />
+          <StatCard
+            icon={<Gamepad2Icon />}
+            label="Games"
+            value={summary?.totalGames || 0}
+          />
+          <StatCard
+            icon={<Star />}
+            label="Stars"
+            value={Number(summary?.totalRatings.toFixed(1)) || 0}
+          />
+          <StatCard
+            icon={<MessageSquare />}
+            label="Comments"
+            value={summary?.totalComments || 0}
+          />
         </div>
 
         {/* Games List */}
@@ -173,7 +195,7 @@ export default function ProfilePage() {
             </div>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="max-h-[420px] pr-2">
+            <ScrollArea className="flex-1 pr-2">
               <div className="space-y-3">
                 {rooms?.map((room) => (
                   <Link
