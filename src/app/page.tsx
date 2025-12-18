@@ -34,6 +34,9 @@ export default function HomePage() {
     isLoading,
     error,
   } = useQuery(trpc.games.getMany.queryOptions());
+  const { data: transactionProfile } = useQuery(
+    trpc.transaction.getUserTransaction.queryOptions()
+  );
   const { data: rounds } = useQuery(trpc.games.getRounds.queryOptions());
   const { data: editions } = useQuery(trpc.games.getEditions.queryOptions());
   const [selectedGame, setSelectedGame] = React.useState(null);
@@ -42,6 +45,8 @@ export default function HomePage() {
   const [gameUrl, setGameUrl] = React.useState("");
   const [roomId, setRoomId] = React.useState("");
   const [showShareLink, setShowShareLink] = React.useState(false);
+  const [permissionToCreateRoooms, setPermissionToCreateRoooms] =
+    React.useState(true);
   const [selectedRounds, setSelectedRounds] = React.useState<number>(0);
   const [selectedEdition, setSelectedEdition] = React.useState<number>(0);
 
@@ -72,6 +77,18 @@ export default function HomePage() {
       }
     }
   }, [currentUser, userLoading, router]);
+
+  React.useEffect(() => {
+    if (transactionProfile) {
+      if (
+        (transactionProfile.profileType === "GUEST" ||
+          transactionProfile.profileType === "PREMIUM") &&
+        transactionProfile.usedRooms > transactionProfile.assignedRooms
+      ) {
+        setPermissionToCreateRoooms(false);
+      }
+    }
+  }, [transactionProfile]);
 
   if (isLoading) return <Loading />;
   if (error) return <div>Error: {error.message}</div>;
@@ -308,7 +325,7 @@ export default function HomePage() {
 
               {/* Action Buttons */}
               <div className="flex gap-4 justify-center flex-wrap">
-                {!roomId && (
+                {!roomId && permissionToCreateRoooms && (
                   <button
                     onClick={handleCreateRoom}
                     disabled={
@@ -335,7 +352,7 @@ export default function HomePage() {
                   </button>
                 )}
 
-                {roomId && !showShareLink && (
+                {roomId && permissionToCreateRoooms && !showShareLink && (
                   <button
                     onClick={generateShareLink}
                     className="flex items-center gap-2 px-8 py-3 bg-purple-500 hover:bg-purple-600 rounded-lg text-white font-semibold transition-colors"
@@ -354,7 +371,7 @@ export default function HomePage() {
                 )}
               </div>
 
-              {roomId && (
+              {roomId && permissionToCreateRoooms && (
                 <div className="wfull mt-6 text-center flex flex-row justify-center items-center gap-2">
                   <button
                     onClick={startGame}

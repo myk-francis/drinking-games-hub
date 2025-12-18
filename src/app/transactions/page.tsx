@@ -10,14 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Edit, Trash2, Loader2 } from "lucide-react";
+import { Edit, Trash2, Loader2, ArrowUpRight } from "lucide-react";
 import { useTRPC } from "@/trpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Loading } from "@/components/ui/loading";
 import { UserComboBox } from "@/components/apps-components/userComboBox";
 import { Transaction } from "../../../prisma/generated/prisma/client";
-import { set } from "zod";
 
 const monthOptions = [
   { value: "1", name: "1 MONTH", id: "1" },
@@ -220,6 +219,10 @@ export default function TransactionPage() {
     }
   };
 
+  const handleRedirect = (userId: string) => {
+    router.push(`/profile/${userId}`);
+  };
+
   const handleEdit = (transaction: Transaction) => {
     setSelectedUser(transaction.userId);
     setProfileType(transaction.profileType);
@@ -351,6 +354,16 @@ export default function TransactionPage() {
                           </td>
                           <td className="p-2">
                             <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  handleRedirect(transaction.userId)
+                                }
+                                //   disabled={deleteMutation.isLoading}
+                              >
+                                <ArrowUpRight className="h-4 w-4" />
+                              </Button>
                               <Button
                                 variant="outline"
                                 size="sm"

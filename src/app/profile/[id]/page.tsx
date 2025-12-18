@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import ErrorPage from "@/app/error";
 import { Loading } from "@/components/ui/loading";
 import { UserComboBox } from "@/components/apps-components/userComboBox";
+import { useParams } from "next/navigation";
 
 const getLastSixMonths = () => {
   const result = [];
@@ -37,6 +38,8 @@ const getLastSixMonths = () => {
 };
 
 export default function ProfilePage() {
+  const params = useParams();
+  const profileId: string = String(params.id);
   const router = useRouter();
   const trpc = useTRPC();
   const monthOptions = getLastSixMonths();
@@ -50,20 +53,24 @@ export default function ProfilePage() {
     error: userErrored,
   } = useQuery(trpc.auth.getCurrentUser.queryOptions());
 
+  const { data: specificUser } = useQuery(
+    trpc.auth.getSpecificUser.queryOptions({ profileId })
+  );
+
   const { data: transactionProfile } = useQuery(
     trpc.transaction.getUserTransaction.queryOptions()
   );
 
   const { data: summary, isLoading: summaryLoading } = useQuery(
     trpc.profile.summaryPerMonth.queryOptions({
-      userId: currentUser?.id || "",
+      userId: profileId || "",
       month: selectedMonths,
     })
   );
 
   const { data: rooms, isLoading: roomsLoading } = useQuery(
     trpc.profile.myRoomsPerMonth.queryOptions({
-      userId: currentUser?.id || "",
+      userId: profileId || "",
       month: selectedMonths,
     })
   );
@@ -73,7 +80,7 @@ export default function ProfilePage() {
       if (
         currentUser === null ||
         currentUser === undefined ||
-        currentUser.username !== "myk"
+        !currentUser.isAdmin
       ) {
         router.push("/login");
       }
@@ -99,7 +106,9 @@ export default function ProfilePage() {
             </AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="text-xl font-semibold">My Profile</h1>
+            <h1 className="text-xl font-semibold">
+              {specificUser?.username} - Profile
+            </h1>
             <p className="text-sm text-muted-foreground">
               Rooms statistics overview
             </p>
@@ -113,7 +122,7 @@ export default function ProfilePage() {
           </CardHeader>
           <CardContent>
             <div className="">
-              <p className="font-medium">User: {currentUser?.username}</p>
+              <p className="font-medium">User: {specificUser?.username}</p>
               <p className="font-medium mt-2">
                 Profile:{" "}
                 <span className="p-0.5 bg-green-400 rounded ">

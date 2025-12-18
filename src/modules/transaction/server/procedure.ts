@@ -107,4 +107,28 @@ export const transactionRouter = createTRPCRouter({
       });
       return transaction;
     }),
+
+  getUserTransaction: baseProcedure.query(async () => {
+    const sessionId = (await cookies()).get("sessionId")?.value;
+    if (!sessionId) return null;
+
+    const session = await prisma.session.findUnique({
+      where: { id: sessionId },
+      include: { user: true },
+    });
+
+    if (!session?.user) return null;
+
+    // Use findFirst with orderBy to get the single most recent record
+    const transaction = await prisma.transaction.findFirst({
+      where: {
+        userId: session.user.id,
+      },
+      orderBy: {
+        createdAt: "desc", // Sorts by newest first
+      },
+    });
+
+    return transaction;
+  }),
 });

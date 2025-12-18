@@ -3,6 +3,7 @@ import { baseProcedure, createTRPCRouter } from "@/trpc/init";
 import { prisma } from "@/lib/db";
 import { cookies } from "next/headers"; // Or use your cookie lib
 import { nanoid } from "nanoid";
+import { profile } from "console";
 
 export const authRouter = createTRPCRouter({
   login: baseProcedure
@@ -84,6 +85,38 @@ export const authRouter = createTRPCRouter({
       isAdmin: session.user.isAdmin,
     };
   }),
+
+  getSpecificUser: baseProcedure
+    .input(z.object({ profileId: z.string() }))
+    .query(async ({ input }) => {
+      const sessionId = (await cookies()).get("sessionId")?.value;
+      if (!sessionId) {
+        return null; // No session found
+      }
+
+      const session = await prisma.session.findUnique({
+        where: { id: sessionId },
+        include: { user: true }, // Include user data
+      });
+
+      if (!session || !session.user.isAdmin) {
+        return null; // Session or user not found
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: input.profileId },
+      });
+
+      if (!user) {
+        return null; // User not found
+      }
+
+      return {
+        id: user.id,
+        username: user.username,
+        isAdmin: user.isAdmin,
+      };
+    }),
 
   getUsers: baseProcedure.query(async () => {
     const sessionId = (await cookies()).get("sessionId")?.value;
