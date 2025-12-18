@@ -37,13 +37,17 @@ const getRandomTailwindColor = () => {
   return colors[Math.floor(Math.random() * colors.length)];
 };
 
-type GameComment = {
-  id: string;
+interface GameComment {
+  id: number;
   comment: string;
-  playerName: string;
   rating: number;
   createdAt: Date;
-};
+  playerName: string;
+}
+
+interface GameCommentsProps {
+  comments: GameComment[] | [] | null;
+}
 
 const animations = [
   {
@@ -64,15 +68,15 @@ const animations = [
   },
 ];
 
-export function GameComments({ comments }: { comments: GameComment[] }) {
-  if (!comments.length) return null;
+function GameComments({ comments }: GameCommentsProps) {
+  if (!comments?.length) return null;
 
   return (
     <div className="mt-8 max-w-3xl mx-auto">
       <h2 className="text-xl font-bold text-white mb-4">Player Feedback</h2>
 
       <div className="space-y-4">
-        {comments.map((c, index) => (
+        {comments?.map((c: GameComment, index: number) => (
           <div
             key={c.id}
             style={{
@@ -124,7 +128,7 @@ export function GameComments({ comments }: { comments: GameComment[] }) {
 
 const MAX_CHARS = 250;
 
-export function EndGameFeedback({
+function EndGameFeedback({
   handleCreateComment,
   roomId,
   setComment,
@@ -766,7 +770,6 @@ export default function RoomPage() {
 
           <div className="mt-10">
             <GameComments
-              // @ts-expect-error leave it
               comments={
                 comments?.map((c) => {
                   return {
@@ -776,7 +779,7 @@ export default function RoomPage() {
                     createdAt: c.createdAt,
                     playerName: c.playerName,
                   };
-                }) ?? []
+                }) || []
               }
             />
           </div>
