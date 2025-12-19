@@ -710,7 +710,7 @@ export default function TransactionPage() {
                         <div className="space-y-2">
                           <div className="flex justify-between">
                             <span className="font-semibold">Username:</span>
-                            <span>{usersName(user.name)}</span>
+                            <span>{user.name}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="font-semibold">Passcode:</span>
