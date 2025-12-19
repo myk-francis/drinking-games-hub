@@ -157,4 +157,40 @@ export const transactionRouter = createTRPCRouter({
 
       return transaction;
     }),
+
+  transactionsThatExpireThisMonth: baseProcedure.query(async () => {
+    const transactions = await prisma.transaction.findMany({
+      where: {
+        expiryDate: {
+          gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+          lte: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1),
+        },
+        AND: [{ profileType: "GUEST" }, { profileType: "PREMIUM" }],
+      },
+    });
+    return transactions;
+  }),
+
+  generateNewTransactionsForThisMonth: baseProcedure.mutation(async () => {
+    const now = new Date();
+    const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const transactions = await prisma.transaction.findMany({
+      where: {
+        expiryDate: {
+          gte: startDate,
+          lte: endDate,
+        },
+        AND: [{ profileType: "GUEST" }, { profileType: "PREMIUM" }],
+      },
+    });
+
+    return transactions.map((transaction) => {
+      return {
+        ...transaction,
+        expiryDate: endDate,
+      };
+    });
+  }),
 });

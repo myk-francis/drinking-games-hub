@@ -179,6 +179,9 @@ export default function TransactionPage() {
   const { data: roomsOpen } = useQuery(
     trpc.games.checkForOpenRooms.queryOptions()
   );
+  const { data: transactionsExpiringThisMonth } = useQuery(
+    trpc.transaction.transactionsThatExpireThisMonth.queryOptions()
+  );
 
   const { data: users } = useQuery(trpc.auth.getUsers.queryOptions());
   const { data: usersDetails, refetch: refetchUsers } = useQuery(
@@ -200,6 +203,14 @@ export default function TransactionPage() {
     trpc.games.closeOpenRooms.mutationOptions({
       onSuccess: () => {
         toast.success("Rooms closed successfully!");
+      },
+    })
+  );
+
+  const generateNewTransactionsForThisMonthForUsers = useMutation(
+    trpc.transaction.generateNewTransactionsForThisMonth.mutationOptions({
+      onSuccess: () => {
+        toast.success("Transactions generated successfully!");
       },
     })
   );
@@ -287,6 +298,12 @@ export default function TransactionPage() {
   const handleCloseOpenRooms = () => {
     if (roomsOpen) {
       closeTwoHourLongRooms.mutate();
+    }
+  };
+
+  const handleGenerateNewTransactions = () => {
+    if (transactionsExpiringThisMonth) {
+      generateNewTransactionsForThisMonthForUsers.mutate();
     }
   };
 
@@ -424,6 +441,13 @@ export default function TransactionPage() {
                     Close Open Rooms({roomsOpen?.length})
                   </Button>
                 )}
+                {transactionsExpiringThisMonth &&
+                  transactionsExpiringThisMonth?.length > 0 && (
+                    <Button onClick={handleGenerateNewTransactions}>
+                      Generate New Transactios (
+                      {transactionsExpiringThisMonth?.length})
+                    </Button>
+                  )}
               </div>
             </div>
           </CardContent>
