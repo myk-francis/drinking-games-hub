@@ -25,8 +25,7 @@ import { toast } from "sonner";
 import { Loading } from "@/components/ui/loading";
 import { ComboBox } from "@/components/apps-components/comboBox";
 import { QRCodeCanvas } from "qrcode.react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import Link from "next/link";
+import { UserAvatarPopover } from "@/components/apps-components/profile-avatar";
 
 export default function HomePage() {
   const router = useRouter();
@@ -51,6 +50,19 @@ export default function HomePage() {
     React.useState(true);
   const [selectedRounds, setSelectedRounds] = React.useState<number>(0);
   const [selectedEdition, setSelectedEdition] = React.useState<number>(0);
+
+  const logoutUser = useMutation(
+    trpc.auth.logout.mutationOptions({
+      onError: (error) => {
+        toast.error(error.message);
+      },
+    })
+  );
+
+  const handleLogout = () => {
+    logoutUser.mutate();
+    router.push("/login");
+  };
 
   const createRoom = useMutation(
     trpc.games.createRoom.mutationOptions({
@@ -263,13 +275,15 @@ export default function HomePage() {
                 <p className="text-sm">👑</p>
               </div>
             )}
-            <Link href="/profile" className="cursor-pointer">
-              <Avatar className="h-14 w-14 dark">
-                <AvatarFallback>
-                  {currentUser?.username?.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            </Link>
+
+            <div>
+              <UserAvatarPopover
+                isAdmin={currentUser?.isAdmin || false}
+                name={currentUser?.username || ""}
+                imageUrl="/avatar.png"
+                handleLogout={handleLogout}
+              />
+            </div>
           </div>
           {/* Header */}
           <div className="text-center mb-8">
@@ -414,18 +428,6 @@ export default function HomePage() {
                   >
                     <Play className="w-5 h-5" />
                     Start Game
-                  </button>
-                </div>
-              )}
-
-              {currentUser?.isAdmin && (
-                <div className="wfull mt-6 text-center flex flex-row justify-center items-center gap-2">
-                  <button
-                    onClick={goToTransactionPage}
-                    className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
-                  >
-                    <Play className="w-5 h-5" />
-                    Transactions
                   </button>
                 </div>
               )}

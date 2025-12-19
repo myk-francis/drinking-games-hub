@@ -3,6 +3,7 @@ import { baseProcedure, createTRPCRouter } from "@/trpc/init";
 import { prisma } from "@/lib/db";
 import { cookies } from "next/headers"; // Or use your cookie lib
 import { nanoid } from "nanoid";
+import { is } from "date-fns/locale";
 
 export const authRouter = createTRPCRouter({
   login: baseProcedure
@@ -52,6 +53,70 @@ export const authRouter = createTRPCRouter({
         id: user.id,
         username: user.username,
       };
+    }),
+
+  updateUser: baseProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        username: z.string(),
+        passcode: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const sessionId = (await cookies()).get("sessionId")?.value;
+      if (!sessionId) {
+        return null; // No session found
+      }
+
+      const session = await prisma.session.findUnique({
+        where: { id: sessionId },
+        include: { user: true }, // Include user data
+      });
+
+      if (!session || !session.user || !session.user.isAdmin) {
+        return null; // Session or user not found
+      }
+
+      const user = await prisma.user.update({
+        where: { id: input.id },
+        data: {
+          username: input.username,
+          passcode: input.passcode,
+        },
+      });
+      return user;
+    }),
+
+  createUser: baseProcedure
+    .input(
+      z.object({
+        username: z.string(),
+        passcode: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const sessionId = (await cookies()).get("sessionId")?.value;
+      if (!sessionId) {
+        return null; // No session found
+      }
+
+      const session = await prisma.session.findUnique({
+        where: { id: sessionId },
+        include: { user: true }, // Include user data
+      });
+
+      if (!session || !session.user || !session.user.isAdmin) {
+        return null; // Session or user not found
+      }
+
+      const user = await prisma.user.create({
+        data: {
+          username: input.username,
+          passcode: input.passcode,
+        },
+      });
+      return user;
     }),
 
   logout: baseProcedure.mutation(async () => {
@@ -143,6 +208,40 @@ export const authRouter = createTRPCRouter({
       id: user.id,
       name: user.username,
       value: user.id,
+    }));
+  }),
+
+  getUsersDetails: baseProcedure.query(async () => {
+    const sessionId = (await cookies()).get("sessionId")?.value;
+    if (!sessionId) {
+      return null; // No session found
+    }
+
+    const session = await prisma.session.findUnique({
+      where: { id: sessionId },
+      include: { user: true }, // Include user data
+    });
+
+    if (!session || !session.user || !session.user.isAdmin) {
+      return null; // Session or user not found
+    }
+
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        username: true,
+        isAdmin: true,
+        createdAt: true,
+        passcode: true,
+      },
+    });
+
+    return users.map((user) => ({
+      id: user.id,
+      name: user.username,
+      isAdmin: user.isAdmin,
+      createdAt: user.createdAt,
+      passcode: user.passcode,
     }));
   }),
 });

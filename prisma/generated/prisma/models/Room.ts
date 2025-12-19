@@ -64,6 +64,7 @@ export type RoomMinAggregateOutputType = {
   rounds: number | null
   currentRound: number | null
   startedAt: Date | null
+  gameEndedAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -84,6 +85,7 @@ export type RoomMaxAggregateOutputType = {
   rounds: number | null
   currentRound: number | null
   startedAt: Date | null
+  gameEndedAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -111,6 +113,7 @@ export type RoomCountAggregateOutputType = {
   questionAVotes: number
   questionBVotes: number
   startedAt: number
+  gameEndedAt: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -155,6 +158,7 @@ export type RoomMinAggregateInputType = {
   rounds?: true
   currentRound?: true
   startedAt?: true
+  gameEndedAt?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -175,6 +179,7 @@ export type RoomMaxAggregateInputType = {
   rounds?: true
   currentRound?: true
   startedAt?: true
+  gameEndedAt?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -202,6 +207,7 @@ export type RoomCountAggregateInputType = {
   questionAVotes?: true
   questionBVotes?: true
   startedAt?: true
+  gameEndedAt?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -316,6 +322,7 @@ export type RoomGroupByOutputType = {
   questionAVotes: string[]
   questionBVotes: string[]
   startedAt: Date | null
+  gameEndedAt: Date | null
   createdAt: Date
   updatedAt: Date
   _count: RoomCountAggregateOutputType | null
@@ -366,6 +373,7 @@ export type RoomWhereInput = {
   questionAVotes?: Prisma.StringNullableListFilter<"Room">
   questionBVotes?: Prisma.StringNullableListFilter<"Room">
   startedAt?: Prisma.DateTimeNullableFilter<"Room"> | Date | string | null
+  gameEndedAt?: Prisma.DateTimeNullableFilter<"Room"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Room"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Room"> | Date | string
   game?: Prisma.XOR<Prisma.GameScalarRelationFilter, Prisma.GameWhereInput>
@@ -397,6 +405,7 @@ export type RoomOrderByWithRelationInput = {
   questionAVotes?: Prisma.SortOrder
   questionBVotes?: Prisma.SortOrder
   startedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  gameEndedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   game?: Prisma.GameOrderByWithRelationInput
@@ -431,6 +440,7 @@ export type RoomWhereUniqueInput = Prisma.AtLeast<{
   questionAVotes?: Prisma.StringNullableListFilter<"Room">
   questionBVotes?: Prisma.StringNullableListFilter<"Room">
   startedAt?: Prisma.DateTimeNullableFilter<"Room"> | Date | string | null
+  gameEndedAt?: Prisma.DateTimeNullableFilter<"Room"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Room"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Room"> | Date | string
   game?: Prisma.XOR<Prisma.GameScalarRelationFilter, Prisma.GameWhereInput>
@@ -462,6 +472,7 @@ export type RoomOrderByWithAggregationInput = {
   questionAVotes?: Prisma.SortOrder
   questionBVotes?: Prisma.SortOrder
   startedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  gameEndedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.RoomCountOrderByAggregateInput
@@ -497,6 +508,7 @@ export type RoomScalarWhereWithAggregatesInput = {
   questionAVotes?: Prisma.StringNullableListFilter<"Room">
   questionBVotes?: Prisma.StringNullableListFilter<"Room">
   startedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Room"> | Date | string | null
+  gameEndedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Room"> | Date | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Room"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Room"> | Date | string
 }
@@ -522,6 +534,7 @@ export type RoomCreateInput = {
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
   startedAt?: Date | string | null
+  gameEndedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   game: Prisma.GameCreateNestedOneWithoutRoomsInput
@@ -553,6 +566,7 @@ export type RoomUncheckedCreateInput = {
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
   startedAt?: Date | string | null
+  gameEndedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   comments?: Prisma.CommentUncheckedCreateNestedManyWithoutRoomInput
@@ -580,6 +594,7 @@ export type RoomUpdateInput = {
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   game?: Prisma.GameUpdateOneRequiredWithoutRoomsNestedInput
@@ -611,6 +626,7 @@ export type RoomUncheckedUpdateInput = {
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   comments?: Prisma.CommentUncheckedUpdateManyWithoutRoomNestedInput
@@ -640,6 +656,7 @@ export type RoomCreateManyInput = {
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
   startedAt?: Date | string | null
+  gameEndedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -665,6 +682,7 @@ export type RoomUpdateManyMutationInput = {
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -692,6 +710,7 @@ export type RoomUncheckedUpdateManyInput = {
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -745,6 +764,7 @@ export type RoomCountOrderByAggregateInput = {
   questionAVotes?: Prisma.SortOrder
   questionBVotes?: Prisma.SortOrder
   startedAt?: Prisma.SortOrder
+  gameEndedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -776,6 +796,7 @@ export type RoomMaxOrderByAggregateInput = {
   rounds?: Prisma.SortOrder
   currentRound?: Prisma.SortOrder
   startedAt?: Prisma.SortOrder
+  gameEndedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -796,6 +817,7 @@ export type RoomMinOrderByAggregateInput = {
   rounds?: Prisma.SortOrder
   currentRound?: Prisma.SortOrder
   startedAt?: Prisma.SortOrder
+  gameEndedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -1016,6 +1038,7 @@ export type RoomCreateWithoutUserInput = {
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
   startedAt?: Date | string | null
+  gameEndedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   game: Prisma.GameCreateNestedOneWithoutRoomsInput
@@ -1045,6 +1068,7 @@ export type RoomUncheckedCreateWithoutUserInput = {
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
   startedAt?: Date | string | null
+  gameEndedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   comments?: Prisma.CommentUncheckedCreateNestedManyWithoutRoomInput
@@ -1103,6 +1127,7 @@ export type RoomScalarWhereInput = {
   questionAVotes?: Prisma.StringNullableListFilter<"Room">
   questionBVotes?: Prisma.StringNullableListFilter<"Room">
   startedAt?: Prisma.DateTimeNullableFilter<"Room"> | Date | string | null
+  gameEndedAt?: Prisma.DateTimeNullableFilter<"Room"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Room"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Room"> | Date | string
 }
@@ -1128,6 +1153,7 @@ export type RoomCreateWithoutGameInput = {
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
   startedAt?: Date | string | null
+  gameEndedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutRoomsInput
@@ -1157,6 +1183,7 @@ export type RoomUncheckedCreateWithoutGameInput = {
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
   startedAt?: Date | string | null
+  gameEndedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   comments?: Prisma.CommentUncheckedCreateNestedManyWithoutRoomInput
@@ -1210,6 +1237,7 @@ export type RoomCreateWithoutPlayersInput = {
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
   startedAt?: Date | string | null
+  gameEndedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   game: Prisma.GameCreateNestedOneWithoutRoomsInput
@@ -1240,6 +1268,7 @@ export type RoomUncheckedCreateWithoutPlayersInput = {
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
   startedAt?: Date | string | null
+  gameEndedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   comments?: Prisma.CommentUncheckedCreateNestedManyWithoutRoomInput
@@ -1282,6 +1311,7 @@ export type RoomUpdateWithoutPlayersInput = {
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   game?: Prisma.GameUpdateOneRequiredWithoutRoomsNestedInput
@@ -1312,6 +1342,7 @@ export type RoomUncheckedUpdateWithoutPlayersInput = {
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   comments?: Prisma.CommentUncheckedUpdateManyWithoutRoomNestedInput
@@ -1338,6 +1369,7 @@ export type RoomCreateWithoutCommentsInput = {
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
   startedAt?: Date | string | null
+  gameEndedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   game: Prisma.GameCreateNestedOneWithoutRoomsInput
@@ -1368,6 +1400,7 @@ export type RoomUncheckedCreateWithoutCommentsInput = {
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
   startedAt?: Date | string | null
+  gameEndedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   players?: Prisma.PlayerUncheckedCreateNestedManyWithoutRoomInput
@@ -1410,6 +1443,7 @@ export type RoomUpdateWithoutCommentsInput = {
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   game?: Prisma.GameUpdateOneRequiredWithoutRoomsNestedInput
@@ -1440,6 +1474,7 @@ export type RoomUncheckedUpdateWithoutCommentsInput = {
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   players?: Prisma.PlayerUncheckedUpdateManyWithoutRoomNestedInput
@@ -1467,6 +1502,7 @@ export type RoomCreateManyUserInput = {
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
   startedAt?: Date | string | null
+  gameEndedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -1492,6 +1528,7 @@ export type RoomUpdateWithoutUserInput = {
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   game?: Prisma.GameUpdateOneRequiredWithoutRoomsNestedInput
@@ -1521,6 +1558,7 @@ export type RoomUncheckedUpdateWithoutUserInput = {
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   comments?: Prisma.CommentUncheckedUpdateManyWithoutRoomNestedInput
@@ -1549,6 +1587,7 @@ export type RoomUncheckedUpdateManyWithoutUserInput = {
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1575,6 +1614,7 @@ export type RoomCreateManyGameInput = {
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
   startedAt?: Date | string | null
+  gameEndedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -1600,6 +1640,7 @@ export type RoomUpdateWithoutGameInput = {
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutRoomsNestedInput
@@ -1629,6 +1670,7 @@ export type RoomUncheckedUpdateWithoutGameInput = {
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   comments?: Prisma.CommentUncheckedUpdateManyWithoutRoomNestedInput
@@ -1657,6 +1699,7 @@ export type RoomUncheckedUpdateManyWithoutGameInput = {
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1724,6 +1767,7 @@ export type RoomSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   questionAVotes?: boolean
   questionBVotes?: boolean
   startedAt?: boolean
+  gameEndedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   game?: boolean | Prisma.GameDefaultArgs<ExtArgs>
@@ -1756,6 +1800,7 @@ export type RoomSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   questionAVotes?: boolean
   questionBVotes?: boolean
   startedAt?: boolean
+  gameEndedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   game?: boolean | Prisma.GameDefaultArgs<ExtArgs>
@@ -1785,6 +1830,7 @@ export type RoomSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   questionAVotes?: boolean
   questionBVotes?: boolean
   startedAt?: boolean
+  gameEndedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   game?: boolean | Prisma.GameDefaultArgs<ExtArgs>
@@ -1814,11 +1860,12 @@ export type RoomSelectScalar = {
   questionAVotes?: boolean
   questionBVotes?: boolean
   startedAt?: boolean
+  gameEndedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type RoomOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "gameId" | "gameEnded" | "userId" | "currentPlayerId" | "playerOneId" | "playerTwoId" | "previousPairIds" | "allPairIds" | "previousPlayersIds" | "currentQuestionId" | "previousQuestionsId" | "currentCard" | "lastCard" | "lastPlayerId" | "previousCards" | "correctPrediction" | "rounds" | "currentRound" | "questionAVotes" | "questionBVotes" | "startedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["room"]>
+export type RoomOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "gameId" | "gameEnded" | "userId" | "currentPlayerId" | "playerOneId" | "playerTwoId" | "previousPairIds" | "allPairIds" | "previousPlayersIds" | "currentQuestionId" | "previousQuestionsId" | "currentCard" | "lastCard" | "lastPlayerId" | "previousCards" | "correctPrediction" | "rounds" | "currentRound" | "questionAVotes" | "questionBVotes" | "startedAt" | "gameEndedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["room"]>
 export type RoomInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   game?: boolean | Prisma.GameDefaultArgs<ExtArgs>
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -1866,6 +1913,7 @@ export type $RoomPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     questionAVotes: string[]
     questionBVotes: string[]
     startedAt: Date | null
+    gameEndedAt: Date | null
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["room"]>
@@ -2317,6 +2365,7 @@ export interface RoomFieldRefs {
   readonly questionAVotes: Prisma.FieldRef<"Room", 'String[]'>
   readonly questionBVotes: Prisma.FieldRef<"Room", 'String[]'>
   readonly startedAt: Prisma.FieldRef<"Room", 'DateTime'>
+  readonly gameEndedAt: Prisma.FieldRef<"Room", 'DateTime'>
   readonly createdAt: Prisma.FieldRef<"Room", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"Room", 'DateTime'>
 }

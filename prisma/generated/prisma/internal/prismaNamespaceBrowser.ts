@@ -139,6 +139,7 @@ export const RoomScalarFieldEnum = {
   questionAVotes: 'questionAVotes',
   questionBVotes: 'questionBVotes',
   startedAt: 'startedAt',
+  gameEndedAt: 'gameEndedAt',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const

@@ -264,6 +264,7 @@ export const gamesRouter = createTRPCRouter({
           where: { id: input.roomId },
           data: {
             gameEnded: true,
+            gameEndedAt: new Date(),
           },
         });
 
@@ -1629,4 +1630,41 @@ export const gamesRouter = createTRPCRouter({
         throw new Error("Failed to update room");
       }
     }),
+
+  checkForOpenRooms: baseProcedure.query(async () => {
+    try {
+      const openRooms = await prisma.room.findMany({
+        where: {
+          gameEnded: false,
+          createdAt: {
+            gt: new Date(Date.now() - 120 * 60 * 1000), // 2 hours
+          },
+        },
+      });
+      return openRooms;
+    } catch (error) {
+      console.error("Failed to fetch open rooms:", error);
+      throw new Error("Failed to fetch open rooms");
+    }
+  }),
+
+  closeOpenRooms: baseProcedure.mutation(async () => {
+    try {
+      await prisma.room.updateMany({
+        where: {
+          gameEnded: false,
+          createdAt: {
+            gt: new Date(Date.now() - 120 * 60 * 1000), // 2 hours
+          },
+        },
+        data: {
+          gameEnded: true,
+        },
+      });
+      return true;
+    } catch (error) {
+      console.error("Failed to close open rooms:", error);
+      throw new Error("Failed to close open rooms");
+    }
+  }),
 });

@@ -148,7 +148,23 @@ export default function ProfilePage() {
                     : ""}
                 </p>
               )}
+              <p className="font-medium mt-2">
+                Most Played: {summary?.mostPlayedGame || "None"} 😉
+              </p>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Games Duration */}
+        <Card className="dark mt-6">
+          <CardHeader>
+            <CardTitle className="text-base">Games Duration</CardTitle>
+          </CardHeader>
+
+          <CardContent className="flex items-center justify-center py-10">
+            <span className="text-5xl font-extrabold tracking-widest text-white">
+              {summary?.totalDuration || "00:00:00"}
+            </span>
           </CardContent>
         </Card>
 
@@ -212,7 +228,7 @@ export default function ProfilePage() {
                     <div>
                       <p className="font-medium">{room.game?.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        Created {room?.createdAt.toDateString()}
+                        {room?.createdAt.toDateString()}
                       </p>
                     </div>
 
@@ -226,6 +242,9 @@ export default function ProfilePage() {
                           0
                         )}{" "}
                         drinks
+                      </Badge>
+                      <Badge variant="default">
+                        {room.comments?.length || 0} comments
                       </Badge>
                     </div>
                   </Link>

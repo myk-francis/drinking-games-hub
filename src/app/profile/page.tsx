@@ -20,6 +20,8 @@ import ErrorPage from "@/app/error";
 import { Loading } from "@/components/ui/loading";
 import { UserComboBox } from "@/components/apps-components/userComboBox";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { ChevronLeft } from "lucide-react";
 
 const getLastSixMonths = () => {
   const result = [];
@@ -96,17 +98,26 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white">
       <div className="mx-auto max-w-3xl px-4 py-6 ">
         {/* Header */}
-        <div className="mb-6 flex items-center gap-4">
-          <Avatar className="h-14 w-14 dark">
-            <AvatarFallback>
-              {currentUser?.username?.charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+        <div className="mb-6 flex items-center gap-4 justify-between">
           <div>
-            <h1 className="text-xl font-semibold">My Profile</h1>
-            <p className="text-sm text-muted-foreground">
-              Rooms statistics overview
-            </p>
+            <Avatar className="h-14 w-14 dark">
+              <AvatarFallback>
+                {currentUser?.username?.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <h1 className="text-xl font-semibold">My Profile</h1>
+              <p className="text-sm text-muted-foreground">
+                Rooms statistics overview
+              </p>
+            </div>
+          </div>
+          <div>
+            <Button onClick={() => router.back()}>
+              {" "}
+              <ChevronLeft className="mr-2 h-4 w-4" />
+              Back
+            </Button>
           </div>
         </div>
 
@@ -140,7 +151,23 @@ export default function ProfilePage() {
                   {transactionProfile?.assignedRooms}
                 </p>
               )}
+              <p className="font-medium mt-2">
+                Most Played: {summary?.mostPlayedGame || "None"} 😉
+              </p>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Games Duration */}
+        <Card className="dark mt-6">
+          <CardHeader>
+            <CardTitle className="text-base">Games Duration</CardTitle>
+          </CardHeader>
+
+          <CardContent className="flex items-center justify-center py-10">
+            <span className="text-5xl font-extrabold tracking-widest text-white">
+              {summary?.totalDuration || "00:00:00"}
+            </span>
           </CardContent>
         </Card>
 
@@ -204,7 +231,7 @@ export default function ProfilePage() {
                     <div>
                       <p className="font-medium">{room.game?.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        Created {room?.createdAt.toDateString()}
+                        {room?.createdAt.toDateString()}
                       </p>
                     </div>
 
@@ -218,6 +245,9 @@ export default function ProfilePage() {
                           0
                         )}{" "}
                         drinks
+                      </Badge>
+                      <Badge variant="default">
+                        {room.comments?.length || 0} comments
                       </Badge>
                     </div>
                   </Link>
