@@ -148,6 +148,14 @@ export default function ProfilePage() {
                     : ""}
                 </p>
               )}
+              {(transactionProfile?.profileType === "GUEST" ||
+                transactionProfile?.profileType === "ADMIN" ||
+                transactionProfile?.profileType === "PREMIUM") && (
+                <p className="font-medium mt-2">
+                  Rooms: {transactionProfile?.usedRooms} /{" "}
+                  {transactionProfile?.assignedRooms}
+                </p>
+              )}
               <p className="font-medium mt-2">
                 Most Played: {summary?.mostPlayedGame || "None"} 😉
               </p>
