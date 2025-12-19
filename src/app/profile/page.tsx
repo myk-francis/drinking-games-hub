@@ -231,21 +231,23 @@ export default function ProfilePage() {
                     <div>
                       <p className="font-medium">{room.game?.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {room?.createdAt.toDateString()}
+                        Created {room?.createdAt.toDateString()}
                       </p>
                     </div>
 
-                    <div className="flex gap-2">
-                      <Badge variant="secondary">
-                        {room.players?.length} players
-                      </Badge>
-                      <Badge variant="outline">
-                        {room.players?.reduce(
-                          (acc, player) => acc + (player.drinks || 0),
-                          0
-                        )}{" "}
-                        drinks
-                      </Badge>
+                    <div className="flex gap-2 flex-col">
+                      <div className="flex gap-2">
+                        <Badge variant="secondary">
+                          {room.players?.length} players
+                        </Badge>
+                        <Badge variant="outline">
+                          {room.players?.reduce(
+                            (acc, player) => acc + (player.drinks || 0),
+                            0
+                          )}{" "}
+                          drinks
+                        </Badge>
+                      </div>
                       <Badge variant="default">
                         {room.comments?.length || 0} comments
                       </Badge>
