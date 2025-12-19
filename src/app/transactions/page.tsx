@@ -521,6 +521,7 @@ export default function TransactionPage() {
                         <th className="text-left p-2">Used/Remain</th>
                         <th className="text-left p-2">Expiry Date</th>
                         <th className="text-left p-2">Created</th>
+                        <th className="text-left p-2">Status</th>
                         <th className="text-left p-2">Actions</th>
                       </tr>
                     </thead>
@@ -547,6 +548,9 @@ export default function TransactionPage() {
                             {new Date(
                               transaction.createdAt
                             ).toLocaleDateString()}
+                          </td>
+                          <td className="p-2">
+                            {transaction.closed ? "Closed" : "Open"}
                           </td>
                           <td className="p-2">
                             <div className="flex gap-2">
@@ -607,7 +611,7 @@ export default function TransactionPage() {
                           </div>
                           <div className="flex justify-between">
                             <span className="font-semibold">Amount:</span>
-                            <span>${transaction.amount}</span>
+                            <span>{transaction.amount} sh</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="font-semibold">Rooms:</span>
@@ -622,6 +626,12 @@ export default function TransactionPage() {
                               {new Date(
                                 transaction.expiryDate
                               ).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="font-semibold">Status:</span>
+                            <span>
+                              {transaction.closed ? "Closed" : "Open"}
                             </span>
                           </div>
                           <div className="flex justify-between">

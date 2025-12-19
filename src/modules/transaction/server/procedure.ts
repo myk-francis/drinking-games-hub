@@ -123,6 +123,7 @@ export const transactionRouter = createTRPCRouter({
     const transaction = await prisma.transaction.findFirst({
       where: {
         userId: session.user.id,
+        closed: false,
       },
       orderBy: {
         createdAt: "desc", // Sorts by newest first
@@ -165,7 +166,8 @@ export const transactionRouter = createTRPCRouter({
           gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
           lte: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1),
         },
-        AND: [{ profileType: "GUEST" }, { profileType: "PREMIUM" }],
+        OR: [{ profileType: "GUEST" }, { profileType: "PREMIUM" }],
+        closed: false,
       },
     });
     return transactions;
@@ -182,15 +184,33 @@ export const transactionRouter = createTRPCRouter({
           gte: startDate,
           lte: endDate,
         },
-        AND: [{ profileType: "GUEST" }, { profileType: "PREMIUM" }],
+        OR: [{ profileType: "GUEST" }, { profileType: "PREMIUM" }],
+        closed: false,
       },
     });
 
-    return transactions.map((transaction) => {
-      return {
+    const generatedTransactions = await prisma.transaction.createMany({
+      data: transactions.map((transaction) => ({
         ...transaction,
+        closed: false,
         expiryDate: endDate,
-      };
+      })),
     });
+
+    await prisma.transaction.updateMany({
+      where: {
+        expiryDate: {
+          gte: startDate,
+          lte: endDate,
+        },
+        OR: [{ profileType: "GUEST" }, { profileType: "PREMIUM" }],
+        closed: false,
+      },
+      data: {
+        closed: true,
+      },
+    });
+
+    return generatedTransactions;
   }),
 });

@@ -116,6 +116,7 @@ model Transaction {
   assignedRooms     Int
   usedRooms         Int
   expiryDate        DateTime
+  closed            Boolean @default(false)
   createdAt         DateTime @default(now())
 }
 

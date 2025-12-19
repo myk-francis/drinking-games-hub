@@ -190,6 +190,7 @@ export const TransactionScalarFieldEnum = {
   assignedRooms: 'assignedRooms',
   usedRooms: 'usedRooms',
   expiryDate: 'expiryDate',
+  closed: 'closed',
   createdAt: 'createdAt'
 } as const
 

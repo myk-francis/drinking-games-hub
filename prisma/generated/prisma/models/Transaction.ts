@@ -47,6 +47,7 @@ export type TransactionMinAggregateOutputType = {
   assignedRooms: number | null
   usedRooms: number | null
   expiryDate: Date | null
+  closed: boolean | null
   createdAt: Date | null
 }
 
@@ -59,6 +60,7 @@ export type TransactionMaxAggregateOutputType = {
   assignedRooms: number | null
   usedRooms: number | null
   expiryDate: Date | null
+  closed: boolean | null
   createdAt: Date | null
 }
 
@@ -71,6 +73,7 @@ export type TransactionCountAggregateOutputType = {
   assignedRooms: number
   usedRooms: number
   expiryDate: number
+  closed: number
   createdAt: number
   _all: number
 }
@@ -97,6 +100,7 @@ export type TransactionMinAggregateInputType = {
   assignedRooms?: true
   usedRooms?: true
   expiryDate?: true
+  closed?: true
   createdAt?: true
 }
 
@@ -109,6 +113,7 @@ export type TransactionMaxAggregateInputType = {
   assignedRooms?: true
   usedRooms?: true
   expiryDate?: true
+  closed?: true
   createdAt?: true
 }
 
@@ -121,6 +126,7 @@ export type TransactionCountAggregateInputType = {
   assignedRooms?: true
   usedRooms?: true
   expiryDate?: true
+  closed?: true
   createdAt?: true
   _all?: true
 }
@@ -220,6 +226,7 @@ export type TransactionGroupByOutputType = {
   assignedRooms: number
   usedRooms: number
   expiryDate: Date
+  closed: boolean
   createdAt: Date
   _count: TransactionCountAggregateOutputType | null
   _avg: TransactionAvgAggregateOutputType | null
@@ -255,6 +262,7 @@ export type TransactionWhereInput = {
   assignedRooms?: Prisma.IntFilter<"Transaction"> | number
   usedRooms?: Prisma.IntFilter<"Transaction"> | number
   expiryDate?: Prisma.DateTimeFilter<"Transaction"> | Date | string
+  closed?: Prisma.BoolFilter<"Transaction"> | boolean
   createdAt?: Prisma.DateTimeFilter<"Transaction"> | Date | string
 }
 
@@ -267,6 +275,7 @@ export type TransactionOrderByWithRelationInput = {
   assignedRooms?: Prisma.SortOrder
   usedRooms?: Prisma.SortOrder
   expiryDate?: Prisma.SortOrder
+  closed?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
 
@@ -282,6 +291,7 @@ export type TransactionWhereUniqueInput = Prisma.AtLeast<{
   assignedRooms?: Prisma.IntFilter<"Transaction"> | number
   usedRooms?: Prisma.IntFilter<"Transaction"> | number
   expiryDate?: Prisma.DateTimeFilter<"Transaction"> | Date | string
+  closed?: Prisma.BoolFilter<"Transaction"> | boolean
   createdAt?: Prisma.DateTimeFilter<"Transaction"> | Date | string
 }, "id">
 
@@ -294,6 +304,7 @@ export type TransactionOrderByWithAggregationInput = {
   assignedRooms?: Prisma.SortOrder
   usedRooms?: Prisma.SortOrder
   expiryDate?: Prisma.SortOrder
+  closed?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   _count?: Prisma.TransactionCountOrderByAggregateInput
   _avg?: Prisma.TransactionAvgOrderByAggregateInput
@@ -314,6 +325,7 @@ export type TransactionScalarWhereWithAggregatesInput = {
   assignedRooms?: Prisma.IntWithAggregatesFilter<"Transaction"> | number
   usedRooms?: Prisma.IntWithAggregatesFilter<"Transaction"> | number
   expiryDate?: Prisma.DateTimeWithAggregatesFilter<"Transaction"> | Date | string
+  closed?: Prisma.BoolWithAggregatesFilter<"Transaction"> | boolean
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Transaction"> | Date | string
 }
 
@@ -326,6 +338,7 @@ export type TransactionCreateInput = {
   assignedRooms: number
   usedRooms: number
   expiryDate: Date | string
+  closed?: boolean
   createdAt?: Date | string
 }
 
@@ -338,6 +351,7 @@ export type TransactionUncheckedCreateInput = {
   assignedRooms: number
   usedRooms: number
   expiryDate: Date | string
+  closed?: boolean
   createdAt?: Date | string
 }
 
@@ -350,6 +364,7 @@ export type TransactionUpdateInput = {
   assignedRooms?: Prisma.IntFieldUpdateOperationsInput | number
   usedRooms?: Prisma.IntFieldUpdateOperationsInput | number
   expiryDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  closed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -362,6 +377,7 @@ export type TransactionUncheckedUpdateInput = {
   assignedRooms?: Prisma.IntFieldUpdateOperationsInput | number
   usedRooms?: Prisma.IntFieldUpdateOperationsInput | number
   expiryDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  closed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -374,6 +390,7 @@ export type TransactionCreateManyInput = {
   assignedRooms: number
   usedRooms: number
   expiryDate: Date | string
+  closed?: boolean
   createdAt?: Date | string
 }
 
@@ -386,6 +403,7 @@ export type TransactionUpdateManyMutationInput = {
   assignedRooms?: Prisma.IntFieldUpdateOperationsInput | number
   usedRooms?: Prisma.IntFieldUpdateOperationsInput | number
   expiryDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  closed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -398,6 +416,7 @@ export type TransactionUncheckedUpdateManyInput = {
   assignedRooms?: Prisma.IntFieldUpdateOperationsInput | number
   usedRooms?: Prisma.IntFieldUpdateOperationsInput | number
   expiryDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  closed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -410,6 +429,7 @@ export type TransactionCountOrderByAggregateInput = {
   assignedRooms?: Prisma.SortOrder
   usedRooms?: Prisma.SortOrder
   expiryDate?: Prisma.SortOrder
+  closed?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
 
@@ -428,6 +448,7 @@ export type TransactionMaxOrderByAggregateInput = {
   assignedRooms?: Prisma.SortOrder
   usedRooms?: Prisma.SortOrder
   expiryDate?: Prisma.SortOrder
+  closed?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
 
@@ -440,6 +461,7 @@ export type TransactionMinOrderByAggregateInput = {
   assignedRooms?: Prisma.SortOrder
   usedRooms?: Prisma.SortOrder
   expiryDate?: Prisma.SortOrder
+  closed?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
 
@@ -460,6 +482,7 @@ export type TransactionSelect<ExtArgs extends runtime.Types.Extensions.InternalA
   assignedRooms?: boolean
   usedRooms?: boolean
   expiryDate?: boolean
+  closed?: boolean
   createdAt?: boolean
 }, ExtArgs["result"]["transaction"]>
 
@@ -472,6 +495,7 @@ export type TransactionSelectCreateManyAndReturn<ExtArgs extends runtime.Types.E
   assignedRooms?: boolean
   usedRooms?: boolean
   expiryDate?: boolean
+  closed?: boolean
   createdAt?: boolean
 }, ExtArgs["result"]["transaction"]>
 
@@ -484,6 +508,7 @@ export type TransactionSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.E
   assignedRooms?: boolean
   usedRooms?: boolean
   expiryDate?: boolean
+  closed?: boolean
   createdAt?: boolean
 }, ExtArgs["result"]["transaction"]>
 
@@ -496,10 +521,11 @@ export type TransactionSelectScalar = {
   assignedRooms?: boolean
   usedRooms?: boolean
   expiryDate?: boolean
+  closed?: boolean
   createdAt?: boolean
 }
 
-export type TransactionOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "profileType" | "profileName" | "amount" | "assignedRooms" | "usedRooms" | "expiryDate" | "createdAt", ExtArgs["result"]["transaction"]>
+export type TransactionOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "profileType" | "profileName" | "amount" | "assignedRooms" | "usedRooms" | "expiryDate" | "closed" | "createdAt", ExtArgs["result"]["transaction"]>
 
 export type $TransactionPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "Transaction"
@@ -513,6 +539,7 @@ export type $TransactionPayload<ExtArgs extends runtime.Types.Extensions.Interna
     assignedRooms: number
     usedRooms: number
     expiryDate: Date
+    closed: boolean
     createdAt: Date
   }, ExtArgs["result"]["transaction"]>
   composites: {}
@@ -945,6 +972,7 @@ export interface TransactionFieldRefs {
   readonly assignedRooms: Prisma.FieldRef<"Transaction", 'Int'>
   readonly usedRooms: Prisma.FieldRef<"Transaction", 'Int'>
   readonly expiryDate: Prisma.FieldRef<"Transaction", 'DateTime'>
+  readonly closed: Prisma.FieldRef<"Transaction", 'Boolean'>
   readonly createdAt: Prisma.FieldRef<"Transaction", 'DateTime'>
 }
     
