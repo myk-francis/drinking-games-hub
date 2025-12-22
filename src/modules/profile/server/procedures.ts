@@ -177,6 +177,18 @@ export const profileRouter = createTRPCRouter({
         },
       });
 
+      const lastTimeUserLoggedIn = await prisma.session.findFirst({
+        where: {
+          userId: userId,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        select: {
+          createdAt: true,
+        },
+      });
+
       const totalRooms = rooms.length;
 
       let totalPlayers = 0;
@@ -227,6 +239,7 @@ export const profileRouter = createTRPCRouter({
         totalRatings: totalRatings / totalComments || 0,
         mostPlayedGame: getMostFrequent(mostPlayedGames),
         totalDuration: formattedTime,
+        lastLogin: lastTimeUserLoggedIn?.createdAt || null,
       };
     }),
 

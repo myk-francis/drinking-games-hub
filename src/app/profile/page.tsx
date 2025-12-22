@@ -144,6 +144,7 @@ export default function ProfilePage() {
                     : ""}
                 </p>
               )}
+
               {(transactionProfile?.profileType === "GUEST" ||
                 transactionProfile?.profileType === "PREMIUM") && (
                 <p className="font-medium mt-2">

@@ -139,23 +139,20 @@ export default function ProfilePage() {
                   {transactionProfile?.profileType}
                 </span>
               </p>
-              {(transactionProfile?.profileType === "GUEST" ||
-                transactionProfile?.profileType === "PREMIUM") && (
-                <p className="font-medium mt-2">
-                  Expiration:{" "}
-                  {transactionProfile?.expiryDate
-                    ? transactionProfile?.expiryDate.toDateString()
-                    : ""}
-                </p>
-              )}
-              {(transactionProfile?.profileType === "GUEST" ||
-                transactionProfile?.profileType === "ADMIN" ||
-                transactionProfile?.profileType === "PREMIUM") && (
-                <p className="font-medium mt-2">
-                  Rooms: {transactionProfile?.usedRooms} /{" "}
-                  {transactionProfile?.assignedRooms}
-                </p>
-              )}
+              <p className="font-medium mt-2">
+                Expiration:{" "}
+                {transactionProfile?.expiryDate
+                  ? transactionProfile?.expiryDate.toDateString()
+                  : ""}
+              </p>
+              <p className="font-medium mt-2">
+                Last Login:{" "}
+                {summary?.lastLogin ? summary?.lastLogin.toDateString() : ""}
+              </p>
+              <p className="font-medium mt-2">
+                Rooms: {transactionProfile?.usedRooms} /{" "}
+                {transactionProfile?.assignedRooms}
+              </p>
               <p className="font-medium mt-2">
                 Most Played: {summary?.mostPlayedGame || "None"} 😉
               </p>

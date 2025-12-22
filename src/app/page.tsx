@@ -432,6 +432,15 @@ export default function HomePage() {
                 </div>
               )}
 
+              {!permissionToCreateRoooms && (
+                <div className="mt-6 p-4 bg-red-500/20 border border-red-500/30 rounded-lg text-center">
+                  <p className="text-red-300">
+                    You don&apos;t have permission to create rooms please
+                    contact Admin
+                  </p>
+                </div>
+              )}
+
               {gameUrl !== "" && (
                 <div className="wfull mt-6  flex flex-row justify-center items-center">
                   <QRCodeCanvas
