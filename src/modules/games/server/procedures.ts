@@ -1636,12 +1636,18 @@ export const gamesRouter = createTRPCRouter({
       const openRooms = await prisma.room.findMany({
         where: {
           gameEnded: false,
-          createdAt: {
-            gt: new Date(Date.now() - 120 * 60 * 1000), // 2 hours
-          },
+          // createdAt: {
+          //   gt: new Date(Date.now() - 120 * 60 * 1000), // 2 hours
+          // },
         },
       });
-      return openRooms;
+
+      const filteredOpenRooms = openRooms.filter((room) => {
+        const roomAgeInMs = Date.now() - room.createdAt.getTime();
+        return roomAgeInMs >= 120 * 60 * 1000; // 2 hours
+      });
+
+      return filteredOpenRooms;
     } catch (error) {
       console.error("Failed to fetch open rooms:", error);
       throw new Error("Failed to fetch open rooms");
