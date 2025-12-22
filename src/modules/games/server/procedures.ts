@@ -1656,17 +1656,29 @@ export const gamesRouter = createTRPCRouter({
 
   closeOpenRooms: baseProcedure.mutation(async () => {
     try {
-      await prisma.room.updateMany({
+      const openRooms = await prisma.room.findMany({
         where: {
           gameEnded: false,
-          createdAt: {
-            gt: new Date(Date.now() - 120 * 60 * 1000), // 2 hours
-          },
-        },
-        data: {
-          gameEnded: true,
+          // createdAt: {
+          //   gt: new Date(Date.now() - 120 * 60 * 1000), // 2 hours
+          // },
         },
       });
+
+      const filteredOpenRooms = openRooms.filter((room) => {
+        const roomAgeInMs = Date.now() - room.createdAt.getTime();
+        return roomAgeInMs >= 120 * 60 * 1000; // 2 hours
+      });
+
+      for (const room of filteredOpenRooms) {
+        await prisma.room.update({
+          where: { id: room.id },
+          data: {
+            gameEnded: true,
+          },
+        });
+      }
+
       return true;
     } catch (error) {
       console.error("Failed to close open rooms:", error);
