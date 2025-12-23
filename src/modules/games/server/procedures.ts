@@ -1675,6 +1675,7 @@ export const gamesRouter = createTRPCRouter({
           where: { id: room.id },
           data: {
             gameEnded: true,
+            gameEndedAt: new Date(),
           },
         });
       }
