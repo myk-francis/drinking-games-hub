@@ -23,6 +23,12 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 
 import { Star } from "lucide-react";
+import { DRINKING_QUOTES } from "@/lib/quotes";
+
+export function getRandomDrinkingQuote(): string {
+  const index = Math.floor(Math.random() * DRINKING_QUOTES.length);
+  return DRINKING_QUOTES[index];
+}
 
 const getRandomTailwindColor = () => {
   const colors = [
@@ -239,6 +245,7 @@ function EndGameFeedback({
 }
 
 export default function RoomPage() {
+  const [quote, setQuote] = React.useState<string>("");
   const params = useParams();
   const roomId = params.id; // This is your dynamic route: /room/[id]
   const trpc = useTRPC();
@@ -558,6 +565,10 @@ export default function RoomPage() {
   }
 
   React.useEffect(() => {
+    setQuote(getRandomDrinkingQuote());
+  }, []);
+
+  React.useEffect(() => {
     if (isRunning && timeLeft > 0) {
       timerRef.current = setInterval(() => {
         setTimeLeft((prev) => prev - 1);
@@ -753,9 +764,11 @@ export default function RoomPage() {
         <div>
           <h1 className="text-4xl font-bold mb-4">Game Over</h1>
           <h1 className="text-2xl font-bold mb-4 ">Game: {game?.name ?? ""}</h1>
-          <h1 className="text-xl font-bold mb-4 ">
-            Game Status: {totalPoints} Drinks : Lame👽
-          </h1>
+          <div className="">
+            <h1 className="text-xl font-bold mb-4 text-wrap">
+              Game Status: {totalPoints} Drinks : {quote}
+            </h1>
+          </div>
           <div className="flex gap-4 flex-wrap">
             {players.map((player) => (
               <PlayerScore
