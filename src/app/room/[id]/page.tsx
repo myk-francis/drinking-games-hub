@@ -25,7 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Star } from "lucide-react";
 import { DRINKING_QUOTES } from "@/lib/quotes";
 
-export function getRandomDrinkingQuote(): string {
+function getRandomDrinkingQuote(): string {
   const index = Math.floor(Math.random() * DRINKING_QUOTES.length);
   return DRINKING_QUOTES[index];
 }

@@ -16,7 +16,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Loading } from "@/components/ui/loading";
 import { UserComboBox } from "@/components/apps-components/userComboBox";
-import { Transaction, User } from "../../../prisma/generated/prisma/client";
+import { Transaction } from "../../../prisma/generated/prisma/client";
 import { toast } from "sonner";
 
 const monthOptions = [

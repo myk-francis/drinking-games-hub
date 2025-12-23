@@ -3,7 +3,6 @@ import { baseProcedure, createTRPCRouter } from "@/trpc/init";
 import { prisma } from "@/lib/db";
 import { cookies } from "next/headers"; // Or use your cookie lib
 import { nanoid } from "nanoid";
-import { is } from "date-fns/locale";
 
 export const authRouter = createTRPCRouter({
   login: baseProcedure

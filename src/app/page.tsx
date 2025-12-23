@@ -225,10 +225,6 @@ export default function HomePage() {
     router.push(`/room/${roomId}`);
   };
 
-  const goToTransactionPage = () => {
-    router.push(`/transactions`);
-  };
-
   //@ts-expect-error any type
   const GameCard = ({ name, description, code, onClick, selected }) => (
     <div
