@@ -79,7 +79,7 @@ function GameComments({ comments }: GameCommentsProps) {
 
   return (
     <div className="mt-8 max-w-3xl mx-auto">
-      <h2 className="text-xl font-bold text-white mb-4">Player Feedback</h2>
+      <h2 className="text-xl font-bold text-white mb-4">Player Comments</h2>
 
       <div className="space-y-4">
         {comments?.map((c: GameComment, index: number) => (
@@ -166,7 +166,7 @@ function EndGameFeedback({
           }}
           className="border-white/20 text-white"
         >
-          Leave feedback
+          Leave a Comment
         </Button>
       </DialogTrigger>
 
@@ -236,7 +236,7 @@ function EndGameFeedback({
               setRating(1);
             }}
           >
-            Submit feedback
+            Submit Comment
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -801,7 +801,7 @@ export default function RoomPage() {
                   setShowAddPlayerModal(true);
                 }}
               >
-                Leave feedback
+                Leave a Comment
               </Button>
             )}
           </div>
