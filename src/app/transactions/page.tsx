@@ -19,6 +19,16 @@ import { UserComboBox } from "@/components/apps-components/userComboBox";
 import { Transaction } from "../../../prisma/generated/prisma/client";
 import { toast } from "sonner";
 
+function formatDate(date: Date | string): string {
+  const d = new Date(date);
+
+  const day = d.getDate().toString().padStart(2, "0");
+  const month = d.toLocaleString("en-US", { month: "short" });
+  const year = d.getFullYear();
+
+  return `${day}-${month}-${year}`;
+}
+
 const monthOptions = [
   { value: "1", name: "1 MONTH", id: "1" },
   { value: "2", name: "2 MONTHS", id: "2" },
@@ -191,6 +201,8 @@ export default function TransactionPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
+  const [generatingTransactionsLoading, setGeneratingTransactionsLoading] =
+    useState<boolean>(false);
 
   // tRPC queries and mutations
   const {
@@ -204,6 +216,9 @@ export default function TransactionPage() {
       onSuccess: () => {
         toast.success("Rooms closed successfully!");
       },
+      onError: () => {
+        toast.error("Error closing rooms.");
+      },
     })
   );
 
@@ -211,6 +226,11 @@ export default function TransactionPage() {
     trpc.transaction.generateNewTransactionsForThisMonth.mutationOptions({
       onSuccess: () => {
         toast.success("Transactions generated successfully!");
+        setGeneratingTransactionsLoading(false);
+      },
+      onError: () => {
+        toast.error("Error generating transactions.");
+        setGeneratingTransactionsLoading(false);
       },
     })
   );
@@ -303,6 +323,7 @@ export default function TransactionPage() {
 
   const handleGenerateNewTransactions = () => {
     if (transactionsExpiringThisMonth) {
+      setGeneratingTransactionsLoading(true);
       generateNewTransactionsForThisMonthForUsers.mutate();
     }
   };
@@ -444,8 +465,12 @@ export default function TransactionPage() {
                 {transactionsExpiringThisMonth &&
                   transactionsExpiringThisMonth?.length > 0 && (
                     <Button onClick={handleGenerateNewTransactions}>
-                      Generate New Transactios (
-                      {transactionsExpiringThisMonth?.length})
+                      {generatingTransactionsLoading ? (
+                        <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        `Generate New Transactios (
+                      ${transactionsExpiringThisMonth?.length})`
+                      )}
                     </Button>
                   )}
               </div>
@@ -540,14 +565,10 @@ export default function TransactionPage() {
                             {transaction.usedRooms}/{transaction.assignedRooms}
                           </td>
                           <td className="p-2">
-                            {new Date(
-                              transaction.expiryDate
-                            ).toLocaleDateString()}
+                            {formatDate(transaction.expiryDate)}
                           </td>
                           <td className="p-2">
-                            {new Date(
-                              transaction.createdAt
-                            ).toLocaleDateString()}
+                            {formatDate(transaction.createdAt)}
                           </td>
                           <td className="p-2">
                             {transaction.closed ? "Closed" : "Open"}
@@ -622,11 +643,7 @@ export default function TransactionPage() {
                           </div>
                           <div className="flex justify-between">
                             <span className="font-semibold">Expiry:</span>
-                            <span>
-                              {new Date(
-                                transaction.expiryDate
-                              ).toLocaleDateString()}
-                            </span>
+                            <span>{formatDate(transaction.expiryDate)}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="font-semibold">Status:</span>
@@ -636,11 +653,7 @@ export default function TransactionPage() {
                           </div>
                           <div className="flex justify-between">
                             <span className="font-semibold">Created:</span>
-                            <span>
-                              {new Date(
-                                transaction.createdAt
-                              ).toLocaleDateString()}
-                            </span>
+                            <span>{formatDate(transaction.createdAt)}</span>
                           </div>
                           <div className="flex gap-2 mt-4">
                             <Button

@@ -164,7 +164,7 @@ export const transactionRouter = createTRPCRouter({
       where: {
         expiryDate: {
           gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-          lte: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1),
+          lte: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0),
         },
         OR: [{ profileType: "GUEST" }, { profileType: "PREMIUM" }],
         closed: false,
@@ -174,43 +174,65 @@ export const transactionRouter = createTRPCRouter({
   }),
 
   generateNewTransactionsForThisMonth: baseProcedure.mutation(async () => {
-    const now = new Date();
-    const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    try {
+      const sessionId = (await cookies()).get("sessionId")?.value;
+      if (!sessionId) return null;
 
-    const transactions = await prisma.transaction.findMany({
-      where: {
-        expiryDate: {
-          gte: startDate,
-          lte: endDate,
+      const session = await prisma.session.findUnique({
+        where: { id: sessionId },
+        include: { user: true },
+      });
+
+      if (!session?.user || !session.user.isAdmin) return null;
+
+      const now = new Date();
+      const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+      const transactions = await prisma.transaction.findMany({
+        where: {
+          expiryDate: {
+            gte: startDate,
+            lte: endDate,
+          },
+          OR: [{ profileType: "GUEST" }, { profileType: "PREMIUM" }],
+          closed: false,
         },
-        OR: [{ profileType: "GUEST" }, { profileType: "PREMIUM" }],
-        closed: false,
-      },
-    });
+      });
 
-    const generatedTransactions = await prisma.transaction.createMany({
-      data: transactions.map((transaction) => ({
-        ...transaction,
-        closed: false,
-        expiryDate: endDate,
-      })),
-    });
+      const generatedTransactions = await prisma.transaction.createMany({
+        data: transactions.map((t) => ({
+          userId: t.userId,
+          profileType: t.profileType,
+          profileName: t.profileName,
+          amount: t.amount,
+          assignedRooms: t.assignedRooms,
+          usedRooms: 0,
+          closed: false,
+          expiryDate: endDate,
+          createdAt: new Date(),
+        })),
+      });
 
-    await prisma.transaction.updateMany({
-      where: {
-        expiryDate: {
-          gte: startDate,
-          lte: endDate,
+      await prisma.transaction.updateMany({
+        where: {
+          expiryDate: {
+            gte: startDate,
+            lte: lastDayOfMonth,
+          },
+          OR: [{ profileType: "GUEST" }, { profileType: "PREMIUM" }],
+          closed: false,
         },
-        OR: [{ profileType: "GUEST" }, { profileType: "PREMIUM" }],
-        closed: false,
-      },
-      data: {
-        closed: true,
-      },
-    });
+        data: {
+          closed: true,
+        },
+      });
 
-    return generatedTransactions;
+      return generatedTransactions.count;
+    } catch (error) {
+      console.error("Error generating new transactions:", error);
+      throw error;
+    }
   }),
 });
