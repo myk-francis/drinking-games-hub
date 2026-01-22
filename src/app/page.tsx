@@ -36,7 +36,7 @@ export default function HomePage() {
     error,
   } = useQuery(trpc.games.getMany.queryOptions());
   const { data: transactionProfile } = useQuery(
-    trpc.transaction.getUserTransaction.queryOptions()
+    trpc.transaction.getUserTransaction.queryOptions(),
   );
   const { data: rounds } = useQuery(trpc.games.getRounds.queryOptions());
   const { data: editions } = useQuery(trpc.games.getEditions.queryOptions());
@@ -56,7 +56,7 @@ export default function HomePage() {
       onError: (error) => {
         toast.error(error.message);
       },
-    })
+    }),
   );
 
   const handleLogout = () => {
@@ -77,11 +77,11 @@ export default function HomePage() {
         console.error("Error creating room:", error);
         // alert("Failed to create room. Please try again.");
       },
-    })
+    }),
   );
 
   const { data: currentUser, isLoading: userLoading } = useQuery(
-    trpc.auth.getCurrentUser.queryOptions()
+    trpc.auth.getCurrentUser.queryOptions(),
   );
 
   React.useEffect(() => {
@@ -235,7 +235,7 @@ export default function HomePage() {
     >
       <div
         className={`absolute inset-0 bg-gradient-to-br ${GameColor(
-          code
+          code,
         )} opacity-90`}
       ></div>
       <div className="relative z-10 text-white">

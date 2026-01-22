@@ -46,12 +46,30 @@ const getLastSixMonths = () => {
   return result;
 };
 
+function convertTime(timeStr: string): string {
+  // Split the time string into hours, minutes, and seconds
+  const [hours, minutes, seconds] = timeStr.split(":").map(Number);
+
+  // Calculate days, hours, minutes, and seconds
+  const days = Math.floor(hours / 24);
+  const hoursNew = hours % 24;
+
+  // Build the result string with the specified format
+  let result = "";
+  if (days > 0) {
+    result += `${days}D`;
+  }
+  result += `${String(hoursNew).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+
+  return result.trim();
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const trpc = useTRPC();
   const monthOptions = getLastSixMonths();
   const [selectedMonths, setSelectedMonths] = React.useState(
-    monthOptions[0].value
+    monthOptions[0].value,
   );
 
   const {
@@ -61,21 +79,21 @@ export default function ProfilePage() {
   } = useQuery(trpc.auth.getCurrentUser.queryOptions());
 
   const { data: transactionProfile } = useQuery(
-    trpc.transaction.getUserTransaction.queryOptions()
+    trpc.transaction.getUserTransaction.queryOptions(),
   );
 
   const { data: summary, isLoading: summaryLoading } = useQuery(
     trpc.profile.summaryPerMonth.queryOptions({
       userId: currentUser?.id || "",
       month: selectedMonths,
-    })
+    }),
   );
 
   const { data: rooms, isLoading: roomsLoading } = useQuery(
     trpc.profile.myRoomsPerMonth.queryOptions({
       userId: currentUser?.id || "",
       month: selectedMonths,
-    })
+    }),
   );
 
   React.useEffect(() => {
@@ -167,7 +185,7 @@ export default function ProfilePage() {
 
           <CardContent className="flex items-center justify-center py-10">
             <span className="text-5xl font-extrabold tracking-widest text-white">
-              {summary?.totalDuration || "00:00:00"}
+              {convertTime(summary?.totalDuration || "00:00:00")}
             </span>
           </CardContent>
         </Card>
@@ -244,7 +262,7 @@ export default function ProfilePage() {
                         <Badge variant="outline">
                           {room.players?.reduce(
                             (acc, player) => acc + (player.drinks || 0),
-                            0
+                            0,
                           )}{" "}
                           drinks
                         </Badge>

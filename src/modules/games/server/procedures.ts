@@ -70,7 +70,7 @@ export const gamesRouter = createTRPCRouter({
     .input(
       z.object({
         roomId: z.string().min(1, { message: " Room ID is required" }),
-      })
+      }),
     )
     .query(async ({ input }) => {
       const room = await prisma.room.findUnique({
@@ -96,7 +96,7 @@ export const gamesRouter = createTRPCRouter({
         players: z.array(z.string()).min(2).max(10),
         userId: z.string(),
         selectedRounds: z.number(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       try {
@@ -212,13 +212,13 @@ export const gamesRouter = createTRPCRouter({
         if (input.selectedGame === "truth-or-drink") {
           currentQuestionId =
             createdRoom.game.questions.filter(
-              (q) => q.edition === createdRoom.rounds
+              (q) => q.edition === createdRoom.rounds,
             )[
               Math.floor(
                 Math.random() *
                   createdRoom.game.questions.filter(
-                    (q) => q.edition === createdRoom.rounds
-                  ).length
+                    (q) => q.edition === createdRoom.rounds,
+                  ).length,
               )
             ]?.id || null;
         } else {
@@ -256,7 +256,7 @@ export const gamesRouter = createTRPCRouter({
     .input(
       z.object({
         roomId: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       try {
@@ -284,7 +284,7 @@ export const gamesRouter = createTRPCRouter({
         drinks: z.string(),
         currentPlayerId: z.string(),
         currentQuestionId: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       try {
@@ -311,14 +311,14 @@ export const gamesRouter = createTRPCRouter({
         const players = room.players.map((obj) => obj.id);
         let previousPlayersIds = room.previousPlayersIds || [];
         const playersWhoHaveNotPlayed = players.filter(
-          (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id)
+          (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id),
         );
 
         if (players.length === 2) {
           previousPlayersIds = [];
           previousPlayersIds.push(input.currentPlayerId);
           nextPlayerId = players.filter(
-            (id) => !previousPlayersIds.includes(id)
+            (id) => !previousPlayersIds.includes(id),
           )[0];
         } else {
           if (playersWhoHaveNotPlayed.length > 0) {
@@ -326,7 +326,7 @@ export const gamesRouter = createTRPCRouter({
             previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
           } else {
             const availablePlayers = players.filter(
-              (id) => id !== input.currentPlayerId
+              (id) => id !== input.currentPlayerId,
             );
             nextPlayerId =
               availablePlayers[
@@ -345,12 +345,12 @@ export const gamesRouter = createTRPCRouter({
         let previousQuestionsIds = room.previousQuestionsId || [];
         const questionsWhichHaveNotPlayed = questions.filter(
           (id) =>
-            ![...previousQuestionsIds, input.currentQuestionId].includes(id)
+            ![...previousQuestionsIds, input.currentQuestionId].includes(id),
         );
         const questionsWhichHaveNotPlayedForTruthOrDrink =
           questionsForTruthOrDrink.filter(
             (id) =>
-              ![...previousQuestionsIds, input.currentQuestionId].includes(id)
+              ![...previousQuestionsIds, input.currentQuestionId].includes(id),
           );
 
         if (input.gamecode === "truth-or-drink") {
@@ -359,7 +359,7 @@ export const gamesRouter = createTRPCRouter({
               questionsWhichHaveNotPlayedForTruthOrDrink[
                 Math.floor(
                   Math.random() *
-                    questionsWhichHaveNotPlayedForTruthOrDrink.length
+                    questionsWhichHaveNotPlayedForTruthOrDrink.length,
                 )
               ];
             previousQuestionsIds = [
@@ -372,7 +372,7 @@ export const gamesRouter = createTRPCRouter({
                 Math.floor(
                   Math.random() *
                     room.game.questions.filter((q) => q.edition === room.rounds)
-                      .length
+                      .length,
                 )
               ]?.id || null;
             previousQuestionsIds = [];
@@ -450,7 +450,7 @@ export const gamesRouter = createTRPCRouter({
         gamecode: z.string(),
         roomId: z.string(),
         currentQuestionId: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       try {
@@ -478,7 +478,7 @@ export const gamesRouter = createTRPCRouter({
         let previousQuestionsIds = room.previousQuestionsId || [];
         const questionsWhichHaveNotPlayed = questions.filter(
           (id) =>
-            ![...previousQuestionsIds, input.currentQuestionId].includes(id)
+            ![...previousQuestionsIds, input.currentQuestionId].includes(id),
         );
 
         if (questionsWhichHaveNotPlayed?.length > 0) {
@@ -524,7 +524,7 @@ export const gamesRouter = createTRPCRouter({
         currentPlayerId: z.string(),
         playersAns: z.string(),
         card: z.number().optional(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       try {
@@ -557,14 +557,14 @@ export const gamesRouter = createTRPCRouter({
         const players = room.players.map((obj) => obj.id);
         let previousPlayersIds = room.previousPlayersIds || [];
         const playersWhoHaveNotPlayed = players.filter(
-          (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id)
+          (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id),
         );
 
         if (players.length === 2) {
           previousPlayersIds = [];
           previousPlayersIds.push(input.currentPlayerId);
           nextPlayerId = players.filter(
-            (id) => !previousPlayersIds.includes(id)
+            (id) => !previousPlayersIds.includes(id),
           )[0];
         } else {
           if (playersWhoHaveNotPlayed.length > 0) {
@@ -572,7 +572,7 @@ export const gamesRouter = createTRPCRouter({
             previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
           } else {
             const availablePlayers = players.filter(
-              (id) => id !== input.currentPlayerId
+              (id) => id !== input.currentPlayerId,
             );
             nextPlayerId =
               availablePlayers[
@@ -657,7 +657,7 @@ export const gamesRouter = createTRPCRouter({
         roomId: z.string(),
         currentPlayerId: z.string(),
         votedPlayer: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       try {
@@ -684,14 +684,14 @@ export const gamesRouter = createTRPCRouter({
         const players = room.players.map((obj) => obj.id);
         let previousPlayersIds = room.previousPlayersIds || [];
         const playersWhoHaveNotPlayed = players.filter(
-          (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id)
+          (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id),
         );
 
         if (players.length === 2) {
           previousPlayersIds = [];
           previousPlayersIds.push(input.currentPlayerId);
           nextPlayerId = players.filter(
-            (id) => !previousPlayersIds.includes(id)
+            (id) => !previousPlayersIds.includes(id),
           )[0];
         } else {
           if (playersWhoHaveNotPlayed.length > 0) {
@@ -699,7 +699,7 @@ export const gamesRouter = createTRPCRouter({
             previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
           } else {
             const availablePlayers = players.filter(
-              (id) => id !== input.currentPlayerId
+              (id) => id !== input.currentPlayerId,
             );
             nextPlayerId =
               availablePlayers[
@@ -747,7 +747,7 @@ export const gamesRouter = createTRPCRouter({
         gamecode: z.string(),
         roomId: z.string(),
         currentQuestionId: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       try {
@@ -775,7 +775,7 @@ export const gamesRouter = createTRPCRouter({
         let previousQuestionsIds = room.previousQuestionsId || [];
         const questionsWhichHaveNotPlayed = questions.filter(
           (id) =>
-            ![...previousQuestionsIds, input.currentQuestionId].includes(id)
+            ![...previousQuestionsIds, input.currentQuestionId].includes(id),
         );
 
         if (questionsWhichHaveNotPlayed?.length > 0) {
@@ -830,7 +830,7 @@ export const gamesRouter = createTRPCRouter({
         playerOneId: z.string(),
         playerTwoId: z.string(),
         currentQuestionId: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       try {
@@ -858,7 +858,7 @@ export const gamesRouter = createTRPCRouter({
         let previousQuestionsIds = room.previousQuestionsId || [];
         const questionsWhichHaveNotPlayed = questions.filter(
           (id) =>
-            ![...previousQuestionsIds, input.currentQuestionId].includes(id)
+            ![...previousQuestionsIds, input.currentQuestionId].includes(id),
         );
 
         if (questionsWhichHaveNotPlayed?.length > 0) {
@@ -879,11 +879,11 @@ export const gamesRouter = createTRPCRouter({
         }
 
         const unusedPairs = room.allPairIds.filter(
-          (pair) => !room.previousPairIds.includes(pair)
+          (pair) => !room.previousPairIds.includes(pair),
         );
         if (unusedPairs.length > 0) {
           const randomPairIndex = Math.floor(
-            Math.random() * unusedPairs.length
+            Math.random() * unusedPairs.length,
           );
           const randomPair = unusedPairs[randomPairIndex];
           const [playerOneId, playerTwoId] = randomPair.split("&");
@@ -900,7 +900,7 @@ export const gamesRouter = createTRPCRouter({
           });
         } else {
           const randomPairIndex = Math.floor(
-            Math.random() * room.allPairIds.length
+            Math.random() * room.allPairIds.length,
           );
           const randomPair = room.allPairIds[randomPairIndex];
           const [playerOne, playerTwo] = randomPair.split("&");
@@ -973,7 +973,7 @@ export const gamesRouter = createTRPCRouter({
         result: z.string(),
         currentPlayerId: z.string(),
         currentQuestionId: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       try {
@@ -1000,14 +1000,14 @@ export const gamesRouter = createTRPCRouter({
         const players = room.players.map((obj) => obj.id);
         let previousPlayersIds = room.previousPlayersIds || [];
         const playersWhoHaveNotPlayed = players.filter(
-          (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id)
+          (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id),
         );
 
         if (players.length === 2) {
           previousPlayersIds = [];
           previousPlayersIds.push(input.currentPlayerId);
           nextPlayerId = players.filter(
-            (id) => !previousPlayersIds.includes(id)
+            (id) => !previousPlayersIds.includes(id),
           )[0];
         } else {
           if (playersWhoHaveNotPlayed.length > 0) {
@@ -1015,7 +1015,7 @@ export const gamesRouter = createTRPCRouter({
             previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
           } else {
             const availablePlayers = players.filter(
-              (id) => id !== input.currentPlayerId
+              (id) => id !== input.currentPlayerId,
             );
             nextPlayerId =
               availablePlayers[
@@ -1031,7 +1031,7 @@ export const gamesRouter = createTRPCRouter({
         let previousQuestionsIds = room.previousQuestionsId || [];
         const questionsWhichHaveNotPlayed = questions.filter(
           (id) =>
-            ![...previousQuestionsIds, input.currentQuestionId].includes(id)
+            ![...previousQuestionsIds, input.currentQuestionId].includes(id),
         );
 
         if (questionsWhichHaveNotPlayed?.length > 0) {
@@ -1097,7 +1097,7 @@ export const gamesRouter = createTRPCRouter({
         roomId: z.string(),
         vote: z.string(),
         currentPlayerId: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       try {
@@ -1124,14 +1124,14 @@ export const gamesRouter = createTRPCRouter({
         const players = room.players.map((obj) => obj.id);
         let previousPlayersIds = room.previousPlayersIds || [];
         const playersWhoHaveNotPlayed = players.filter(
-          (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id)
+          (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id),
         );
 
         if (players.length === 2) {
           previousPlayersIds = [];
           previousPlayersIds.push(input.currentPlayerId);
           nextPlayerId = players.filter(
-            (id) => !previousPlayersIds.includes(id)
+            (id) => !previousPlayersIds.includes(id),
           )[0];
         } else {
           if (playersWhoHaveNotPlayed.length > 0) {
@@ -1139,7 +1139,7 @@ export const gamesRouter = createTRPCRouter({
             previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
           } else {
             const availablePlayers = players.filter(
-              (id) => id !== input.currentPlayerId
+              (id) => id !== input.currentPlayerId,
             );
             nextPlayerId =
               availablePlayers[
@@ -1181,7 +1181,7 @@ export const gamesRouter = createTRPCRouter({
         gamecode: z.string(),
         roomId: z.string(),
         currentQuestionId: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       try {
@@ -1209,7 +1209,7 @@ export const gamesRouter = createTRPCRouter({
         let previousQuestionsIds = room.previousQuestionsId || [];
         const questionsWhichHaveNotPlayed = questions.filter(
           (id) =>
-            ![...previousQuestionsIds, input.currentQuestionId].includes(id)
+            ![...previousQuestionsIds, input.currentQuestionId].includes(id),
         );
 
         if (questionsWhichHaveNotPlayed?.length > 0) {
@@ -1339,7 +1339,7 @@ export const gamesRouter = createTRPCRouter({
         drinks: z.string(),
         currentPlayerId: z.string(),
         currentQuestionId: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       try {
@@ -1366,14 +1366,14 @@ export const gamesRouter = createTRPCRouter({
         const players = room.players.map((obj) => obj.id);
         let previousPlayersIds = room.previousPlayersIds || [];
         const playersWhoHaveNotPlayed = players.filter(
-          (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id)
+          (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id),
         );
 
         if (players.length === 2) {
           previousPlayersIds = [];
           previousPlayersIds.push(input.currentPlayerId);
           nextPlayerId = players.filter(
-            (id) => !previousPlayersIds.includes(id)
+            (id) => !previousPlayersIds.includes(id),
           )[0];
         } else {
           if (playersWhoHaveNotPlayed.length > 0) {
@@ -1381,7 +1381,7 @@ export const gamesRouter = createTRPCRouter({
             previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
           } else {
             const availablePlayers = players.filter(
-              (id) => id !== input.currentPlayerId
+              (id) => id !== input.currentPlayerId,
             );
             nextPlayerId =
               availablePlayers[
@@ -1398,7 +1398,7 @@ export const gamesRouter = createTRPCRouter({
         let previousQuestionsIds = room.previousQuestionsId || [];
         const questionsWhichHaveNotPlayed = questions.filter(
           (id) =>
-            ![...previousQuestionsIds, input.currentQuestionId].includes(id)
+            ![...previousQuestionsIds, input.currentQuestionId].includes(id),
         );
 
         if (questionsWhichHaveNotPlayed?.length > 0) {
@@ -1453,7 +1453,7 @@ export const gamesRouter = createTRPCRouter({
         roomId: z.string(),
         currentPlayerId: z.string(),
         currentQuestionId: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       try {
@@ -1480,12 +1480,12 @@ export const gamesRouter = createTRPCRouter({
         const players = room.players.map((obj) => obj.id);
         let previousPlayersIds = room.previousPlayersIds || [];
         const playersWhoHaveNotPlayed = players.filter(
-          (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id)
+          (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id),
         );
 
         if (input.gamecode === "imposter") {
           const availablePlayers = players.filter(
-            (id) => id !== input.currentPlayerId
+            (id) => id !== input.currentPlayerId,
           );
           nextPlayerId =
             availablePlayers[
@@ -1496,7 +1496,7 @@ export const gamesRouter = createTRPCRouter({
             previousPlayersIds = [];
             previousPlayersIds.push(input.currentPlayerId);
             nextPlayerId = players.filter(
-              (id) => !previousPlayersIds.includes(id)
+              (id) => !previousPlayersIds.includes(id),
             )[0];
           } else {
             if (playersWhoHaveNotPlayed.length > 0) {
@@ -1507,7 +1507,7 @@ export const gamesRouter = createTRPCRouter({
               ];
             } else {
               const availablePlayers = players.filter(
-                (id) => id !== input.currentPlayerId
+                (id) => id !== input.currentPlayerId,
               );
               nextPlayerId =
                 availablePlayers[
@@ -1525,7 +1525,7 @@ export const gamesRouter = createTRPCRouter({
         let previousQuestionsIds = room.previousQuestionsId || [];
         const questionsWhichHaveNotPlayed = questions.filter(
           (id) =>
-            ![...previousQuestionsIds, input.currentQuestionId].includes(id)
+            ![...previousQuestionsIds, input.currentQuestionId].includes(id),
         );
 
         if (questionsWhichHaveNotPlayed?.length > 0) {
@@ -1568,7 +1568,7 @@ export const gamesRouter = createTRPCRouter({
         gamecode: z.string(),
         roomId: z.string(),
         newPlayer: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       try {
@@ -1605,7 +1605,7 @@ export const gamesRouter = createTRPCRouter({
           if (input.gamecode === "verbal-charades") {
             for (let i = 0; i < room.players.length; i++) {
               const pairKey = [newPlayer.id, createdRoomPlayers[i].id].join(
-                "&"
+                "&",
               );
               const opositePairKey = [
                 createdRoomPlayers[i].id,
@@ -1659,15 +1659,15 @@ export const gamesRouter = createTRPCRouter({
       const openRooms = await prisma.room.findMany({
         where: {
           gameEnded: false,
-          // createdAt: {
-          //   gt: new Date(Date.now() - 120 * 60 * 1000), // 2 hours
-          // },
+          createdAt: {
+            gt: new Date(Date.now() - 120 * 60 * 1000), // 2 hours ago
+          },
         },
       });
 
       const filteredOpenRooms = openRooms.filter((room) => {
         const roomAgeInMs = Date.now() - room.createdAt.getTime();
-        return roomAgeInMs >= 120 * 60 * 1000; // 2 hours
+        return roomAgeInMs >= 120 * 60 * 1000; // 2 hours old
       });
 
       for (const room of filteredOpenRooms) {
@@ -1675,7 +1675,7 @@ export const gamesRouter = createTRPCRouter({
           where: { id: room.id },
           data: {
             gameEnded: true,
-            gameEndedAt: new Date(),
+            gameEndedAt: new Date(room.createdAt.getTime() + 120 * 60 * 1000), // Set to 2 hours from creation
           },
         });
       }
