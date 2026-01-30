@@ -112,6 +112,8 @@ export type RoomCountAggregateOutputType = {
   currentRound: number
   questionAVotes: number
   questionBVotes: number
+  playingTeams: number
+  previousPlayedTeams: number
   startedAt: number
   gameEndedAt: number
   createdAt: number
@@ -206,6 +208,8 @@ export type RoomCountAggregateInputType = {
   currentRound?: true
   questionAVotes?: true
   questionBVotes?: true
+  playingTeams?: true
+  previousPlayedTeams?: true
   startedAt?: true
   gameEndedAt?: true
   createdAt?: true
@@ -321,6 +325,8 @@ export type RoomGroupByOutputType = {
   currentRound: number | null
   questionAVotes: string[]
   questionBVotes: string[]
+  playingTeams: string[]
+  previousPlayedTeams: string[]
   startedAt: Date | null
   gameEndedAt: Date | null
   createdAt: Date
@@ -372,6 +378,8 @@ export type RoomWhereInput = {
   currentRound?: Prisma.IntNullableFilter<"Room"> | number | null
   questionAVotes?: Prisma.StringNullableListFilter<"Room">
   questionBVotes?: Prisma.StringNullableListFilter<"Room">
+  playingTeams?: Prisma.StringNullableListFilter<"Room">
+  previousPlayedTeams?: Prisma.StringNullableListFilter<"Room">
   startedAt?: Prisma.DateTimeNullableFilter<"Room"> | Date | string | null
   gameEndedAt?: Prisma.DateTimeNullableFilter<"Room"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Room"> | Date | string
@@ -404,6 +412,8 @@ export type RoomOrderByWithRelationInput = {
   currentRound?: Prisma.SortOrderInput | Prisma.SortOrder
   questionAVotes?: Prisma.SortOrder
   questionBVotes?: Prisma.SortOrder
+  playingTeams?: Prisma.SortOrder
+  previousPlayedTeams?: Prisma.SortOrder
   startedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   gameEndedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -439,6 +449,8 @@ export type RoomWhereUniqueInput = Prisma.AtLeast<{
   currentRound?: Prisma.IntNullableFilter<"Room"> | number | null
   questionAVotes?: Prisma.StringNullableListFilter<"Room">
   questionBVotes?: Prisma.StringNullableListFilter<"Room">
+  playingTeams?: Prisma.StringNullableListFilter<"Room">
+  previousPlayedTeams?: Prisma.StringNullableListFilter<"Room">
   startedAt?: Prisma.DateTimeNullableFilter<"Room"> | Date | string | null
   gameEndedAt?: Prisma.DateTimeNullableFilter<"Room"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Room"> | Date | string
@@ -471,6 +483,8 @@ export type RoomOrderByWithAggregationInput = {
   currentRound?: Prisma.SortOrderInput | Prisma.SortOrder
   questionAVotes?: Prisma.SortOrder
   questionBVotes?: Prisma.SortOrder
+  playingTeams?: Prisma.SortOrder
+  previousPlayedTeams?: Prisma.SortOrder
   startedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   gameEndedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -507,6 +521,8 @@ export type RoomScalarWhereWithAggregatesInput = {
   currentRound?: Prisma.IntNullableWithAggregatesFilter<"Room"> | number | null
   questionAVotes?: Prisma.StringNullableListFilter<"Room">
   questionBVotes?: Prisma.StringNullableListFilter<"Room">
+  playingTeams?: Prisma.StringNullableListFilter<"Room">
+  previousPlayedTeams?: Prisma.StringNullableListFilter<"Room">
   startedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Room"> | Date | string | null
   gameEndedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Room"> | Date | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Room"> | Date | string
@@ -533,6 +549,8 @@ export type RoomCreateInput = {
   currentRound?: number | null
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomCreateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomCreatepreviousPlayedTeamsInput | string[]
   startedAt?: Date | string | null
   gameEndedAt?: Date | string | null
   createdAt?: Date | string
@@ -565,6 +583,8 @@ export type RoomUncheckedCreateInput = {
   currentRound?: number | null
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomCreateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomCreatepreviousPlayedTeamsInput | string[]
   startedAt?: Date | string | null
   gameEndedAt?: Date | string | null
   createdAt?: Date | string
@@ -593,6 +613,8 @@ export type RoomUpdateInput = {
   currentRound?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomUpdateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomUpdatepreviousPlayedTeamsInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -625,6 +647,8 @@ export type RoomUncheckedUpdateInput = {
   currentRound?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomUpdateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomUpdatepreviousPlayedTeamsInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -655,6 +679,8 @@ export type RoomCreateManyInput = {
   currentRound?: number | null
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomCreateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomCreatepreviousPlayedTeamsInput | string[]
   startedAt?: Date | string | null
   gameEndedAt?: Date | string | null
   createdAt?: Date | string
@@ -681,6 +707,8 @@ export type RoomUpdateManyMutationInput = {
   currentRound?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomUpdateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomUpdatepreviousPlayedTeamsInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -709,6 +737,8 @@ export type RoomUncheckedUpdateManyInput = {
   currentRound?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomUpdateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomUpdatepreviousPlayedTeamsInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -763,6 +793,8 @@ export type RoomCountOrderByAggregateInput = {
   currentRound?: Prisma.SortOrder
   questionAVotes?: Prisma.SortOrder
   questionBVotes?: Prisma.SortOrder
+  playingTeams?: Prisma.SortOrder
+  previousPlayedTeams?: Prisma.SortOrder
   startedAt?: Prisma.SortOrder
   gameEndedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -950,6 +982,14 @@ export type RoomCreatequestionBVotesInput = {
   set: string[]
 }
 
+export type RoomCreateplayingTeamsInput = {
+  set: string[]
+}
+
+export type RoomCreatepreviousPlayedTeamsInput = {
+  set: string[]
+}
+
 export type RoomUpdatepreviousPairIdsInput = {
   set?: string[]
   push?: string | string[]
@@ -981,6 +1021,16 @@ export type RoomUpdatequestionAVotesInput = {
 }
 
 export type RoomUpdatequestionBVotesInput = {
+  set?: string[]
+  push?: string | string[]
+}
+
+export type RoomUpdateplayingTeamsInput = {
+  set?: string[]
+  push?: string | string[]
+}
+
+export type RoomUpdatepreviousPlayedTeamsInput = {
   set?: string[]
   push?: string | string[]
 }
@@ -1037,6 +1087,8 @@ export type RoomCreateWithoutUserInput = {
   currentRound?: number | null
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomCreateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomCreatepreviousPlayedTeamsInput | string[]
   startedAt?: Date | string | null
   gameEndedAt?: Date | string | null
   createdAt?: Date | string
@@ -1067,6 +1119,8 @@ export type RoomUncheckedCreateWithoutUserInput = {
   currentRound?: number | null
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomCreateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomCreatepreviousPlayedTeamsInput | string[]
   startedAt?: Date | string | null
   gameEndedAt?: Date | string | null
   createdAt?: Date | string
@@ -1126,6 +1180,8 @@ export type RoomScalarWhereInput = {
   currentRound?: Prisma.IntNullableFilter<"Room"> | number | null
   questionAVotes?: Prisma.StringNullableListFilter<"Room">
   questionBVotes?: Prisma.StringNullableListFilter<"Room">
+  playingTeams?: Prisma.StringNullableListFilter<"Room">
+  previousPlayedTeams?: Prisma.StringNullableListFilter<"Room">
   startedAt?: Prisma.DateTimeNullableFilter<"Room"> | Date | string | null
   gameEndedAt?: Prisma.DateTimeNullableFilter<"Room"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Room"> | Date | string
@@ -1152,6 +1208,8 @@ export type RoomCreateWithoutGameInput = {
   currentRound?: number | null
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomCreateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomCreatepreviousPlayedTeamsInput | string[]
   startedAt?: Date | string | null
   gameEndedAt?: Date | string | null
   createdAt?: Date | string
@@ -1182,6 +1240,8 @@ export type RoomUncheckedCreateWithoutGameInput = {
   currentRound?: number | null
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomCreateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomCreatepreviousPlayedTeamsInput | string[]
   startedAt?: Date | string | null
   gameEndedAt?: Date | string | null
   createdAt?: Date | string
@@ -1236,6 +1296,8 @@ export type RoomCreateWithoutPlayersInput = {
   currentRound?: number | null
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomCreateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomCreatepreviousPlayedTeamsInput | string[]
   startedAt?: Date | string | null
   gameEndedAt?: Date | string | null
   createdAt?: Date | string
@@ -1267,6 +1329,8 @@ export type RoomUncheckedCreateWithoutPlayersInput = {
   currentRound?: number | null
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomCreateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomCreatepreviousPlayedTeamsInput | string[]
   startedAt?: Date | string | null
   gameEndedAt?: Date | string | null
   createdAt?: Date | string
@@ -1310,6 +1374,8 @@ export type RoomUpdateWithoutPlayersInput = {
   currentRound?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomUpdateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomUpdatepreviousPlayedTeamsInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1341,6 +1407,8 @@ export type RoomUncheckedUpdateWithoutPlayersInput = {
   currentRound?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomUpdateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomUpdatepreviousPlayedTeamsInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1368,6 +1436,8 @@ export type RoomCreateWithoutCommentsInput = {
   currentRound?: number | null
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomCreateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomCreatepreviousPlayedTeamsInput | string[]
   startedAt?: Date | string | null
   gameEndedAt?: Date | string | null
   createdAt?: Date | string
@@ -1399,6 +1469,8 @@ export type RoomUncheckedCreateWithoutCommentsInput = {
   currentRound?: number | null
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomCreateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomCreatepreviousPlayedTeamsInput | string[]
   startedAt?: Date | string | null
   gameEndedAt?: Date | string | null
   createdAt?: Date | string
@@ -1442,6 +1514,8 @@ export type RoomUpdateWithoutCommentsInput = {
   currentRound?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomUpdateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomUpdatepreviousPlayedTeamsInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1473,6 +1547,8 @@ export type RoomUncheckedUpdateWithoutCommentsInput = {
   currentRound?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomUpdateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomUpdatepreviousPlayedTeamsInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1501,6 +1577,8 @@ export type RoomCreateManyUserInput = {
   currentRound?: number | null
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomCreateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomCreatepreviousPlayedTeamsInput | string[]
   startedAt?: Date | string | null
   gameEndedAt?: Date | string | null
   createdAt?: Date | string
@@ -1527,6 +1605,8 @@ export type RoomUpdateWithoutUserInput = {
   currentRound?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomUpdateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomUpdatepreviousPlayedTeamsInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1557,6 +1637,8 @@ export type RoomUncheckedUpdateWithoutUserInput = {
   currentRound?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomUpdateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomUpdatepreviousPlayedTeamsInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1586,6 +1668,8 @@ export type RoomUncheckedUpdateManyWithoutUserInput = {
   currentRound?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomUpdateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomUpdatepreviousPlayedTeamsInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1613,6 +1697,8 @@ export type RoomCreateManyGameInput = {
   currentRound?: number | null
   questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomCreateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomCreatepreviousPlayedTeamsInput | string[]
   startedAt?: Date | string | null
   gameEndedAt?: Date | string | null
   createdAt?: Date | string
@@ -1639,6 +1725,8 @@ export type RoomUpdateWithoutGameInput = {
   currentRound?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomUpdateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomUpdatepreviousPlayedTeamsInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1669,6 +1757,8 @@ export type RoomUncheckedUpdateWithoutGameInput = {
   currentRound?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomUpdateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomUpdatepreviousPlayedTeamsInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1698,6 +1788,8 @@ export type RoomUncheckedUpdateManyWithoutGameInput = {
   currentRound?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
   questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
+  playingTeams?: Prisma.RoomUpdateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomUpdatepreviousPlayedTeamsInput | string[]
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1766,6 +1858,8 @@ export type RoomSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   currentRound?: boolean
   questionAVotes?: boolean
   questionBVotes?: boolean
+  playingTeams?: boolean
+  previousPlayedTeams?: boolean
   startedAt?: boolean
   gameEndedAt?: boolean
   createdAt?: boolean
@@ -1799,6 +1893,8 @@ export type RoomSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   currentRound?: boolean
   questionAVotes?: boolean
   questionBVotes?: boolean
+  playingTeams?: boolean
+  previousPlayedTeams?: boolean
   startedAt?: boolean
   gameEndedAt?: boolean
   createdAt?: boolean
@@ -1829,6 +1925,8 @@ export type RoomSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   currentRound?: boolean
   questionAVotes?: boolean
   questionBVotes?: boolean
+  playingTeams?: boolean
+  previousPlayedTeams?: boolean
   startedAt?: boolean
   gameEndedAt?: boolean
   createdAt?: boolean
@@ -1859,13 +1957,15 @@ export type RoomSelectScalar = {
   currentRound?: boolean
   questionAVotes?: boolean
   questionBVotes?: boolean
+  playingTeams?: boolean
+  previousPlayedTeams?: boolean
   startedAt?: boolean
   gameEndedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type RoomOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "gameId" | "gameEnded" | "userId" | "currentPlayerId" | "playerOneId" | "playerTwoId" | "previousPairIds" | "allPairIds" | "previousPlayersIds" | "currentQuestionId" | "previousQuestionsId" | "currentCard" | "lastCard" | "lastPlayerId" | "previousCards" | "correctPrediction" | "rounds" | "currentRound" | "questionAVotes" | "questionBVotes" | "startedAt" | "gameEndedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["room"]>
+export type RoomOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "gameId" | "gameEnded" | "userId" | "currentPlayerId" | "playerOneId" | "playerTwoId" | "previousPairIds" | "allPairIds" | "previousPlayersIds" | "currentQuestionId" | "previousQuestionsId" | "currentCard" | "lastCard" | "lastPlayerId" | "previousCards" | "correctPrediction" | "rounds" | "currentRound" | "questionAVotes" | "questionBVotes" | "playingTeams" | "previousPlayedTeams" | "startedAt" | "gameEndedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["room"]>
 export type RoomInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   game?: boolean | Prisma.GameDefaultArgs<ExtArgs>
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -1912,6 +2012,8 @@ export type $RoomPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     currentRound: number | null
     questionAVotes: string[]
     questionBVotes: string[]
+    playingTeams: string[]
+    previousPlayedTeams: string[]
     startedAt: Date | null
     gameEndedAt: Date | null
     createdAt: Date
@@ -2364,6 +2466,8 @@ export interface RoomFieldRefs {
   readonly currentRound: Prisma.FieldRef<"Room", 'Int'>
   readonly questionAVotes: Prisma.FieldRef<"Room", 'String[]'>
   readonly questionBVotes: Prisma.FieldRef<"Room", 'String[]'>
+  readonly playingTeams: Prisma.FieldRef<"Room", 'String[]'>
+  readonly previousPlayedTeams: Prisma.FieldRef<"Room", 'String[]'>
   readonly startedAt: Prisma.FieldRef<"Room", 'DateTime'>
   readonly gameEndedAt: Prisma.FieldRef<"Room", 'DateTime'>
   readonly createdAt: Prisma.FieldRef<"Room", 'DateTime'>

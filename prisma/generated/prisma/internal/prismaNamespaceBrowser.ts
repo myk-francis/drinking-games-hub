@@ -138,6 +138,8 @@ export const RoomScalarFieldEnum = {
   currentRound: 'currentRound',
   questionAVotes: 'questionAVotes',
   questionBVotes: 'questionBVotes',
+  playingTeams: 'playingTeams',
+  previousPlayedTeams: 'previousPlayedTeams',
   startedAt: 'startedAt',
   gameEndedAt: 'gameEndedAt',
   createdAt: 'createdAt',
@@ -153,6 +155,7 @@ export const PlayerScalarFieldEnum = {
   points: 'points',
   drinks: 'drinks',
   roomId: 'roomId',
+  team: 'team',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const

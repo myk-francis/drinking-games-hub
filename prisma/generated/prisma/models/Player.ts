@@ -42,6 +42,7 @@ export type PlayerMinAggregateOutputType = {
   points: number | null
   drinks: number | null
   roomId: string | null
+  team: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -52,6 +53,7 @@ export type PlayerMaxAggregateOutputType = {
   points: number | null
   drinks: number | null
   roomId: string | null
+  team: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -62,6 +64,7 @@ export type PlayerCountAggregateOutputType = {
   points: number
   drinks: number
   roomId: number
+  team: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -84,6 +87,7 @@ export type PlayerMinAggregateInputType = {
   points?: true
   drinks?: true
   roomId?: true
+  team?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -94,6 +98,7 @@ export type PlayerMaxAggregateInputType = {
   points?: true
   drinks?: true
   roomId?: true
+  team?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -104,6 +109,7 @@ export type PlayerCountAggregateInputType = {
   points?: true
   drinks?: true
   roomId?: true
+  team?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -201,6 +207,7 @@ export type PlayerGroupByOutputType = {
   points: number | null
   drinks: number | null
   roomId: string
+  team: string
   createdAt: Date
   updatedAt: Date
   _count: PlayerCountAggregateOutputType | null
@@ -234,6 +241,7 @@ export type PlayerWhereInput = {
   points?: Prisma.IntNullableFilter<"Player"> | number | null
   drinks?: Prisma.IntNullableFilter<"Player"> | number | null
   roomId?: Prisma.StringFilter<"Player"> | string
+  team?: Prisma.StringFilter<"Player"> | string
   createdAt?: Prisma.DateTimeFilter<"Player"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Player"> | Date | string
   room?: Prisma.XOR<Prisma.RoomScalarRelationFilter, Prisma.RoomWhereInput>
@@ -245,6 +253,7 @@ export type PlayerOrderByWithRelationInput = {
   points?: Prisma.SortOrderInput | Prisma.SortOrder
   drinks?: Prisma.SortOrderInput | Prisma.SortOrder
   roomId?: Prisma.SortOrder
+  team?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   room?: Prisma.RoomOrderByWithRelationInput
@@ -259,6 +268,7 @@ export type PlayerWhereUniqueInput = Prisma.AtLeast<{
   points?: Prisma.IntNullableFilter<"Player"> | number | null
   drinks?: Prisma.IntNullableFilter<"Player"> | number | null
   roomId?: Prisma.StringFilter<"Player"> | string
+  team?: Prisma.StringFilter<"Player"> | string
   createdAt?: Prisma.DateTimeFilter<"Player"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Player"> | Date | string
   room?: Prisma.XOR<Prisma.RoomScalarRelationFilter, Prisma.RoomWhereInput>
@@ -270,6 +280,7 @@ export type PlayerOrderByWithAggregationInput = {
   points?: Prisma.SortOrderInput | Prisma.SortOrder
   drinks?: Prisma.SortOrderInput | Prisma.SortOrder
   roomId?: Prisma.SortOrder
+  team?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.PlayerCountOrderByAggregateInput
@@ -288,6 +299,7 @@ export type PlayerScalarWhereWithAggregatesInput = {
   points?: Prisma.IntNullableWithAggregatesFilter<"Player"> | number | null
   drinks?: Prisma.IntNullableWithAggregatesFilter<"Player"> | number | null
   roomId?: Prisma.StringWithAggregatesFilter<"Player"> | string
+  team?: Prisma.StringWithAggregatesFilter<"Player"> | string
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Player"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Player"> | Date | string
 }
@@ -297,6 +309,7 @@ export type PlayerCreateInput = {
   name: string
   points?: number | null
   drinks?: number | null
+  team?: string
   createdAt?: Date | string
   updatedAt?: Date | string
   room: Prisma.RoomCreateNestedOneWithoutPlayersInput
@@ -308,6 +321,7 @@ export type PlayerUncheckedCreateInput = {
   points?: number | null
   drinks?: number | null
   roomId: string
+  team?: string
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -317,6 +331,7 @@ export type PlayerUpdateInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   points?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   drinks?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  team?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   room?: Prisma.RoomUpdateOneRequiredWithoutPlayersNestedInput
@@ -328,6 +343,7 @@ export type PlayerUncheckedUpdateInput = {
   points?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   drinks?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   roomId?: Prisma.StringFieldUpdateOperationsInput | string
+  team?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -338,6 +354,7 @@ export type PlayerCreateManyInput = {
   points?: number | null
   drinks?: number | null
   roomId: string
+  team?: string
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -347,6 +364,7 @@ export type PlayerUpdateManyMutationInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   points?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   drinks?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  team?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -357,6 +375,7 @@ export type PlayerUncheckedUpdateManyInput = {
   points?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   drinks?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   roomId?: Prisma.StringFieldUpdateOperationsInput | string
+  team?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -377,6 +396,7 @@ export type PlayerCountOrderByAggregateInput = {
   points?: Prisma.SortOrder
   drinks?: Prisma.SortOrder
   roomId?: Prisma.SortOrder
+  team?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -392,6 +412,7 @@ export type PlayerMaxOrderByAggregateInput = {
   points?: Prisma.SortOrder
   drinks?: Prisma.SortOrder
   roomId?: Prisma.SortOrder
+  team?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -402,6 +423,7 @@ export type PlayerMinOrderByAggregateInput = {
   points?: Prisma.SortOrder
   drinks?: Prisma.SortOrder
   roomId?: Prisma.SortOrder
+  team?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -458,6 +480,7 @@ export type PlayerCreateWithoutRoomInput = {
   name: string
   points?: number | null
   drinks?: number | null
+  team?: string
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -467,6 +490,7 @@ export type PlayerUncheckedCreateWithoutRoomInput = {
   name: string
   points?: number | null
   drinks?: number | null
+  team?: string
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -506,6 +530,7 @@ export type PlayerScalarWhereInput = {
   points?: Prisma.IntNullableFilter<"Player"> | number | null
   drinks?: Prisma.IntNullableFilter<"Player"> | number | null
   roomId?: Prisma.StringFilter<"Player"> | string
+  team?: Prisma.StringFilter<"Player"> | string
   createdAt?: Prisma.DateTimeFilter<"Player"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Player"> | Date | string
 }
@@ -515,6 +540,7 @@ export type PlayerCreateManyRoomInput = {
   name: string
   points?: number | null
   drinks?: number | null
+  team?: string
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -524,6 +550,7 @@ export type PlayerUpdateWithoutRoomInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   points?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   drinks?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  team?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -533,6 +560,7 @@ export type PlayerUncheckedUpdateWithoutRoomInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   points?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   drinks?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  team?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -542,6 +570,7 @@ export type PlayerUncheckedUpdateManyWithoutRoomInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   points?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   drinks?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  team?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -554,6 +583,7 @@ export type PlayerSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs =
   points?: boolean
   drinks?: boolean
   roomId?: boolean
+  team?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   room?: boolean | Prisma.RoomDefaultArgs<ExtArgs>
@@ -565,6 +595,7 @@ export type PlayerSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extens
   points?: boolean
   drinks?: boolean
   roomId?: boolean
+  team?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   room?: boolean | Prisma.RoomDefaultArgs<ExtArgs>
@@ -576,6 +607,7 @@ export type PlayerSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extens
   points?: boolean
   drinks?: boolean
   roomId?: boolean
+  team?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   room?: boolean | Prisma.RoomDefaultArgs<ExtArgs>
@@ -587,11 +619,12 @@ export type PlayerSelectScalar = {
   points?: boolean
   drinks?: boolean
   roomId?: boolean
+  team?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type PlayerOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "points" | "drinks" | "roomId" | "createdAt" | "updatedAt", ExtArgs["result"]["player"]>
+export type PlayerOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "points" | "drinks" | "roomId" | "team" | "createdAt" | "updatedAt", ExtArgs["result"]["player"]>
 export type PlayerInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   room?: boolean | Prisma.RoomDefaultArgs<ExtArgs>
 }
@@ -613,6 +646,7 @@ export type $PlayerPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs
     points: number | null
     drinks: number | null
     roomId: string
+    team: string
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["player"]>
@@ -1044,6 +1078,7 @@ export interface PlayerFieldRefs {
   readonly points: Prisma.FieldRef<"Player", 'Int'>
   readonly drinks: Prisma.FieldRef<"Player", 'Int'>
   readonly roomId: Prisma.FieldRef<"Player", 'String'>
+  readonly team: Prisma.FieldRef<"Player", 'String'>
   readonly createdAt: Prisma.FieldRef<"Player", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"Player", 'DateTime'>
 }

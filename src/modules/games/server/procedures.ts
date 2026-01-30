@@ -18,11 +18,19 @@ function generateUniqueCard(previousCards: number[]): number | null {
   return null;
 }
 
+const teamInfoSchema = z.object({
+  teamName: z.string().min(1, { message: "Team name is required" }),
+  players: z
+    .array(z.string())
+    .min(1, { message: "At least 1 players are required" })
+    .max(10, { message: "Maximum 10 players are allowed" }),
+});
+
 export const gamesRouter = createTRPCRouter({
   getMany: baseProcedure.query(async () => {
     const games = await prisma.game.findMany({
       where: {
-        published: true, // Only fetch published games
+        published: false, // Only fetch published games
       },
       orderBy: {
         updatedAt: "asc",
@@ -93,9 +101,10 @@ export const gamesRouter = createTRPCRouter({
     .input(
       z.object({
         selectedGame: z.string().min(1, { message: " Game is required" }),
-        players: z.array(z.string()).min(2).max(10),
+        players: z.array(z.string()).optional(),
         userId: z.string(),
         selectedRounds: z.number(),
+        teamsInfo: z.array(teamInfoSchema).optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -150,103 +159,168 @@ export const gamesRouter = createTRPCRouter({
           throw new Error("Game not found");
         }
 
-        const players = input.players.map((name) => ({
-          name,
-          points: 0,
-          drinks: 0,
-        }));
+        if (input.selectedGame === "triviyay") {
+          if (!input.teamsInfo || input.teamsInfo.length < 1) {
+            throw new Error("Please add at least one team with players.");
+          }
+          const players = input.teamsInfo.flatMap((teamInfo) =>
+            teamInfo.players.map((name) => ({
+              name,
+              points: 0,
+              drinks: 0,
+              team: teamInfo.teamName,
+            })),
+          );
 
-        const createdRoom = await prisma.room.create({
-          data: {
-            gameId: game.id,
-            rounds: input.selectedRounds,
-            currentRound: input.selectedRounds > 0 ? 1 : 0,
-            userId: input.userId, // Assuming a default user ID for now
-            players: {
-              create: players,
-            },
-          },
-          include: {
-            players: true,
-            game: {
-              include: {
-                questions: true, // Include questions if needed
+          const teams = input.teamsInfo.map((team) => team.teamName);
+
+          const createdRoom = await prisma.room.create({
+            data: {
+              gameId: game.id,
+              rounds: input.selectedRounds,
+              currentRound: input.selectedRounds > 0 ? 1 : 0,
+              userId: input.userId, // Assuming a default user ID for now
+              playingTeams: teams,
+              players: {
+                create: players,
               },
             },
-          },
-        });
+            include: {
+              players: true,
+              game: {
+                include: {
+                  questions: true, // Include questions if needed
+                },
+              },
+            },
+          });
 
-        const allPairs = [];
-        const createdRoomPlayers = createdRoom.players;
-        const previousPairIds = [];
-        let playerOneId = "";
-        let playerTwoId = "";
-        if (input.selectedGame === "verbal-charades") {
-          for (let i = 0; i < createdRoom.players.length; i++) {
-            for (let j = i + 1; j < createdRoom.players.length; j++) {
-              const pairKey = [
-                createdRoomPlayers[i].id,
-                createdRoomPlayers[j].id,
-              ].join("&");
-              const opositePairKey = [
-                createdRoomPlayers[j].id,
-                createdRoomPlayers[i].id,
-              ].join("&");
-              allPairs.push(pairKey);
-              allPairs.push(opositePairKey);
-            }
-          }
-        }
+          let currentQuestionId = null;
 
-        if (allPairs.length > 0) {
-          const randomPairIndex = Math.floor(Math.random() * allPairs.length);
-          const randomPair = allPairs[randomPairIndex];
-          previousPairIds.push(randomPair);
-          const [playerOne, playerTwo] = randomPair.split("&");
-          playerOneId = playerOne;
-          playerTwoId = playerTwo;
-        }
-
-        let currentQuestionId = null;
-
-        if (input.selectedGame === "truth-or-drink") {
-          currentQuestionId =
-            createdRoom.game.questions.filter(
-              (q) => q.edition === createdRoom.rounds,
-            )[
-              Math.floor(
-                Math.random() *
-                  createdRoom.game.questions.filter(
-                    (q) => q.edition === createdRoom.rounds,
-                  ).length,
-              )
-            ]?.id || null;
-        } else {
           currentQuestionId =
             createdRoom.game.questions[
               Math.floor(Math.random() * createdRoom.game.questions.length)
             ]?.id || null;
+
+          const createdRoomId = createdRoom.id;
+          await prisma.room.update({
+            where: { id: createdRoomId },
+            data: {
+              currentPlayerId:
+                teams[Math.floor(Math.random() * teams.length)]?.toString() ||
+                "",
+              previousPlayersIds: [],
+              currentQuestionId: currentQuestionId,
+              previousQuestionsId: [],
+              allPairIds: [],
+              previousPairIds: [],
+              previousPlayedTeams: [],
+              playerOneId: "",
+              playerTwoId: "",
+            },
+          });
+
+          return createdRoom;
+        } else {
+          const players =
+            input?.players?.map((name) => ({
+              name,
+              points: 0,
+              drinks: 0,
+            })) || [];
+
+          const createdRoom = await prisma.room.create({
+            data: {
+              gameId: game.id,
+              rounds: input.selectedRounds,
+              currentRound: input.selectedRounds > 0 ? 1 : 0,
+              userId: input.userId, // Assuming a default user ID for now
+              players: {
+                create: players,
+              },
+            },
+            include: {
+              players: true,
+              game: {
+                include: {
+                  questions: true, // Include questions if needed
+                },
+              },
+            },
+          });
+
+          const allPairs = [];
+          const createdRoomPlayers = createdRoom.players;
+          const previousPairIds = [];
+          let playerOneId = "";
+          let playerTwoId = "";
+          if (input.selectedGame === "verbal-charades") {
+            for (let i = 0; i < createdRoom.players.length; i++) {
+              for (let j = i + 1; j < createdRoom.players.length; j++) {
+                const pairKey = [
+                  createdRoomPlayers[i].id,
+                  createdRoomPlayers[j].id,
+                ].join("&");
+                const opositePairKey = [
+                  createdRoomPlayers[j].id,
+                  createdRoomPlayers[i].id,
+                ].join("&");
+                allPairs.push(pairKey);
+                allPairs.push(opositePairKey);
+              }
+            }
+          }
+
+          if (allPairs.length > 0) {
+            const randomPairIndex = Math.floor(Math.random() * allPairs.length);
+            const randomPair = allPairs[randomPairIndex];
+            previousPairIds.push(randomPair);
+            const [playerOne, playerTwo] = randomPair.split("&");
+            playerOneId = playerOne;
+            playerTwoId = playerTwo;
+          }
+
+          let currentQuestionId = null;
+
+          if (input.selectedGame === "truth-or-drink") {
+            currentQuestionId =
+              createdRoom.game.questions.filter(
+                (q) => q.edition === createdRoom.rounds,
+              )[
+                Math.floor(
+                  Math.random() *
+                    createdRoom.game.questions.filter(
+                      (q) => q.edition === createdRoom.rounds,
+                    ).length,
+                )
+              ]?.id || null;
+          } else {
+            currentQuestionId =
+              createdRoom.game.questions[
+                Math.floor(Math.random() * createdRoom.game.questions.length)
+              ]?.id || null;
+          }
+
+          const createdRoomId = createdRoom.id;
+          await prisma.room.update({
+            where: { id: createdRoomId },
+            data: {
+              currentPlayerId:
+                createdRoom.players[
+                  Math.floor(Math.random() * createdRoom.players.length)
+                ]?.id,
+              previousPlayersIds: [],
+              currentQuestionId: currentQuestionId,
+              previousQuestionsId: [],
+              allPairIds: allPairs,
+              previousPairIds: previousPairIds,
+              playerOneId: playerOneId || "",
+              playerTwoId: playerTwoId || "",
+            },
+          });
+
+          return createdRoom;
         }
-
-        const createdRoomId = createdRoom.id;
-        await prisma.room.update({
-          where: { id: createdRoomId },
-          data: {
-            currentPlayerId:
-              createdRoom.players[
-                Math.floor(Math.random() * createdRoom.players.length)
-              ]?.id,
-            previousPlayersIds: [],
-            currentQuestionId: currentQuestionId,
-            previousQuestionsId: [],
-            allPairIds: allPairs,
-            previousPairIds: previousPairIds,
-            playerOneId: playerOneId || "",
-            playerTwoId: playerTwoId || "",
-          },
-        });
-
-        return createdRoom;
       } catch (error) {
         console.error("Failed to create room:", error);
         throw new Error("Failed to create room");
@@ -650,6 +724,7 @@ export const gamesRouter = createTRPCRouter({
         throw new Error("Failed to generate card");
       }
     }),
+
   votePlayer: baseProcedure
     .input(
       z.object({
@@ -741,6 +816,7 @@ export const gamesRouter = createTRPCRouter({
         throw new Error("Failed to update room");
       }
     }),
+
   nextRound: baseProcedure
     .input(
       z.object({
@@ -1628,6 +1704,215 @@ export const gamesRouter = createTRPCRouter({
       } catch (error) {
         console.error("Failed to update room:", error);
         throw new Error("Failed to update room");
+      }
+    }),
+
+  addNewPlayerToTeam: baseProcedure
+    .input(
+      z.object({
+        gamecode: z.string(),
+        roomId: z.string(),
+        newPlayer: z.string(),
+        team: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const room = await prisma.room.findFirst({
+          where: {
+            id: input.roomId,
+          },
+          include: {
+            players: true,
+            game: {
+              include: {
+                questions: true, // Include questions if needed
+              },
+            },
+          },
+        });
+
+        if (!room) {
+          throw new Error("Room not found");
+        }
+
+        await prisma.player.create({
+          data: {
+            name: input.newPlayer,
+            roomId: input.roomId,
+            points: 0,
+            drinks: 0,
+            team: input.team,
+          },
+        });
+
+        return true;
+      } catch (error) {
+        console.error("Failed to add player to team", error);
+        throw new Error("Failed to add player to team");
+      }
+    }),
+
+  nextCardCategory: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string(),
+        currentPlayingTeam: z.string(),
+        winningTeams: z.array(z.string()),
+        currentQuestionId: z.string(),
+        forefit: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const room = await prisma.room.findFirst({
+          where: {
+            id: input.roomId,
+          },
+          include: {
+            players: true,
+            game: {
+              include: {
+                questions: true, // Include questions if needed
+              },
+            },
+          },
+        });
+
+        if (!room) {
+          throw new Error("Room not found");
+        }
+
+        let nextPlayingTeam = "";
+
+        // const players = room.players.map((obj) => obj.id);
+        const teams = room.playingTeams || [];
+        let previousTeams = room.previousPlayedTeams || [];
+        const teamsWhoHaveNotPlayed = teams.filter(
+          (id) => ![...previousTeams, input.currentPlayingTeam].includes(id),
+        );
+
+        if (teams.length === 2) {
+          previousTeams = [];
+          previousTeams.push(input.currentPlayingTeam);
+          nextPlayingTeam = teams.filter(
+            (id) => !previousTeams.includes(id),
+          )[0];
+        } else {
+          if (teamsWhoHaveNotPlayed.length > 0) {
+            nextPlayingTeam = teamsWhoHaveNotPlayed[0];
+            previousTeams = [...previousTeams, input.currentPlayingTeam];
+          } else {
+            const availableTeams = teams.filter(
+              (teamName: string) => teamName !== input.currentPlayingTeam,
+            );
+            nextPlayingTeam =
+              availableTeams[Math.floor(Math.random() * availableTeams.length)];
+            previousTeams = [];
+          }
+        }
+
+        let nextQuestionId = null;
+
+        const questions = room.game.questions.map((obj) => obj.id);
+
+        let previousQuestionsIds = room.previousQuestionsId || [];
+        const questionsWhichHaveNotPlayed = questions.filter(
+          (id) =>
+            ![...previousQuestionsIds, input.currentQuestionId].includes(id),
+        );
+
+        if (questionsWhichHaveNotPlayed?.length > 0) {
+          nextQuestionId =
+            questionsWhichHaveNotPlayed[
+              Math.floor(Math.random() * questionsWhichHaveNotPlayed.length)
+            ];
+          previousQuestionsIds = [
+            ...previousQuestionsIds,
+            parseInt(input.currentQuestionId),
+          ];
+        } else {
+          nextQuestionId =
+            room.game.questions[
+              Math.floor(Math.random() * room.game.questions.length)
+            ]?.id || null;
+          previousQuestionsIds = [];
+        }
+
+        if (input.winningTeams.length > 0) {
+          for (let index = 0; index < input.winningTeams.length; index++) {
+            const element = input.winningTeams[index];
+            await prisma.player.updateMany({
+              where: {
+                team: element,
+              },
+              data: {
+                points: {
+                  increment: 1,
+                },
+              },
+            });
+          }
+
+          const losingTeams = teams.filter(
+            (teamName: string) =>
+              ![input.winningTeams, input.currentPlayingTeam].includes(
+                teamName,
+              ),
+          );
+
+          for (let index = 0; index < losingTeams.length; index++) {
+            const element = losingTeams[index];
+            await prisma.player.updateMany({
+              where: {
+                team: element,
+              },
+              data: {
+                drinks: {
+                  increment: 1,
+                },
+              },
+            });
+          }
+        }
+
+        if (input.forefit === false && input.winningTeams.length === 0) {
+          const losingTeams = teams.filter(
+            (teamName: string) =>
+              ![input.winningTeams, input.currentPlayingTeam].includes(
+                teamName,
+              ),
+          );
+
+          for (let index = 0; index < losingTeams.length; index++) {
+            const element = losingTeams[index];
+            await prisma.player.updateMany({
+              where: {
+                team: element,
+              },
+              data: {
+                drinks: {
+                  increment: 1,
+                },
+              },
+            });
+          }
+        }
+
+        const updatedRoom = await prisma.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentPlayerId: nextPlayingTeam,
+            previousPlayedTeams: previousTeams,
+            currentQuestionId: nextQuestionId ?? null,
+            previousQuestionsId: previousQuestionsIds,
+          },
+        });
+
+        return updatedRoom;
+      } catch (error) {
+        console.error("Failed to generate category card:", error);
+        throw new Error("Failed to generate category card");
       }
     }),
 

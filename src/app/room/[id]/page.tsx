@@ -25,6 +25,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Star } from "lucide-react";
 import { DRINKING_QUOTES } from "@/lib/quotes";
 
+interface TeamStats {
+  [team: string]: {
+    TotalPoints: number;
+    TotalDrinks: number;
+    Count: number;
+  };
+}
+
 function getRandomDrinkingQuote(): string {
   const index = Math.floor(Math.random() * DRINKING_QUOTES.length);
   return DRINKING_QUOTES[index];
@@ -147,7 +155,7 @@ function EndGameFeedback({
   handleCreateComment: (
     comment: string,
     rating: number,
-    roomId: string
+    roomId: string,
   ) => void;
   roomId: string;
   setComment: React.Dispatch<React.SetStateAction<string>>;
@@ -259,12 +267,12 @@ export default function RoomPage() {
       {
         refetchInterval: 3000, // in milliseconds
         refetchOnWindowFocus: false, // optional: disables refetching when tab/window gains focus
-      }
-    )
+      },
+    ),
   );
 
   const { data: comments } = useQuery(
-    trpc.comments.getCommentsByRoomId.queryOptions({ roomId: String(roomId) })
+    trpc.comments.getCommentsByRoomId.queryOptions({ roomId: String(roomId) }),
   );
 
   const [clicked, setClicked] = React.useState(false);
@@ -282,7 +290,7 @@ export default function RoomPage() {
         console.error("Error adding comment:", error);
         // alert("Failed to create room. Please try again.");
       },
-    })
+    }),
   );
 
   const updateRoom = useMutation(
@@ -297,7 +305,7 @@ export default function RoomPage() {
         console.error("Error updating room:", error);
         setClicked(false);
       },
-    })
+    }),
   );
 
   const updatePlayerStatsPOD = useMutation(
@@ -312,7 +320,7 @@ export default function RoomPage() {
         console.error("Error updating room:", error);
         setClicked(false);
       },
-    })
+    }),
   );
 
   const endRoom = useMutation(
@@ -326,7 +334,7 @@ export default function RoomPage() {
         console.error("Error ending room:", error);
         setClicked(false);
       },
-    })
+    }),
   );
   const nextQuestion = useMutation(
     trpc.games.nextQuestion.mutationOptions({
@@ -339,7 +347,7 @@ export default function RoomPage() {
         console.error("Error changing question:", error);
         setClicked(false);
       },
-    })
+    }),
   );
   const nextRound = useMutation(
     trpc.games.nextRound.mutationOptions({
@@ -352,7 +360,7 @@ export default function RoomPage() {
         console.error("Error question question:", error);
         setClicked(false);
       },
-    })
+    }),
   );
   const nextCardPOD = useMutation(
     trpc.games.nextCardPOD.mutationOptions({
@@ -365,7 +373,7 @@ export default function RoomPage() {
         console.error("Error question question:", error);
         setClicked(false);
       },
-    })
+    }),
   );
   const generateCard = useMutation(
     trpc.games.nextCard.mutationOptions({
@@ -378,7 +386,7 @@ export default function RoomPage() {
         console.error("Error changing card:", error);
         setClicked(false);
       },
-    })
+    }),
   );
   const voteQuestion = useMutation(
     trpc.games.voteQuestion.mutationOptions({
@@ -391,7 +399,7 @@ export default function RoomPage() {
         console.error("Error voting :", error);
         setClicked(false);
       },
-    })
+    }),
   );
 
   const nextWouldRatherQuestion = useMutation(
@@ -405,7 +413,21 @@ export default function RoomPage() {
         console.error("Error changing question:", error);
         setClicked(false);
       },
-    })
+    }),
+  );
+
+  const nextCardCategory = useMutation(
+    trpc.games.nextCardCategory.mutationOptions({
+      onSuccess: () => {
+        toast.success("Next card category coming up!");
+        setClicked(false);
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error changing card category:", error);
+        setClicked(false);
+      },
+    }),
   );
 
   const addNewPlayer = useMutation(
@@ -419,7 +441,21 @@ export default function RoomPage() {
         console.error("Error changing question:", error);
         setClicked(false);
       },
-    })
+    }),
+  );
+
+  const addNewPlayerToTeam = useMutation(
+    trpc.games.addNewPlayerToTeam.mutationOptions({
+      onSuccess: () => {
+        toast.success("Added Player To Team");
+        setClicked(false);
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error changing question:", error);
+        setClicked(false);
+      },
+    }),
   );
 
   const vote = useMutation(
@@ -433,7 +469,7 @@ export default function RoomPage() {
         console.error("Error voting :", error);
         setClicked(false);
       },
-    })
+    }),
   );
 
   const selectedGame = room?.game?.code || "never-have-i-ever";
@@ -442,19 +478,63 @@ export default function RoomPage() {
   const questions = room?.game?.questions;
 
   const questionsTruthOrDrink = room?.game?.questions.filter(
-    (q) => q.edition === room?.rounds
+    (q) => q.edition === room?.rounds,
   );
 
   const players = React.useMemo(() => room?.players || [], [room?.players]);
 
   const [actualPlayer, setActualPlayer] = React.useState("");
   const [newPlayer, setNewPlayer] = React.useState("");
+  const [newTeamPlayer, setNewTeamPlayer] = React.useState<{
+    name: string;
+    team: string;
+  } | null>(null);
   const [openAddPlayerModal, setOpenAddPlayerModal] = React.useState(false);
   const [showAddPlayerModal, setShowAddPlayerModal] = React.useState(false);
   const [openDialog, setOpenDialog] = React.useState(false);
+  const [winningTeams, setWinningTeams] = React.useState<string[]>([]);
+  const [forfited, setForfited] = React.useState<boolean>(false);
+
+  const TeamPlayerStats = React.useMemo(() => {
+    if (!room || players.length === 0) {
+      return {};
+    }
+
+    if (selectedGame !== "triviyay") {
+      return {};
+    }
+
+    const teamStats = players.reduce((acc: TeamStats, player) => {
+      if (!acc[player.team]) {
+        acc[player.team] = { TotalPoints: 0, TotalDrinks: 0, Count: 0 };
+      }
+      acc[player.team].TotalPoints += player.points ?? 0;
+      acc[player.team].TotalDrinks += player.drinks ?? 0;
+      acc[player.team].Count += 1;
+      return acc;
+    }, {});
+
+    return teamStats;
+  }, [room, players, selectedGame]);
+
+  const SelectedOption = ({ option }: { option: string }) => {
+    if (option === "FORFEIT") {
+      setForfited((prev) => !prev);
+      setWinningTeams([]);
+      return;
+    }
+
+    if (!forfited) {
+      if (!winningTeams.includes(option)) {
+        setWinningTeams((prev) => [...prev, option]);
+      } else {
+        setWinningTeams((prev) => prev.filter((team) => team !== option));
+      }
+    }
+  };
 
   const [timeLeft, setTimeLeft] = React.useState(
-    selectedGame === "verbal-charades" ? 30 : 60
+    selectedGame === "verbal-charades" ? 30 : 60,
   ); // 30 seconds
   const [isRunning, setIsRunning] = React.useState(false);
   const [showQRCode, setShowQRCode] = React.useState(false);
@@ -477,13 +557,13 @@ export default function RoomPage() {
         console.error("Error changing card:", error);
         setClicked(false);
       },
-    })
+    }),
   );
 
   const handleCreateComment = (
     comment: string,
     rating: number,
-    roomId: string
+    roomId: string,
   ) => {
     if (!roomId || comment.trim() === "" || playerAddedComment || !actualPlayer)
       return;
@@ -510,7 +590,7 @@ export default function RoomPage() {
         console.error("Error changing card:", error);
         setClicked(false);
       },
-    })
+    }),
   );
 
   const handleAddPlayer = React.useCallback(() => {
@@ -533,6 +613,25 @@ export default function RoomPage() {
     setNewPlayer("");
     setOpenAddPlayerModal(false);
   }, [newPlayer, players, room, addNewPlayer, game]);
+
+  const handleAddPlayerToTeam = React.useCallback(
+    ({ team, playerName }: { team: string; playerName: string }) => {
+      if (!playerName.trim()) {
+        toast.error("Please enter a player name.");
+        return;
+      }
+
+      addNewPlayerToTeam.mutate({
+        gamecode: game?.code || "",
+        roomId: room?.id || "",
+        newPlayer: playerName.trim(),
+        team: team.trim(),
+      });
+      setNewTeamPlayer(null);
+      setOpenAddPlayerModal(false);
+    },
+    [room, game, addNewPlayerToTeam],
+  );
 
   const handleActualSelectPlayer = (id: string) => {
     setActualPlayer(id);
@@ -624,7 +723,7 @@ export default function RoomPage() {
     }
 
     const currentCardQuestion = room?.game.questions.find(
-      (q) => q.id === Number(room?.currentQuestionId)
+      (q) => q.id === Number(room?.currentQuestionId),
     );
 
     const edition = currentCardQuestion?.edition;
@@ -650,7 +749,7 @@ export default function RoomPage() {
     }
 
     const currentCardQuestion = room?.game.questions.find(
-      (q) => q.id === Number(room?.currentQuestionId)
+      (q) => q.id === Number(room?.currentQuestionId),
     );
 
     const edition = currentCardQuestion?.edition;
@@ -709,6 +808,28 @@ export default function RoomPage() {
 
     return `Result: Suprisingly Y'all are safe 😒`;
   }, [room, playerNamesA, playerNamesB]);
+
+  const OptionsColors = React.useCallback(
+    (team: string) => {
+      if (forfited && team === "FORFEIT") {
+        return "bg-red-600 text-white";
+      } else if (team === "FORFEIT") {
+        return "bg-red-600/30";
+      }
+
+      if (winningTeams.length > 0) {
+        if (winningTeams.includes(team)) {
+          return "bg-green-600 text-white";
+        } else {
+          return "bg-white/20";
+        }
+      }
+
+      // ✅ DEFAULT
+      return "bg-white/20";
+    },
+    [winningTeams, forfited],
+  );
 
   if (isLoading) return <Loading />;
   if (error)
@@ -769,6 +890,25 @@ export default function RoomPage() {
               Game Status: {totalPoints} Drinks : {quote}
             </h1>
           </div>
+          {selectedGame === "triviyay" && (
+            <>
+              <div className="flex flex-row items-center justify-around flex-wrap bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center border border-white/20 my-4">
+                {room?.playingTeams.map((team) => (
+                  <div key={team}>
+                    <div className="font-bold text-lg text-white mb-1">
+                      Team: {team} ({TeamPlayerStats[team]?.Count || 0})
+                    </div>
+                    <div className="text-2xl font-bold text-emerald-400 mb-1">
+                      {TeamPlayerStats[team]?.TotalPoints} pts
+                    </div>
+                    <div className="text-sm text-orange-300">
+                      {TeamPlayerStats[team]?.TotalDrinks} drinks
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
           <div className="flex gap-4 flex-wrap">
             {players.map((player) => (
               <PlayerScore
@@ -837,6 +977,19 @@ export default function RoomPage() {
         "Unknown Player"
       : "No player selected";
 
+    const teams = room?.playingTeams || [];
+
+    const currentTeamLeaderId = React.useCallback(() => {
+      if (selectedGame !== "triviyay") {
+        return "";
+      }
+
+      const teamPlayers = players.filter(
+        (p) => p.team === room?.currentPlayerId,
+      );
+      return teamPlayers[0]?.id || "";
+    }, [room, players, selectedGame, room?.currentPlayerId]);
+
     const renderGameSpecificContent = () => {
       switch (selectedGame) {
         case "never-have-i-ever":
@@ -859,12 +1012,12 @@ export default function RoomPage() {
                         roomId: room.id,
                         points: String(
                           room?.players?.find((p) => p.id === actualPlayer)
-                            ?.points || 0
+                            ?.points || 0,
                         ),
                         drinks: String(
                           //@ts-expect-error leave it
                           room?.players?.find((p) => p.id === actualPlayer)
-                            ?.drinks + 1 || 0
+                            ?.drinks + 1 || 0,
                         ),
                         currentPlayerId: actualPlayer ?? "",
                         currentQuestionId: String(room.currentQuestionId) ?? "",
@@ -902,7 +1055,7 @@ export default function RoomPage() {
                 {actualPlayer === room?.currentPlayerId
                   ? "IMPOSTER 🤡"
                   : questions?.filter(
-                      (q) => q.id === room?.currentQuestionId
+                      (q) => q.id === room?.currentQuestionId,
                     )[0]?.text ||
                     "No question available. Please wait for the next round."}
               </div>
@@ -920,12 +1073,12 @@ export default function RoomPage() {
                         roomId: room.id,
                         points: String(
                           room?.players?.find((p) => p.id === actualPlayer)
-                            ?.points || 0
+                            ?.points || 0,
                         ),
                         drinks: String(
                           //@ts-expect-error leave it
                           room?.players?.find((p) => p.id === actualPlayer)
-                            ?.drinks + 1 || 0
+                            ?.drinks + 1 || 0,
                         ),
                         currentPlayerId: actualPlayer ?? "",
                         currentQuestionId: String(room.currentQuestionId) ?? "",
@@ -968,7 +1121,7 @@ export default function RoomPage() {
               </div>
               <div className="text-xl mb-6 text-white leading-relaxed">
                 {questionsTruthOrDrink?.filter(
-                  (q) => q.id === room?.currentQuestionId
+                  (q) => q.id === room?.currentQuestionId,
                 )[0]?.text ||
                   "No question available. Please wait for the next round."}
               </div>
@@ -982,13 +1135,13 @@ export default function RoomPage() {
                         points: String(
                           //@ts-expect-error leave it
                           room?.players?.find(
-                            (p) => p.id === room.currentPlayerId
-                          )?.points + 1 || 0
+                            (p) => p.id === room.currentPlayerId,
+                          )?.points + 1 || 0,
                         ),
                         drinks: String(
                           room?.players?.find(
-                            (p) => p.id === room.currentPlayerId
-                          )?.drinks || 0
+                            (p) => p.id === room.currentPlayerId,
+                          )?.drinks || 0,
                         ),
                         currentPlayerId: room.currentPlayerId ?? "",
                         currentQuestionId: String(room.currentQuestionId) ?? "",
@@ -1006,14 +1159,14 @@ export default function RoomPage() {
                         roomId: room.id,
                         points: String(
                           room?.players?.find(
-                            (p) => p.id === room.currentPlayerId
-                          )?.points || 0
+                            (p) => p.id === room.currentPlayerId,
+                          )?.points || 0,
                         ),
                         drinks: String(
                           //@ts-expect-error leave it
                           room?.players?.find(
-                            (p) => p.id === room.currentPlayerId
-                          )?.drinks + 1 || 0
+                            (p) => p.id === room.currentPlayerId,
+                          )?.drinks + 1 || 0,
                         ),
                         currentPlayerId: room.currentPlayerId ?? "",
                         currentQuestionId: String(room.currentQuestionId) ?? "",
@@ -1056,13 +1209,13 @@ export default function RoomPage() {
                           points: String(
                             //@ts-expect-error leave it
                             room?.players?.find(
-                              (p) => p.id === room.currentPlayerId
-                            )?.points + 1 || 0
+                              (p) => p.id === room.currentPlayerId,
+                            )?.points + 1 || 0,
                           ),
                           drinks: String(
                             room?.players?.find(
-                              (p) => p.id === room.currentPlayerId
-                            )?.drinks || 0
+                              (p) => p.id === room.currentPlayerId,
+                            )?.drinks || 0,
                           ),
                           currentPlayerId: room.currentPlayerId ?? "",
                           currentQuestionId:
@@ -1081,14 +1234,14 @@ export default function RoomPage() {
                           roomId: room.id,
                           points: String(
                             room?.players?.find(
-                              (p) => p.id === room.currentPlayerId
-                            )?.points || 0
+                              (p) => p.id === room.currentPlayerId,
+                            )?.points || 0,
                           ),
                           drinks: String(
                             //@ts-expect-error leave it
                             room?.players?.find(
-                              (p) => p.id === room.currentPlayerId
-                            )?.drinks + 1 || 0
+                              (p) => p.id === room.currentPlayerId,
+                            )?.drinks + 1 || 0,
                           ),
                           currentPlayerId: room.currentPlayerId ?? "",
                           currentQuestionId:
@@ -1263,7 +1416,7 @@ export default function RoomPage() {
                 !isRunning && (
                   <p className="text-lg text-white/80 mb-6">
                     {questions?.filter(
-                      (q) => q.id === room?.currentQuestionId
+                      (q) => q.id === room?.currentQuestionId,
                     )[0]?.text ||
                       "No question available. Please wait for the next round."}
                   </p>
@@ -1478,6 +1631,59 @@ export default function RoomPage() {
             </div>
           );
 
+        case "triviyay":
+          return (
+            <div className="text-center">
+              <div className="text-xl text-emerald-400 mb-4">
+                👤 {room?.currentPlayerId}&apos;s Turn
+              </div>
+              <div className="text-2xl mb-6 text-white font-semibold mt-4">
+                Category:{" "}
+                {questions?.filter((q) => q.id === room?.currentQuestionId)[0]
+                  ?.text ||
+                  "No question available. Please wait for the next round."}
+              </div>
+              {actualPlayer === currentTeamLeaderId() && !clicked && (
+                <>
+                  <div className="my-4 ">Select Winning Teams</div>
+                  {teams.length > 0 && (
+                    <div className="flex flex-wrap gap-3 my-4 justify-center">
+                      {[...teams, "FORFEIT"]
+                        ?.filter((team) => team !== room?.currentPlayerId)
+                        .map((team) => (
+                          <div
+                            onClick={() => SelectedOption({ option: team })}
+                            key={team}
+                            className={`flex items-center gap-2  rounded-full px-4 py-2 ${OptionsColors(team)}  cursor-pointer hover:scale-105 transition-transform duration-300 ease-in-out`}
+                          >
+                            <span>{team}</span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                  <div className="flex gap-4 justify-center">
+                    <button
+                      onClick={() => {
+                        nextCardCategory.mutate({
+                          roomId: room.id,
+                          currentPlayingTeam: room.currentPlayerId ?? "",
+                          winningTeams: winningTeams,
+                          forefit: forfited,
+                          currentQuestionId:
+                            String(room.currentQuestionId) ?? "",
+                        });
+                        setClicked(true);
+                      }}
+                      className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 rounded-lg text-white font-semibold transition-colors"
+                    >
+                      Next Category
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+
         default:
           return (
             <div className="text-center">
@@ -1532,6 +1738,7 @@ export default function RoomPage() {
         <UserConfirmModal
           players={players}
           handleActualSelectPlayer={handleActualSelectPlayer}
+          selectedGame={selectedGame}
         />
       )}
       {actualPlayer === players[0].id && (
@@ -1539,8 +1746,11 @@ export default function RoomPage() {
           newPlayer={newPlayer}
           setNewPlayer={setNewPlayer}
           handleAddPlayer={handleAddPlayer}
+          handleAddPlayerToTeam={handleAddPlayerToTeam}
           openAddPlayerModal={openAddPlayerModal}
           setOpenAddPlayerModal={setOpenAddPlayerModal}
+          selectedGame={selectedGame}
+          teams={room?.playingTeams || []}
         />
       )}
 
@@ -1560,6 +1770,25 @@ export default function RoomPage() {
 
         {/* Scoreboard */}
         <div className="mb-8">
+          {selectedGame === "triviyay" && (
+            <>
+              <div className="flex flex-row items-center justify-around flex-wrap bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center border border-white/20 my-4">
+                {room?.playingTeams.map((team) => (
+                  <div key={team}>
+                    <div className="font-bold text-lg text-white mb-1">
+                      Team: {team} ({TeamPlayerStats[team]?.Count || 0})
+                    </div>
+                    <div className="text-2xl font-bold text-emerald-400 mb-1">
+                      {TeamPlayerStats[team]?.TotalPoints} pts
+                    </div>
+                    <div className="text-sm text-orange-300">
+                      {TeamPlayerStats[team]?.TotalDrinks} drinks
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {players.map((player) => (
               <PlayerScore

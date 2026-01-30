@@ -14,6 +14,7 @@ import {
   Share2,
   Wand2Icon,
   Gamepad2,
+  Rainbow,
 } from "lucide-react";
 import React from "react";
 import { useTRPC } from "@/trpc/client";
@@ -26,6 +27,11 @@ import { Loading } from "@/components/ui/loading";
 import { ComboBox } from "@/components/apps-components/comboBox";
 import { QRCodeCanvas } from "qrcode.react";
 import { UserAvatarPopover } from "@/components/apps-components/profile-avatar";
+
+interface TeamsInfo {
+  teamName: string;
+  players: string[];
+}
 
 export default function HomePage() {
   const router = useRouter();
@@ -42,7 +48,11 @@ export default function HomePage() {
   const { data: editions } = useQuery(trpc.games.getEditions.queryOptions());
   const [selectedGame, setSelectedGame] = React.useState(null);
   const [players, setPlayers] = React.useState<string[]>([]);
+  const [teams, setTeams] = React.useState<string[]>([]);
+  const [teamsInfo, setTeamsInfo] = React.useState<TeamsInfo[]>([]);
+  const [inputs, setInputs] = React.useState<{ [key: string]: string }>({});
   const [playerInput, setPlayerInput] = React.useState("");
+  const [teamInput, setTeamInput] = React.useState("");
   const [gameUrl, setGameUrl] = React.useState("");
   const [roomId, setRoomId] = React.useState("");
   const [showShareLink, setShowShareLink] = React.useState(false);
@@ -142,6 +152,8 @@ export default function HomePage() {
       return <Star className="w-6 h-6" />;
     } else if (gamecode === "imposter") {
       return <Gamepad2 className="w-6 h-6" />;
+    } else if (gamecode === "triviyay") {
+      return <Rainbow className="w-6 h-6" />;
     } else {
       return <Heart className="w-6 h-6" />;
     }
@@ -170,13 +182,15 @@ export default function HomePage() {
       return "from-teal-500 to-cyan-500";
     } else if (gamecode === "imposter") {
       return "from-yellow-500 to-rose-500";
+    } else if (gamecode === "triviyay") {
+      return "from-purple-500 to-pink-500";
     } else {
       return "from-teal-500 to-cyan-500";
     }
   };
 
   const handleCreateRoom = () => {
-    if (!selectedGame || players.length < 2) {
+    if (!selectedGame) {
       alert("Please select a game and add at least two players.");
       return;
     }
@@ -186,14 +200,40 @@ export default function HomePage() {
       userId: currentUser?.id || "",
       selectedRounds:
         selectedGame === "truth-or-drink" ? selectedEdition : selectedRounds,
+      teamsInfo,
     });
   };
 
   const addPlayer = () => {
     if (playerInput.trim() && !players.includes(playerInput.trim())) {
-      const newPlayer = playerInput.trim();
-      setPlayers([...players, newPlayer]);
+      const newPlayers = playerInput.trim().split(",");
+      setPlayers([...players, ...newPlayers]);
 
+      setPlayerInput("");
+    }
+  };
+
+  const addPlayerToTeam = (team: string) => {
+    if (inputs[team]) {
+      const newPlayers = inputs[team].trim().split(",");
+      setTeamsInfo((prevTeamsInfo) => {
+        const teamIndex = prevTeamsInfo.findIndex(
+          (teamInfo) => teamInfo.teamName === team,
+        );
+        if (teamIndex === -1) {
+          return [...prevTeamsInfo, { teamName: team, players: newPlayers }];
+        } else {
+          return [
+            ...prevTeamsInfo.slice(0, teamIndex),
+            {
+              ...prevTeamsInfo[teamIndex],
+              players: [...prevTeamsInfo[teamIndex].players, ...newPlayers],
+            },
+            ...prevTeamsInfo.slice(teamIndex + 1),
+          ];
+        }
+      });
+      setInputs((prevInputs) => ((prevInputs[team] = ""), prevInputs));
       setPlayerInput("");
     }
   };
@@ -202,10 +242,44 @@ export default function HomePage() {
     setPlayers(players.filter((p) => p !== playerToRemove));
   };
 
+  const removeTeam = (teamToRemove: string) => {
+    setTeams(teams.filter((t) => t !== teamToRemove));
+  };
+
+  const clearTeam = (teamToClear: string) => {
+    setTeamsInfo(teamsInfo.filter((t) => t.teamName !== teamToClear));
+  };
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
       event.preventDefault();
       addPlayer();
+    }
+  };
+
+  const handleInputChange = (team: string, value: string) => {
+    setInputs((prevInputs) => ({
+      ...prevInputs,
+      [team]: value,
+    }));
+  };
+
+  const handleKeyDownTeam = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (teamInput.trim() && !teams.includes(teamInput.trim())) {
+        const newTeams = teamInput.trim().split(",");
+        setTeams([...teams, ...newTeams]);
+        setTeamInput("");
+      }
+    }
+  };
+
+  const addTeams = (team: string) => {
+    if (team.trim() && !teams.includes(team.trim())) {
+      const newTeams = team.trim().split(",");
+      setTeams([...teams, ...newTeams]);
+      setTeamInput("");
     }
   };
 
@@ -315,18 +389,119 @@ export default function HomePage() {
               </h2>
 
               <div className="mb-6">
-                <div className="flex gap-3 mb-4">
-                  <Input
-                    value={playerInput}
-                    onChange={(e) => setPlayerInput(e.target.value)}
-                    placeholder="Enter player name"
-                    className="bg-white text-black"
-                    onKeyDown={handleKeyDown}
-                  />
-                  <Button className="" onClick={addPlayer}>
-                    Add Player
-                  </Button>
-                </div>
+                {selectedGame === "triviyay" ? (
+                  <>
+                    <div className="flex gap-3 mb-4">
+                      <Input
+                        value={teamInput}
+                        onChange={(e) => {
+                          setTeamInput(e.target.value);
+                        }}
+                        placeholder="Enter team name"
+                        className="bg-white text-black"
+                        onClick={() => addTeams(teamInput)}
+                      />
+                      <Button className="" onClick={() => addTeams(teamInput)}>
+                        Add Teams
+                      </Button>
+                    </div>
+
+                    {teams.length > 0 && (
+                      <div className="flex flex-wrap gap-3">
+                        {teams?.map((team) => (
+                          <div
+                            key={team}
+                            className="flex items-center gap-2 bg-white/20 rounded-full px-4 py-2"
+                          >
+                            <span>{team}</span>
+                            <button
+                              onClick={() => removeTeam(team)}
+                              className="text-red-400 hover:text-red-300 ml-2"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {teams?.map((team) => (
+                      <div key={team} className="mt-4">
+                        <div className="flex gap-3 mb-4">
+                          <Input
+                            value={inputs[team] || ""}
+                            onChange={(e) => {
+                              handleInputChange(team, e.target.value);
+                            }}
+                            placeholder={`Enter players for ${team}`}
+                            className="bg-white text-black"
+                            onKeyDown={handleKeyDown}
+                          />
+                          <Button
+                            className=""
+                            onClick={() => addPlayerToTeam(team)}
+                          >
+                            Add Players to {team}
+                          </Button>
+                        </div>
+
+                        {teamsInfo.length > 0 &&
+                          teamsInfo.some(
+                            (teamInfo) => teamInfo.teamName === team,
+                          ) && (
+                            <div className="flex flex-wrap gap-3">
+                              {teamsInfo
+                                .filter(
+                                  (teamInfo) => teamInfo.teamName === team,
+                                )
+                                .map((teamInfoInternal) => (
+                                  <div
+                                    key={teamInfoInternal.teamName}
+                                    className="flex items-center gap-2 bg-white/20 rounded-full px-4 py-2"
+                                  >
+                                    <span>
+                                      {teamInfoInternal.teamName} :{" "}
+                                      {teamInfoInternal.players.map(
+                                        (player, index) => (
+                                          <span key={index}>
+                                            {index > 0 ? ", " : ""}
+                                            {player}
+                                          </span>
+                                        ),
+                                      )}
+                                    </span>
+                                  </div>
+                                ))}
+                              <div
+                                onClick={() => clearTeam(team)}
+                                className="cursor-pointer flex items-center gap-2 bg-white/20 rounded-full px-4 py-2"
+                              >
+                                <span>Clear</span>
+                                <button className="text-red-400 hover:text-red-300 ml-2">
+                                  ×
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <div className="flex gap-3 mb-4">
+                    <Input
+                      value={playerInput}
+                      onChange={(e) => {
+                        setPlayerInput(e.target.value);
+                      }}
+                      placeholder="Enter player name"
+                      className="bg-white text-black"
+                      onKeyDown={handleKeyDown}
+                    />
+                    <Button className="" onClick={addPlayer}>
+                      Add Players
+                    </Button>
+                  </div>
+                )}
 
                 {players.length > 0 && (
                   <div className="flex flex-wrap gap-3">
@@ -387,7 +562,8 @@ export default function HomePage() {
                       (selectedGame === "would-you-rather" &&
                         players.length < 3) ||
                       (selectedGame === "pick-a-card" && players.length < 3) ||
-                      (selectedGame === "imposter" && players.length < 4)
+                      (selectedGame === "imposter" && players.length < 4) ||
+                      (selectedGame === "triviyay" && teams.length > 2)
                     }
                     className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
                   >
@@ -419,7 +595,7 @@ export default function HomePage() {
                 <div className="wfull mt-6 text-center flex flex-row justify-center items-center gap-2">
                   <button
                     onClick={startGame}
-                    disabled={!selectedGame || players.length < 2}
+                    disabled={!selectedGame}
                     className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
                   >
                     <Play className="w-5 h-5" />
