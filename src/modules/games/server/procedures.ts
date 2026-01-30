@@ -30,7 +30,7 @@ export const gamesRouter = createTRPCRouter({
   getMany: baseProcedure.query(async () => {
     const games = await prisma.game.findMany({
       where: {
-        published: false, // Only fetch published games
+        published: true, // Only fetch published games
       },
       orderBy: {
         updatedAt: "asc",
