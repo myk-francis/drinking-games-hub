@@ -988,7 +988,7 @@ export default function RoomPage() {
         (p) => p.team === room?.currentPlayerId,
       );
       return teamPlayers[0]?.id || "";
-    }, [room, players, selectedGame, room?.currentPlayerId]);
+    }, []);
 
     const renderGameSpecificContent = () => {
       switch (selectedGame) {
