@@ -39,14 +39,14 @@ model Game {
 }
 
 model Question {
-  id        Int     @id @default(autoincrement())
+  id        Int       @id @default(autoincrement())
   text      String
   gameId    Int
-  game      Game    @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  game      Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
   edition   Int?
   answer    String? 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model Room {
@@ -75,6 +75,8 @@ model Room {
   currentRound Int? @default(0)
   questionAVotes String[]
   questionBVotes String[]
+  playingTeams String[]
+  previousPlayedTeams String[]
   startedAt DateTime?
   gameEndedAt DateTime? 
   createdAt DateTime @default(now())
@@ -88,8 +90,9 @@ model Player {
   drinks    Int?
   roomId    String
   room      Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  team     String     @default("")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 model Session {
   id        String   @id @default(cuid())
