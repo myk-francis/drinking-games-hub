@@ -20,11 +20,11 @@ export default function AddPlayerModal({
   teams,
   selectedGame,
   handleAddPlayerToTeam,
+  newTeamPlayer,
+  setNewTeamPlayer,
 }: // eslint-disable-next-line @typescript-eslint/no-explicit-any
 any) {
   const [selectedTeam, setSelectedTeam] = React.useState<string | null>(null);
-
-  console.log({ selectedGame, teams });
 
   if (!openAddPlayerModal) {
     return null;
@@ -73,8 +73,8 @@ any) {
               <Input
                 type="text"
                 placeholder="Enter player name"
-                value={newPlayer}
-                onChange={(e) => setNewPlayer(e.target.value)}
+                value={newTeamPlayer}
+                onChange={(e) => setNewTeamPlayer(e.target.value)}
               />
 
               {/* ADD BUTTON */}

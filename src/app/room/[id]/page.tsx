@@ -1745,6 +1745,8 @@ export default function RoomPage() {
         <AddPlayerModal
           newPlayer={newPlayer}
           setNewPlayer={setNewPlayer}
+          newTeamPlayer={newTeamPlayer}
+          setNewTeamPlayer={setNewTeamPlayer}
           handleAddPlayer={handleAddPlayer}
           handleAddPlayerToTeam={handleAddPlayerToTeam}
           openAddPlayerModal={openAddPlayerModal}

@@ -264,17 +264,6 @@ export default function HomePage() {
     }));
   };
 
-  const handleKeyDownTeam = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      if (teamInput.trim() && !teams.includes(teamInput.trim())) {
-        const newTeams = teamInput.trim().split(",");
-        setTeams([...teams, ...newTeams]);
-        setTeamInput("");
-      }
-    }
-  };
-
   const addTeams = (team: string) => {
     if (team.trim() && !teams.includes(team.trim())) {
       const newTeams = team.trim().split(",");
