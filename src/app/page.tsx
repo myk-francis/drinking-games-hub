@@ -395,7 +395,7 @@ export default function HomePage() {
                       </Button>
                     </div>
 
-                    {teams.length > 0 && (
+                    {teams?.length > 0 && (
                       <div className="flex flex-wrap gap-3">
                         {teams?.map((team) => (
                           <div
@@ -430,12 +430,12 @@ export default function HomePage() {
                             className=""
                             onClick={() => addPlayerToTeam(team)}
                           >
-                            Add Players to {team}
+                            Add Players
                           </Button>
                         </div>
 
-                        {teamsInfo.length > 0 &&
-                          teamsInfo.some(
+                        {teamsInfo?.length > 0 &&
+                          teamsInfo?.some(
                             (teamInfo) => teamInfo.teamName === team,
                           ) && (
                             <div className="flex flex-wrap gap-3">
