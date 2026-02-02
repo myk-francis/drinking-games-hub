@@ -183,19 +183,19 @@ export default function TransactionPage() {
   const router = useRouter();
 
   const { data: currentUser, isLoading: userLoading } = useQuery(
-    trpc.auth.getCurrentUser.queryOptions()
+    trpc.auth.getCurrentUser.queryOptions(),
   );
 
   const { data: roomsOpen } = useQuery(
-    trpc.games.checkForOpenRooms.queryOptions()
+    trpc.games.checkForOpenRooms.queryOptions(),
   );
   const { data: transactionsExpiringThisMonth } = useQuery(
-    trpc.transaction.transactionsThatExpireThisMonth.queryOptions()
+    trpc.transaction.transactionsThatExpireThisMonth.queryOptions(),
   );
 
   const { data: users } = useQuery(trpc.auth.getUsers.queryOptions());
   const { data: usersDetails, refetch: refetchUsers } = useQuery(
-    trpc.auth.getUsersDetails.queryOptions()
+    trpc.auth.getUsersDetails.queryOptions(),
   );
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -219,7 +219,7 @@ export default function TransactionPage() {
       onError: () => {
         toast.error("Error closing rooms.");
       },
-    })
+    }),
   );
 
   const generateNewTransactionsForThisMonthForUsers = useMutation(
@@ -232,7 +232,7 @@ export default function TransactionPage() {
         toast.error("Error generating transactions.");
         setGeneratingTransactionsLoading(false);
       },
-    })
+    }),
   );
 
   const createMutation = useMutation(
@@ -242,7 +242,7 @@ export default function TransactionPage() {
         resetForm();
         toast.success("Transaction created successfully!");
       },
-    })
+    }),
   );
 
   const editMutation = useMutation(
@@ -254,7 +254,7 @@ export default function TransactionPage() {
         resetForm();
         toast.success("Transaction updated successfully!");
       },
-    })
+    }),
   );
 
   const createUserMutation = useMutation(
@@ -264,7 +264,7 @@ export default function TransactionPage() {
         refetchUsers();
         toast.success("User created successfully!");
       },
-    })
+    }),
   );
 
   const editUserMutation = useMutation(
@@ -276,7 +276,7 @@ export default function TransactionPage() {
         refetchUsers();
         toast.success("User updated successfully!");
       },
-    })
+    }),
   );
 
   const deleteMutation = useMutation(
@@ -284,7 +284,7 @@ export default function TransactionPage() {
       onSuccess: () => {
         refetch();
       },
-    })
+    }),
   );
 
   const transactions = transactionsData?.transactions || [];
@@ -307,10 +307,17 @@ export default function TransactionPage() {
 
   const ReturnDateAfterMonths = (months: number) => {
     const now = new Date();
+
+    // Create the expiry date using UTC components
     const expiryDate = new Date(
-      now.getFullYear(),
-      now.getMonth() + months,
-      now.getDate()
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth() + months, // JavaScript automatically handles year overflow
+        now.getUTCDate(),
+        now.getUTCHours(),
+        now.getUTCMinutes(),
+        now.getUTCSeconds(),
+      ),
     );
     return expiryDate;
   };
@@ -430,8 +437,19 @@ export default function TransactionPage() {
       const user = users?.find((user) => user.id === userID);
       return user ? user.name : "Unknown User";
     },
-    [users]
+    [users],
   );
+
+  const ServerTime = () => {
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = now.getUTCMonth();
+
+    const gte = new Date(Date.UTC(year, month, 1)); // First day of current month in UTC
+    const lte = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999)); // Last day of current month in UTC
+
+    return { gte, lte, now };
+  };
 
   if (isLoading) {
     return <Loading />;
@@ -735,7 +753,7 @@ export default function TransactionPage() {
                                   handleUserEdit(
                                     user.name,
                                     user.id,
-                                    user.passcode
+                                    user.passcode,
                                   )
                                 }
                                 //   disabled={deleteMutation.isLoading}
@@ -773,7 +791,7 @@ export default function TransactionPage() {
                                 handleUserEdit(
                                   user.name,
                                   user.id,
-                                  user.passcode
+                                  user.passcode,
                                 )
                               }
                               // disabled={deleteMutation.isLoading}

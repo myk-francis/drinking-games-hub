@@ -13,7 +13,7 @@ export const transactionRouter = createTRPCRouter({
         amount: z.number().int(),
         assignedRooms: z.number().int(),
         expiryDate: z.string().or(z.date()),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const transaction = await prisma.transaction.create({
@@ -40,7 +40,7 @@ export const transactionRouter = createTRPCRouter({
         amount: z.number().int().optional(),
         assignedRooms: z.number().int().optional(),
         expiryDate: z.string().or(z.date()).optional(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const { id, ...updateData } = input;
@@ -74,7 +74,7 @@ export const transactionRouter = createTRPCRouter({
           limit: z.number().int().min(1).max(100).optional(),
           cursor: z.string().optional(),
         })
-        .optional()
+        .optional(),
     )
     .query(async ({ input }) => {
       const limit = input?.limit ?? 50;
@@ -160,11 +160,19 @@ export const transactionRouter = createTRPCRouter({
     }),
 
   transactionsThatExpireThisMonth: baseProcedure.query(async () => {
+    // Replace your existing Date logic with this:
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = now.getUTCMonth();
+
+    const gte = new Date(Date.UTC(year, month, 1)); // First day of current month in UTC
+    const lte = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999)); // Last day of current month in UTC
+
     const transactions = await prisma.transaction.findMany({
       where: {
         expiryDate: {
-          gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-          lte: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0),
+          gte: gte,
+          lte: lte,
         },
         OR: [{ profileType: "GUEST" }, { profileType: "PREMIUM" }],
         closed: false,
@@ -186,9 +194,19 @@ export const transactionRouter = createTRPCRouter({
       if (!session?.user || !session.user.isAdmin) return null;
 
       const now = new Date();
-      const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-      const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-      const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      const year = now.getUTCFullYear();
+      const month = now.getUTCMonth();
+
+      // 1st day of the current month at 00:00:00.000 UTC
+      const startDate = new Date(Date.UTC(year, month, 1));
+
+      // 1st day of the NEXT month at 00:00:00.000 UTC
+      const endDate = new Date(Date.UTC(year, month + 1, 1));
+
+      // Last day of the current month at 23:59:59.999 UTC
+      const lastDayOfMonth = new Date(
+        Date.UTC(year, month + 1, 0, 23, 59, 59, 999),
+      );
 
       const transactions = await prisma.transaction.findMany({
         where: {

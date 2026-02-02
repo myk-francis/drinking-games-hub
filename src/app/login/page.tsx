@@ -21,14 +21,14 @@ export default function LoginPage() {
       onError: (error) => {
         toast.error(error.message);
       },
-    })
+    }),
   );
 
   const handleLogin = () => {
     setIsLoading(true);
     // handle login logic here
     loginUser.mutate(
-      { username, passcode },
+      { username: username.trim(), passcode: passcode.trim() },
       {
         onSuccess: () => {
           setIsLoading(false);
@@ -39,7 +39,7 @@ export default function LoginPage() {
         onError: () => {
           setIsLoading(false);
         },
-      }
+      },
     );
   };
 
