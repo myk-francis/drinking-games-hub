@@ -74,6 +74,17 @@ export default function HomePage() {
   const [selectedRounds, setSelectedRounds] = React.useState<number>(0);
   const [selectedEdition, setSelectedEdition] = React.useState<number>(0);
 
+  const normalizeAppUrl = (rawUrl?: string) => {
+    let value = (rawUrl ?? "").trim();
+    if (!value) {
+      return typeof window !== "undefined" ? window.location.origin : "";
+    }
+    if (!/^https?:\/\//i.test(value)) {
+      value = `https://${value}`;
+    }
+    return value.replace(/\/+$/, "");
+  };
+
   const logoutUser = useMutation(
     trpc.auth.logout.mutationOptions({
       onError: (error) => {
@@ -94,8 +105,8 @@ export default function HomePage() {
         // Optionally, redirect to the room or show a success message
         const newRoomId = data?.id || "";
         setRoomId(newRoomId);
-        const url =
-          String(process.env.NEXT_PUBLIC_APP_URL) + `/room/${newRoomId}`;
+        const baseUrl = normalizeAppUrl(process.env.NEXT_PUBLIC_APP_URL);
+        const url = `${baseUrl}/room/${newRoomId}`;
         setGameUrl(url);
       },
       onError: (error) => {
@@ -291,7 +302,8 @@ export default function HomePage() {
     if (roomId === "") {
       return;
     }
-    const url = String(process.env.NEXT_PUBLIC_APP_URL) + `/room/${roomId}`;
+    const baseUrl = normalizeAppUrl(process.env.NEXT_PUBLIC_APP_URL);
+    const url = `${baseUrl}/room/${roomId}`;
 
     navigator.clipboard.writeText(url.toString()).then(() => {
       setShowShareLink(true);

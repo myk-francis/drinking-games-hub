@@ -142,6 +142,15 @@ function GameComments({ comments }: GameCommentsProps) {
 
 const MAX_CHARS = 250;
 
+const normalizeUrl = (rawUrl?: string) => {
+  let value = (rawUrl ?? "").trim();
+  if (!value) return "";
+  if (!/^https?:\/\//i.test(value)) {
+    value = `https://${value}`;
+  }
+  return value;
+};
+
 function EndGameFeedback({
   handleCreateComment,
   roomId,
@@ -1940,7 +1949,9 @@ export default function RoomPage() {
           {showQRCode ? (
             <div className="wfull mt-6  flex flex-row justify-center items-center">
               <QRCodeCanvas
-                value={window.location.href}
+                value={normalizeUrl(
+                  typeof window !== "undefined" ? window.location.href : "",
+                )}
                 size={220}
                 bgColor="#ffffff"
                 fgColor="#000000"

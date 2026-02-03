@@ -457,17 +457,6 @@ export default function TransactionPage() {
     [users],
   );
 
-  const ServerTime = () => {
-    const now = new Date();
-    const year = now.getUTCFullYear();
-    const month = now.getUTCMonth();
-
-    const gte = new Date(Date.UTC(year, month, 1)); // First day of current month in UTC
-    const lte = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999)); // Last day of current month in UTC
-
-    return { gte, lte, now };
-  };
-
   if (isLoading) {
     return <Loading />;
   }
