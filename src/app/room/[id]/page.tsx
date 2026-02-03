@@ -2076,7 +2076,7 @@ const RoomControls = React.memo(function RoomControls({
   actualPlayerName: string;
 }) {
   return (
-    <div className="flex gap-4 justify-center">
+    <div className="flex w-full  gap-4 justify-center items-center">
       <div>
         <button
           onClick={onEndGame}
