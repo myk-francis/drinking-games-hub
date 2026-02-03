@@ -186,16 +186,29 @@ export default function TransactionPage() {
     trpc.auth.getCurrentUser.queryOptions(),
   );
 
+  const isAuthed = !!currentUser;
+  const isAdmin = !!currentUser?.isAdmin;
+
   const { data: roomsOpen } = useQuery(
-    trpc.games.checkForOpenRooms.queryOptions(),
+    trpc.games.checkForOpenRooms.queryOptions(undefined, {
+      enabled: isAuthed && isAdmin,
+    }),
   );
   const { data: transactionsExpiringThisMonth } = useQuery(
-    trpc.transaction.transactionsThatExpireThisMonth.queryOptions(),
+    trpc.transaction.transactionsThatExpireThisMonth.queryOptions(undefined, {
+      enabled: isAuthed && isAdmin,
+    }),
   );
 
-  const { data: users } = useQuery(trpc.auth.getUsers.queryOptions());
+  const { data: users } = useQuery(
+    trpc.auth.getUsers.queryOptions(undefined, {
+      enabled: isAuthed && isAdmin,
+    }),
+  );
   const { data: usersDetails, refetch: refetchUsers } = useQuery(
-    trpc.auth.getUsersDetails.queryOptions(),
+    trpc.auth.getUsersDetails.queryOptions(undefined, {
+      enabled: isAuthed && isAdmin,
+    }),
   );
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -209,7 +222,11 @@ export default function TransactionPage() {
     data: transactionsData,
     isLoading,
     refetch,
-  } = useQuery(trpc.transaction.getManyTransactions.queryOptions());
+  } = useQuery(
+    trpc.transaction.getManyTransactions.queryOptions(undefined, {
+      enabled: isAuthed && isAdmin,
+    }),
+  );
 
   const closeTwoHourLongRooms = useMutation(
     trpc.games.closeOpenRooms.mutationOptions({

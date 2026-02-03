@@ -80,27 +80,39 @@ export default function ProfilePage() {
   } = useQuery(trpc.auth.getCurrentUser.queryOptions());
 
   const { data: specificUser } = useQuery(
-    trpc.auth.getSpecificUser.queryOptions({ profileId }),
+    trpc.auth.getSpecificUser.queryOptions(
+      { profileId },
+      { enabled: !!currentUser?.isAdmin },
+    ),
   );
 
   const { data: transactionProfile } = useQuery(
-    trpc.transaction.getUserTransactionAdmin.queryOptions({
-      userId: profileId,
-    }),
+    trpc.transaction.getUserTransactionAdmin.queryOptions(
+      {
+        userId: profileId,
+      },
+      { enabled: !!currentUser?.isAdmin },
+    ),
   );
 
   const { data: summary, isLoading: summaryLoading } = useQuery(
-    trpc.profile.summaryPerMonth.queryOptions({
-      userId: profileId || "",
-      month: selectedMonths,
-    }),
+    trpc.profile.summaryPerMonth.queryOptions(
+      {
+        userId: profileId || "",
+        month: selectedMonths,
+      },
+      { enabled: !!currentUser?.isAdmin },
+    ),
   );
 
   const { data: rooms, isLoading: roomsLoading } = useQuery(
-    trpc.profile.myRoomsPerMonth.queryOptions({
-      userId: profileId || "",
-      month: selectedMonths,
-    }),
+    trpc.profile.myRoomsPerMonth.queryOptions(
+      {
+        userId: profileId || "",
+        month: selectedMonths,
+      },
+      { enabled: !!currentUser?.isAdmin },
+    ),
   );
 
   React.useEffect(() => {

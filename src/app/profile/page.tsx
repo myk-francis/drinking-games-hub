@@ -79,13 +79,17 @@ export default function ProfilePage() {
   } = useQuery(trpc.auth.getCurrentUser.queryOptions());
 
   const { data: transactionProfile } = useQuery(
-    trpc.transaction.getUserTransaction.queryOptions(),
+    trpc.transaction.getUserTransaction.queryOptions(undefined, {
+      enabled: !!currentUser,
+    }),
   );
 
   const { data: summary, isLoading: summaryLoading } = useQuery(
     trpc.profile.summaryPerMonth.queryOptions({
       userId: currentUser?.id || "",
       month: selectedMonths,
+    }, {
+      enabled: !!currentUser,
     }),
   );
 
@@ -93,6 +97,8 @@ export default function ProfilePage() {
     trpc.profile.myRoomsPerMonth.queryOptions({
       userId: currentUser?.id || "",
       month: selectedMonths,
+    }, {
+      enabled: !!currentUser,
     }),
   );
 

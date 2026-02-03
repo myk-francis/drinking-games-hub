@@ -41,11 +41,24 @@ export default function HomePage() {
     isLoading,
     error,
   } = useQuery(trpc.games.getMany.queryOptions());
-  const { data: transactionProfile } = useQuery(
-    trpc.transaction.getUserTransaction.queryOptions(),
+  const { data: currentUser, isLoading: userLoading } = useQuery(
+    trpc.auth.getCurrentUser.queryOptions(),
   );
-  const { data: rounds } = useQuery(trpc.games.getRounds.queryOptions());
-  const { data: editions } = useQuery(trpc.games.getEditions.queryOptions());
+  const { data: transactionProfile } = useQuery(
+    trpc.transaction.getUserTransaction.queryOptions(undefined, {
+      enabled: !!currentUser,
+    }),
+  );
+  const { data: rounds } = useQuery(
+    trpc.games.getRounds.queryOptions(undefined, {
+      enabled: !!currentUser,
+    }),
+  );
+  const { data: editions } = useQuery(
+    trpc.games.getEditions.queryOptions(undefined, {
+      enabled: !!currentUser,
+    }),
+  );
   const [selectedGame, setSelectedGame] = React.useState(null);
   const [players, setPlayers] = React.useState<string[]>([]);
   const [teams, setTeams] = React.useState<string[]>([]);
@@ -79,8 +92,10 @@ export default function HomePage() {
       onSuccess: (data) => {
         toast.success("Room created successfully");
         // Optionally, redirect to the room or show a success message
-        setRoomId(data?.id || "");
-        const url = String(process.env.NEXT_PUBLIC_APP_URL) + `/room/${roomId}`;
+        const newRoomId = data?.id || "";
+        setRoomId(newRoomId);
+        const url =
+          String(process.env.NEXT_PUBLIC_APP_URL) + `/room/${newRoomId}`;
         setGameUrl(url);
       },
       onError: (error) => {
@@ -88,10 +103,6 @@ export default function HomePage() {
         // alert("Failed to create room. Please try again.");
       },
     }),
-  );
-
-  const { data: currentUser, isLoading: userLoading } = useQuery(
-    trpc.auth.getCurrentUser.queryOptions(),
   );
 
   React.useEffect(() => {
