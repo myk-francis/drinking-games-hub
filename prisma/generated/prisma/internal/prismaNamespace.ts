@@ -1177,6 +1177,7 @@ export const RoomScalarFieldEnum = {
   currentRound: 'currentRound',
   questionAVotes: 'questionAVotes',
   questionBVotes: 'questionBVotes',
+  currentAnswer: 'currentAnswer',
   playingTeams: 'playingTeams',
   previousPlayedTeams: 'previousPlayedTeams',
   startedAt: 'startedAt',

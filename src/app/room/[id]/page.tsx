@@ -401,6 +401,41 @@ export default function RoomPage() {
       },
     }),
   );
+  const voteTruthLie = useMutation(
+    trpc.games.voteTruthLie.mutationOptions({
+      onSuccess: () => {
+        toast.success("Vote submitted!");
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error voting truth/lie:", error);
+      },
+    }),
+  );
+
+  const revealTruthLie = useMutation(
+    trpc.games.revealTruthLie.mutationOptions({
+      onSuccess: () => {
+        toast.success("Answer revealed!");
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error revealing truth/lie:", error);
+      },
+    }),
+  );
+
+  const nextTruthLieCard = useMutation(
+    trpc.games.nextTruthLieCard.mutationOptions({
+      onSuccess: () => {
+        toast.success("Next card coming up!");
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error going to next truth/lie card:", error);
+      },
+    }),
+  );
 
   const nextWouldRatherQuestion = useMutation(
     trpc.games.nextWouldRatherQuestion.mutationOptions({
@@ -1562,6 +1597,134 @@ export default function RoomPage() {
                 )}
             </div>
           );
+
+        case "truth-or-lie": {
+          const currentCategory =
+            questions?.filter((q) => q.id === room?.currentQuestionId)[0]
+              ?.text ||
+            "No category available. Please wait for the next round.";
+          const answerRevealed = Boolean(room?.currentAnswer);
+          const hasVoted =
+            room?.questionAVotes?.includes(actualPlayer) ||
+            room?.questionBVotes?.includes(actualPlayer);
+          const isCurrentPlayer = actualPlayer === room?.currentPlayerId;
+          const totalVotes =
+            (room?.questionAVotes?.length || 0) +
+            (room?.questionBVotes?.length || 0);
+          const requiredVotes = Math.max(0, players.length - 1);
+          const allVoted = totalVotes >= requiredVotes;
+          const correctVotes =
+            room?.currentAnswer === "TRUTH"
+              ? room?.questionAVotes?.length || 0
+              : room?.questionBVotes?.length || 0;
+          const wrongVotes =
+            room?.currentAnswer === "TRUTH"
+              ? room?.questionBVotes?.length || 0
+              : room?.questionAVotes?.length || 0;
+
+          return (
+            <div className="text-center">
+              <div className="text-xl text-emerald-400 mb-4">
+                👤 {currentPlayer}&apos;s Turn
+              </div>
+
+              <div className="text-2xl mb-6 text-white font-bold">
+                Card: {currentCategory}
+              </div>
+
+              {!answerRevealed && (
+                <>
+                  <div className="flex gap-4 justify-center ">
+                    <button
+                      onClick={() => {
+                        if (isCurrentPlayer) {
+                          revealTruthLie.mutate({
+                            roomId: room?.id || "",
+                            playerId: actualPlayer || "",
+                            answer: "TRUTH",
+                          });
+                          return;
+                        }
+
+                        voteTruthLie.mutate({
+                          roomId: room?.id || "",
+                          playerId: actualPlayer || "",
+                          vote: "TRUTH",
+                        });
+                      }}
+                      disabled={
+                        hasVoted ||
+                        !actualPlayer ||
+                        (isCurrentPlayer && !allVoted)
+                      }
+                      className="px-6 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors w-32"
+                    >
+                      TRUTH
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (isCurrentPlayer) {
+                          revealTruthLie.mutate({
+                            roomId: room?.id || "",
+                            playerId: actualPlayer || "",
+                            answer: "LIE",
+                          });
+                          return;
+                        }
+
+                        voteTruthLie.mutate({
+                          roomId: room?.id || "",
+                          playerId: actualPlayer || "",
+                          vote: "LIE",
+                        });
+                      }}
+                      disabled={
+                        hasVoted ||
+                        !actualPlayer ||
+                        (isCurrentPlayer && !allVoted)
+                      }
+                      className="px-6 py-3 bg-red-500 hover:bg-red-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors w-32"
+                    >
+                      LIE
+                    </button>
+                  </div>
+                  {isCurrentPlayer && !allVoted && (
+                    <p className="mt-4 text-white/70">
+                      Waiting for votes ({totalVotes}/{requiredVotes})
+                    </p>
+                  )}
+                </>
+              )}
+
+              {answerRevealed && (
+                <div className="mt-6">
+                  <div className="text-3xl font-extrabold text-yellow-300 animate-bounce">
+                    Answer: {room?.currentAnswer}
+                  </div>
+                  <div className="mt-4 text-white/80">
+                    Correct: {correctVotes} · Wrong: {wrongVotes}
+                  </div>
+
+                  {isCurrentPlayer && (
+                    <button
+                      onClick={() => {
+                        nextTruthLieCard.mutate({
+                          roomId: room?.id || "",
+                          currentQuestionId:
+                            String(room?.currentQuestionId) ?? "",
+                          currentPlayerId: room?.currentPlayerId ?? "",
+                        });
+                      }}
+                      className="mt-6 px-6 py-3 bg-yellow-500 hover:bg-yellow-600 rounded-lg text-white font-semibold transition-colors"
+                    >
+                      Next Card
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        }
 
         case "would-you-rather":
           return (

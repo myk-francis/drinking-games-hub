@@ -30,7 +30,7 @@ export const gamesRouter = createTRPCRouter({
   getMany: baseProcedure.query(async () => {
     const games = await prisma.game.findMany({
       where: {
-        published: true, // Only fetch published games
+        published: false, // Only fetch published games
       },
       orderBy: {
         updatedAt: "asc",
@@ -217,6 +217,9 @@ export const gamesRouter = createTRPCRouter({
               previousPlayedTeams: [],
               playerOneId: "",
               playerTwoId: "",
+              questionAVotes: [],
+              questionBVotes: [],
+              currentAnswer: null,
             },
           });
 
@@ -316,6 +319,9 @@ export const gamesRouter = createTRPCRouter({
               previousPairIds: previousPairIds,
               playerOneId: playerOneId || "",
               playerTwoId: playerTwoId || "",
+              questionAVotes: [],
+              questionBVotes: [],
+              currentAnswer: null,
             },
           });
 
@@ -1248,6 +1254,252 @@ export const gamesRouter = createTRPCRouter({
       } catch (error) {
         console.error("Failed to update room:", error);
         throw new Error("Failed to update room");
+      }
+    }),
+
+  voteTruthLie: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string(),
+        playerId: z.string(),
+        vote: z.enum(["TRUTH", "LIE"]),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const room = await prisma.room.findFirst({
+          where: {
+            id: input.roomId,
+          },
+          include: {
+            players: true,
+            game: true,
+          },
+        });
+
+        if (!room) {
+          throw new Error("Room not found");
+        }
+
+        if (room.currentAnswer) {
+          return room;
+        }
+
+        const questionAVotes = room.questionAVotes || [];
+        const questionBVotes = room.questionBVotes || [];
+
+        const cleanedAVotes = questionAVotes.filter(
+          (id) => id !== input.playerId,
+        );
+        const cleanedBVotes = questionBVotes.filter(
+          (id) => id !== input.playerId,
+        );
+
+        if (input.vote === "TRUTH") {
+          cleanedAVotes.push(input.playerId);
+        } else {
+          cleanedBVotes.push(input.playerId);
+        }
+
+        const updatedRoom = await prisma.room.update({
+          where: { id: input.roomId },
+          data: {
+            questionAVotes: cleanedAVotes,
+            questionBVotes: cleanedBVotes,
+          },
+        });
+
+        return updatedRoom;
+      } catch (error) {
+        console.error("Failed to vote truth/lie", error);
+        throw new Error("Failed to vote truth/lie");
+      }
+    }),
+
+  revealTruthLie: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string(),
+        playerId: z.string(),
+        answer: z.enum(["TRUTH", "LIE"]),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const room = await prisma.room.findFirst({
+          where: {
+            id: input.roomId,
+          },
+          include: {
+            players: true,
+            game: true,
+          },
+        });
+
+        if (!room) {
+          throw new Error("Room not found");
+        }
+
+        if (room.currentPlayerId !== input.playerId) {
+          throw new Error("Only the current player can reveal the answer");
+        }
+
+        const totalVotes =
+          (room.questionAVotes?.length || 0) +
+          (room.questionBVotes?.length || 0);
+        const requiredVotes = Math.max(0, room.players.length - 1);
+        if (totalVotes < requiredVotes) {
+          throw new Error("Not all players have voted yet");
+        }
+
+        const updatedRoom = await prisma.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentAnswer: input.answer,
+          },
+        });
+
+        return updatedRoom;
+      } catch (error) {
+        console.error("Failed to reveal truth/lie", error);
+        throw new Error("Failed to reveal truth/lie");
+      }
+    }),
+
+  nextTruthLieCard: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string(),
+        currentQuestionId: z.string(),
+        currentPlayerId: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const room = await prisma.room.findFirst({
+          where: {
+            id: input.roomId,
+          },
+          include: {
+            players: true,
+            game: {
+              include: {
+                questions: true, // Include questions if needed
+              },
+            },
+          },
+        });
+
+        if (!room) {
+          throw new Error("Room not found");
+        }
+
+        if (!room.currentAnswer) {
+          throw new Error("Answer has not been revealed");
+        }
+
+        const truthVoters = room.questionAVotes || [];
+        const lieVoters = room.questionBVotes || [];
+
+        if (room.currentAnswer === "TRUTH") {
+          if (truthVoters.length > 0) {
+            await prisma.player.updateMany({
+              where: { id: { in: truthVoters } },
+              data: { points: { increment: 1 } },
+            });
+          }
+          if (lieVoters.length > 0) {
+            await prisma.player.updateMany({
+              where: { id: { in: lieVoters } },
+              data: { drinks: { increment: 1 } },
+            });
+          }
+        } else {
+          if (lieVoters.length > 0) {
+            await prisma.player.updateMany({
+              where: { id: { in: lieVoters } },
+              data: { points: { increment: 1 } },
+            });
+          }
+          if (truthVoters.length > 0) {
+            await prisma.player.updateMany({
+              where: { id: { in: truthVoters } },
+              data: { drinks: { increment: 1 } },
+            });
+          }
+        }
+
+        let nextPlayerId = "";
+        const players = room.players.map((obj) => obj.id);
+        let previousPlayersIds = room.previousPlayersIds || [];
+        const playersWhoHaveNotPlayed = players.filter(
+          (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id),
+        );
+
+        if (players.length === 2) {
+          previousPlayersIds = [];
+          previousPlayersIds.push(input.currentPlayerId);
+          nextPlayerId = players.filter(
+            (id) => !previousPlayersIds.includes(id),
+          )[0];
+        } else {
+          if (playersWhoHaveNotPlayed.length > 0) {
+            nextPlayerId = playersWhoHaveNotPlayed[0];
+            previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
+          } else {
+            const availablePlayers = players.filter(
+              (id) => id !== input.currentPlayerId,
+            );
+            nextPlayerId =
+              availablePlayers[
+                Math.floor(Math.random() * availablePlayers.length)
+              ];
+            previousPlayersIds = [];
+          }
+        }
+
+        let nextQuestionId = null;
+        const questions = room.game.questions.map((obj) => obj.id);
+        let previousQuestionsIds = room.previousQuestionsId || [];
+        const questionsWhichHaveNotPlayed = questions.filter(
+          (id) =>
+            ![...previousQuestionsIds, input.currentQuestionId].includes(id),
+        );
+
+        if (questionsWhichHaveNotPlayed?.length > 0) {
+          nextQuestionId =
+            questionsWhichHaveNotPlayed[
+              Math.floor(Math.random() * questionsWhichHaveNotPlayed.length)
+            ];
+          previousQuestionsIds = [
+            ...previousQuestionsIds,
+            parseInt(input.currentQuestionId),
+          ];
+        } else {
+          nextQuestionId =
+            room.game.questions[
+              Math.floor(Math.random() * room.game.questions.length)
+            ]?.id || null;
+          previousQuestionsIds = [];
+        }
+
+        const updatedRoom = await prisma.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentPlayerId: nextPlayerId,
+            previousPlayersIds: previousPlayersIds,
+            currentQuestionId: nextQuestionId ?? null,
+            previousQuestionsId: previousQuestionsIds,
+            questionAVotes: [],
+            questionBVotes: [],
+            currentAnswer: null,
+          },
+        });
+
+        return updatedRoom;
+      } catch (error) {
+        console.error("Failed to generate next truth/lie card:", error);
+        throw new Error("Failed to generate next truth/lie card");
       }
     }),
 

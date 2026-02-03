@@ -165,6 +165,8 @@ export default function HomePage() {
       return <Gamepad2 className="w-6 h-6" />;
     } else if (gamecode === "triviyay") {
       return <Rainbow className="w-6 h-6" />;
+    } else if (gamecode === "truth-or-lie") {
+      return <Star className="w-6 h-6" />;
     } else {
       return <Heart className="w-6 h-6" />;
     }
@@ -195,6 +197,8 @@ export default function HomePage() {
       return "from-yellow-500 to-rose-500";
     } else if (gamecode === "triviyay") {
       return "from-purple-500 to-pink-500";
+    } else if (gamecode === "truth-or-lie") {
+      return "from-fuchsia-500 to-indigo-500";
     } else {
       return "from-teal-500 to-cyan-500";
     }
@@ -563,6 +567,8 @@ export default function HomePage() {
                         players.length < 3) ||
                       (selectedGame === "pick-a-card" && players.length < 3) ||
                       (selectedGame === "imposter" && players.length < 4) ||
+                      (selectedGame === "truth-or-lie" &&
+                        players.length < 2) ||
                       (selectedGame === "triviyay" && teams.length > 2)
                     }
                     className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"

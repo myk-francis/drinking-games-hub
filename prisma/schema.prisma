@@ -75,6 +75,7 @@ model Room {
   currentRound Int? @default(0)
   questionAVotes String[]
   questionBVotes String[]
+  currentAnswer String?
   playingTeams String[]
   previousPlayedTeams String[]
   startedAt DateTime?
