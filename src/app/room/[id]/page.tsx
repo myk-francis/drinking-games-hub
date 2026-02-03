@@ -1605,6 +1605,13 @@ export default function RoomPage() {
             room?.currentAnswer === "TRUTH"
               ? room?.questionBVotes?.length || 0
               : room?.questionAVotes?.length || 0;
+          const playerVotedTruth =
+            room?.questionAVotes?.includes(actualPlayer) || false;
+          const playerVotedLie =
+            room?.questionBVotes?.includes(actualPlayer) || false;
+          const playerVoted = playerVotedTruth || playerVotedLie;
+          const playerCorrect =
+            room?.currentAnswer === "TRUTH" ? playerVotedTruth : playerVotedLie;
 
           return (
             <div className="text-center">
@@ -1682,7 +1689,13 @@ export default function RoomPage() {
 
               {answerRevealed && (
                 <div className="mt-6">
-                  <div className="text-3xl font-extrabold text-yellow-300 animate-bounce">
+                  <div
+                    className={`text-3xl font-extrabold ${
+                      playerVoted && !playerCorrect
+                        ? "text-red-300"
+                        : "text-yellow-300"
+                    } animate-bounce`}
+                  >
                     Answer: {room?.currentAnswer}
                   </div>
                   <div className="mt-4 text-white/80">
@@ -1969,7 +1982,7 @@ const RoomHeader = React.memo(function RoomHeader({
 }) {
   return (
     <div className="text-center mb-6">
-      <h1 className="text-4xl font-bold mb-2">ðŸ» {gameName}</h1>
+      <h1 className="text-4xl font-bold mb-2">🎮 {gameName}</h1>
       {rounds === 0 || selectedGame === "truth-or-drink" ? (
         <p className="text-white/70">Round in progress</p>
       ) : (
@@ -2082,7 +2095,7 @@ const RoomControls = React.memo(function RoomControls({
 
         <p className="text-white/70 mt-4">
           {actualPlayerName
-            ? `ðŸ’‹Player: ${actualPlayerName}ðŸ’‹`
+            ? `💋Player: ${actualPlayerName}💋`
             : "No Player Selected"}
         </p>
       </div>
