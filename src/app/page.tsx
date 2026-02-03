@@ -481,9 +481,6 @@ export default function HomePage() {
                                 className="cursor-pointer flex items-center gap-2 bg-white/20 rounded-full px-4 py-2"
                               >
                                 <span>Clear</span>
-                                <button className="text-red-400 hover:text-red-300 ml-2">
-                                  ×
-                                </button>
                               </div>
                             </div>
                           )}
@@ -567,8 +564,7 @@ export default function HomePage() {
                         players.length < 3) ||
                       (selectedGame === "pick-a-card" && players.length < 3) ||
                       (selectedGame === "imposter" && players.length < 4) ||
-                      (selectedGame === "truth-or-lie" &&
-                        players.length < 2) ||
+                      (selectedGame === "truth-or-lie" && players.length < 2) ||
                       (selectedGame === "triviyay" && teams.length > 2)
                     }
                     className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"

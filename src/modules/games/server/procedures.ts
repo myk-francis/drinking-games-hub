@@ -30,7 +30,7 @@ export const gamesRouter = createTRPCRouter({
   getMany: baseProcedure.query(async () => {
     const games = await prisma.game.findMany({
       where: {
-        published: false, // Only fetch published games
+        published: true, // Only fetch published games
       },
       orderBy: {
         updatedAt: "asc",
@@ -96,6 +96,79 @@ export const gamesRouter = createTRPCRouter({
       });
 
       return room;
+    }),
+  getRoomState: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1, { message: " Room ID is required" }),
+      }),
+    )
+    .query(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: {
+          id: input.roomId,
+        },
+        select: {
+          id: true,
+          gameId: true,
+          gameEnded: true,
+          userId: true,
+          currentPlayerId: true,
+          playerOneId: true,
+          playerTwoId: true,
+          previousPairIds: true,
+          allPairIds: true,
+          previousPlayersIds: true,
+          currentQuestionId: true,
+          previousQuestionsId: true,
+          currentCard: true,
+          lastCard: true,
+          lastPlayerId: true,
+          previousCards: true,
+          correctPrediction: true,
+          rounds: true,
+          currentRound: true,
+          questionAVotes: true,
+          questionBVotes: true,
+          playingTeams: true,
+          previousPlayedTeams: true,
+          startedAt: true,
+          gameEndedAt: true,
+          createdAt: true,
+          updatedAt: true,
+          currentAnswer: true,
+          players: {
+            select: {
+              id: true,
+              name: true,
+              points: true,
+              drinks: true,
+              team: true,
+            },
+          },
+          game: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              questions: true, // Include questions if needed
+            },
+          },
+        },
+      });
+
+      if (!room) {
+        return null;
+      }
+
+      const currentQuestion = room.currentQuestionId
+        ? await prisma.question.findUnique({
+            where: { id: room.currentQuestionId },
+            select: { id: true, text: true, answer: true, edition: true },
+          })
+        : null;
+
+      return { ...room, currentQuestion };
     }),
   createRoom: baseProcedure
     .input(
@@ -2108,7 +2181,7 @@ export const gamesRouter = createTRPCRouter({
 
           const losingTeams = teams.filter(
             (teamName: string) =>
-              ![input.winningTeams, input.currentPlayingTeam].includes(
+              ![...input.winningTeams, input.currentPlayingTeam].includes(
                 teamName,
               ),
           );
@@ -2128,28 +2201,28 @@ export const gamesRouter = createTRPCRouter({
           }
         }
 
-        if (input.forefit === false && input.winningTeams.length === 0) {
-          const losingTeams = teams.filter(
-            (teamName: string) =>
-              ![input.winningTeams, input.currentPlayingTeam].includes(
-                teamName,
-              ),
-          );
+        // if (input.forefit === false && input.winningTeams.length === 0) {
+        //   const losingTeams = teams.filter(
+        //     (teamName: string) =>
+        //       ![input.winningTeams, input.currentPlayingTeam].includes(
+        //         teamName,
+        //       ),
+        //   );
 
-          for (let index = 0; index < losingTeams.length; index++) {
-            const element = losingTeams[index];
-            await prisma.player.updateMany({
-              where: {
-                team: element,
-              },
-              data: {
-                drinks: {
-                  increment: 1,
-                },
-              },
-            });
-          }
-        }
+        //   for (let index = 0; index < losingTeams.length; index++) {
+        //     const element = losingTeams[index];
+        //     await prisma.player.updateMany({
+        //       where: {
+        //         team: element,
+        //       },
+        //       data: {
+        //         drinks: {
+        //           increment: 1,
+        //         },
+        //       },
+        //     });
+        //   }
+        // }
 
         const updatedRoom = await prisma.room.update({
           where: { id: input.roomId },

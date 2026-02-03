@@ -262,11 +262,13 @@ export default function RoomPage() {
     isLoading,
     error,
   } = useQuery(
-    trpc.games.getRoomById.queryOptions(
+    trpc.games.getRoomState.queryOptions(
       { roomId: String(roomId) },
       {
-        refetchInterval: 3000, // in milliseconds
-        refetchOnWindowFocus: false, // optional: disables refetching when tab/window gains focus
+        refetchInterval: (query) =>
+          query.state.data?.gameEnded ? false : 3000,
+        refetchIntervalInBackground: true,
+        refetchOnWindowFocus: false,
       },
     ),
   );
@@ -510,11 +512,7 @@ export default function RoomPage() {
   const selectedGame = room?.game?.code || "never-have-i-ever";
 
   const game = room?.game;
-  const questions = room?.game?.questions;
-
-  const questionsTruthOrDrink = room?.game?.questions.filter(
-    (q) => q.edition === room?.rounds,
-  );
+  const currentQuestion = room?.currentQuestion;
 
   const players = React.useMemo(() => room?.players || [], [room?.players]);
 
@@ -870,6 +868,7 @@ export default function RoomPage() {
   if (error)
     //@ts-expect-error leave it
     return <ErrorPage error={error} reset={() => window.location.reload()} />;
+  if (!room) return <div>Room not found.</div>;
 
   if (!room)
     return (
@@ -1031,8 +1030,7 @@ export default function RoomPage() {
           return (
             <div className="text-center">
               <div className="text-2xl mb-6 text-white leading-relaxed">
-                {questions?.filter((q) => q.id === room?.currentQuestionId)[0]
-                  ?.text ||
+                {currentQuestion?.text ||
                   "No question available. Please wait for the next round."}
               </div>
               <p className="text-lg text-white/80 mb-6">
@@ -1089,9 +1087,7 @@ export default function RoomPage() {
               <div className="text-2xl mb-6 text-white leading-relaxed">
                 {actualPlayer === room?.currentPlayerId
                   ? "IMPOSTER 🤡"
-                  : questions?.filter(
-                      (q) => q.id === room?.currentQuestionId,
-                    )[0]?.text ||
+                  : currentQuestion?.text ||
                     "No question available. Please wait for the next round."}
               </div>
               <p className="text-lg text-white/80 mb-6">
@@ -1155,9 +1151,7 @@ export default function RoomPage() {
                 👤 {currentPlayer}&apos;s Turn
               </div>
               <div className="text-xl mb-6 text-white leading-relaxed">
-                {questionsTruthOrDrink?.filter(
-                  (q) => q.id === room?.currentQuestionId,
-                )[0]?.text ||
+                {currentQuestion?.text ||
                   "No question available. Please wait for the next round."}
               </div>
               {actualPlayer === room?.currentPlayerId && !clicked && (
@@ -1227,14 +1221,12 @@ export default function RoomPage() {
                 👤 {currentPlayer}&apos;s Turn
               </div>
               <div className="text-xl mb-6 text-white leading-relaxed">
-                {questions?.filter((q) => q.id === room?.currentQuestionId)[0]
-                  ?.text ||
+                {currentQuestion?.text ||
                   "No question available. Please wait for the next round."}
               </div>
               {actualPlayer === room?.currentPlayerId &&
                 !clicked &&
-                questions?.filter((q) => q.id === room?.currentQuestionId)[0]
-                  ?.edition !== 3 && (
+                currentQuestion?.edition !== 3 && (
                   <div className="flex gap-4 justify-center">
                     <button
                       onClick={() => {
@@ -1290,24 +1282,22 @@ export default function RoomPage() {
                     </button>
                   </div>
                 )}
-              {!clicked &&
-                questions?.filter((q) => q.id === room?.currentQuestionId)[0]
-                  ?.edition === 3 && (
-                  <button
-                    onClick={() => {
-                      nextCardPOD.mutate({
-                        gamecode: "pick-a-card",
-                        roomId: room.id,
-                        currentQuestionId: String(room.currentQuestionId) ?? "",
-                        currentPlayerId: room.currentPlayerId ?? "",
-                      });
-                      setClicked(true);
-                    }}
-                    className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 rounded-lg text-white font-semibold transition-colors"
-                  >
-                    Next Card
-                  </button>
-                )}
+              {!clicked && currentQuestion?.edition === 3 && (
+                <button
+                  onClick={() => {
+                    nextCardPOD.mutate({
+                      gamecode: "pick-a-card",
+                      roomId: room.id,
+                      currentQuestionId: String(room.currentQuestionId) ?? "",
+                      currentPlayerId: room.currentPlayerId ?? "",
+                    });
+                    setClicked(true);
+                  }}
+                  className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 rounded-lg text-white font-semibold transition-colors"
+                >
+                  Next Card
+                </button>
+              )}
             </div>
           );
 
@@ -1372,8 +1362,7 @@ export default function RoomPage() {
                 👤 {currentPlayer}&apos;s Turn
               </div>
               <div className="text-2xl mb-6 text-white leading-relaxed">
-                {questions?.filter((q) => q.id === room?.currentQuestionId)[0]
-                  ?.text ||
+                {currentQuestion?.text ||
                   "No question available. Please wait for the next round."}
               </div>
               {actualPlayer === room?.currentPlayerId && (
@@ -1450,9 +1439,7 @@ export default function RoomPage() {
               ) : (
                 !isRunning && (
                   <p className="text-lg text-white/80 mb-6">
-                    {questions?.filter(
-                      (q) => q.id === room?.currentQuestionId,
-                    )[0]?.text ||
+                    {currentQuestion?.text ||
                       "No question available. Please wait for the next round."}
                   </p>
                 )
@@ -1528,16 +1515,14 @@ export default function RoomPage() {
                 </div>
               )}
               <p className="text-lg text-white/80 mb-6">
-                {questions?.filter((q) => q.id === room?.currentQuestionId)[0]
-                  ?.text ||
+                {currentQuestion?.text ||
                   "No question available. Please wait for the next round."}
               </p>
               {((actualPlayer === room?.currentPlayerId && timeLeft === 0) ||
                 actualPlayer !== room?.currentPlayerId) && (
                 <p className="text-lg text-white/80 mb-6">
                   Answer:{" "}
-                  {questions?.filter((q) => q.id === room?.currentQuestionId)[0]
-                    ?.answer ||
+                  {currentQuestion?.answer ||
                     "No answer available. Please wait for the next round."}
                 </p>
               )}
@@ -1600,8 +1585,7 @@ export default function RoomPage() {
 
         case "truth-or-lie": {
           const currentCategory =
-            questions?.filter((q) => q.id === room?.currentQuestionId)[0]
-              ?.text ||
+            currentQuestion?.text ||
             "No category available. Please wait for the next round.";
           const answerRevealed = Boolean(room?.currentAnswer);
           const hasVoted =
@@ -1736,8 +1720,7 @@ export default function RoomPage() {
                 👤 {currentPlayer}&apos;s Turn
               </div>
               <div className="text-2xl mb-6 text-white font-bold">
-                {questions?.filter((q) => q.id === room?.currentQuestionId)[0]
-                  ?.text ||
+                {currentQuestion?.text ||
                   "No question available. Please wait for the next round."}
               </div>
 
@@ -1802,8 +1785,7 @@ export default function RoomPage() {
               </div>
               <div className="text-2xl mb-6 text-white font-semibold mt-4">
                 Category:{" "}
-                {questions?.filter((q) => q.id === room?.currentQuestionId)[0]
-                  ?.text ||
+                {currentQuestion?.text ||
                   "No question available. Please wait for the next round."}
               </div>
               {actualPlayer === currentTeamLeaderId() && !clicked && (
@@ -1836,6 +1818,8 @@ export default function RoomPage() {
                             String(room.currentQuestionId) ?? "",
                         });
                         setClicked(true);
+                        setWinningTeams([]);
+                        setForfited(false);
                       }}
                       className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 rounded-lg text-white font-semibold transition-colors"
                     >
@@ -1922,49 +1906,21 @@ export default function RoomPage() {
       {/* Main Content */}
       <div className="container mx-auto px-4 py-6">
         {/* Header */}
-        <div className="text-center mb-6">
-          <h1 className="text-4xl font-bold mb-2">🍻 {game?.name}</h1>
-          {room?.rounds === 0 || selectedGame === "truth-or-drink" ? (
-            <p className="text-white/70">Round in progress</p>
-          ) : (
-            <p className="text-white/70">
-              Round {room?.currentRound || 1} of {room?.rounds}
-            </p>
-          )}
-        </div>
+        <RoomHeader
+          gameName={game?.name || ""}
+          selectedGame={selectedGame}
+          rounds={room?.rounds || 0}
+          currentRound={room?.currentRound || 0}
+        />
 
         {/* Scoreboard */}
-        <div className="mb-8">
-          {selectedGame === "triviyay" && (
-            <>
-              <div className="flex flex-row items-center justify-around flex-wrap bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center border border-white/20 my-4">
-                {room?.playingTeams.map((team) => (
-                  <div key={team}>
-                    <div className="font-bold text-lg text-white mb-1">
-                      Team: {team} ({TeamPlayerStats[team]?.Count || 0})
-                    </div>
-                    <div className="text-2xl font-bold text-emerald-400 mb-1">
-                      {TeamPlayerStats[team]?.TotalPoints} pts
-                    </div>
-                    <div className="text-sm text-orange-300">
-                      {TeamPlayerStats[team]?.TotalDrinks} drinks
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {players.map((player) => (
-              <PlayerScore
-                key={player.id}
-                points={player.points}
-                drinks={player.drinks}
-                player={player.name}
-              />
-            ))}
-          </div>
-        </div>
+        <RoomScoreboard
+          selectedGame={selectedGame}
+          playingTeams={room?.playingTeams || []}
+          teamStats={TeamPlayerStats}
+          players={players}
+          PlayerScoreComponent={PlayerScore}
+        />
 
         {/* Game Content */}
         <div className="bg-white/10 backdrop-blur-sm rounded-xl p-8 mb-6 border border-white/20">
@@ -1985,52 +1941,151 @@ export default function RoomPage() {
         </div>
 
         {/* Controls */}
-        <div className="flex gap-4 justify-center">
-          <div>
-            <button
-              onClick={() => {
-                endRoom.mutate({ roomId: String(roomId) });
-              }}
-              className="flex items-center w-40 gap-2 px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
-            >
-              <Home className="w-5 h-5" />
-              End Game
-            </button>
-
-            {actualPlayer === players[0].id && (
-              <button
-                onClick={() => {
-                  setOpenAddPlayerModal(true);
-                }}
-                className="flex items-center w-40 mt-4 gap-2 px-6 py-3 bg-pink-500 hover:bg-pink-600 rounded-lg text-white font-semibold transition-colors"
-              >
-                <UserPlus2 className="w-5 h-5" />
-                Add Player
-              </button>
-            )}
-
-            <button
-              onClick={() => {
-                if (showQRCode) {
-                  setShowQRCode(false);
-                } else {
-                  setShowQRCode(true);
-                }
-              }}
-              className="flex items-center w-40 mt-4 gap-2 px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
-            >
-              <QrCodeIcon className="w-5 h-5" />
-              {showQRCode ? "Hide" : "Show"} QR
-            </button>
-
-            <p className="text-white/70 mt-4">
-              {`💋Player: ${
-                players.filter((player) => player.id === actualPlayer)[0]?.name
-              }💋` || "No Player Selected"}
-            </p>
-          </div>
-        </div>
+        <RoomControls
+          onEndGame={() => endRoom.mutate({ roomId: String(roomId) })}
+          canAddPlayer={actualPlayer === players[0]?.id}
+          onAddPlayer={() => setOpenAddPlayerModal(true)}
+          showQRCode={showQRCode}
+          onToggleQRCode={() => setShowQRCode((prev) => !prev)}
+          actualPlayerName={
+            players.find((player) => player.id === actualPlayer)?.name || ""
+          }
+        />
       </div>
     </div>
   );
 }
+
+const RoomHeader = React.memo(function RoomHeader({
+  gameName,
+  selectedGame,
+  rounds,
+  currentRound,
+}: {
+  gameName: string;
+  selectedGame: string;
+  rounds: number;
+  currentRound: number;
+}) {
+  return (
+    <div className="text-center mb-6">
+      <h1 className="text-4xl font-bold mb-2">ðŸ» {gameName}</h1>
+      {rounds === 0 || selectedGame === "truth-or-drink" ? (
+        <p className="text-white/70">Round in progress</p>
+      ) : (
+        <p className="text-white/70">
+          Round {currentRound || 1} of {rounds}
+        </p>
+      )}
+    </div>
+  );
+});
+
+const RoomScoreboard = React.memo(function RoomScoreboard({
+  selectedGame,
+  playingTeams,
+  teamStats,
+  players,
+  PlayerScoreComponent,
+}: {
+  selectedGame: string;
+  playingTeams: string[];
+  teamStats: TeamStats;
+  players: {
+    id: string;
+    name: string;
+    points: number | null;
+    drinks: number | null;
+  }[];
+  PlayerScoreComponent: React.ComponentType<{
+    points: number | null;
+    drinks: number | null;
+    player: string;
+  }>;
+}) {
+  return (
+    <div className="mb-8">
+      {selectedGame === "triviyay" && (
+        <div className="flex flex-row items-center justify-around flex-wrap bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center border border-white/20 my-4">
+          {playingTeams.map((team) => (
+            <div key={team}>
+              <div className="font-bold text-lg text-white mb-1">
+                Team: {team} ({teamStats[team]?.Count || 0})
+              </div>
+              <div className="text-2xl font-bold text-emerald-400 mb-1">
+                {teamStats[team]?.TotalPoints} pts
+              </div>
+              <div className="text-sm text-orange-300">
+                {teamStats[team]?.TotalDrinks} drinks
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        {players.map((player) => (
+          <PlayerScoreComponent
+            key={player.id}
+            points={player.points}
+            drinks={player.drinks}
+            player={player.name}
+          />
+        ))}
+      </div>
+    </div>
+  );
+});
+
+const RoomControls = React.memo(function RoomControls({
+  onEndGame,
+  canAddPlayer,
+  onAddPlayer,
+  showQRCode,
+  onToggleQRCode,
+  actualPlayerName,
+}: {
+  onEndGame: () => void;
+  canAddPlayer: boolean;
+  onAddPlayer: () => void;
+  showQRCode: boolean;
+  onToggleQRCode: () => void;
+  actualPlayerName: string;
+}) {
+  return (
+    <div className="flex gap-4 justify-center">
+      <div>
+        <button
+          onClick={onEndGame}
+          className="flex items-center w-40 gap-2 px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
+        >
+          <Home className="w-5 h-5" />
+          End Game
+        </button>
+
+        {canAddPlayer && (
+          <button
+            onClick={onAddPlayer}
+            className="flex items-center w-40 mt-4 gap-2 px-6 py-3 bg-pink-500 hover:bg-pink-600 rounded-lg text-white font-semibold transition-colors"
+          >
+            <UserPlus2 className="w-5 h-5" />
+            Add Player
+          </button>
+        )}
+
+        <button
+          onClick={onToggleQRCode}
+          className="flex items-center w-40 mt-4 gap-2 px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
+        >
+          <QrCodeIcon className="w-5 h-5" />
+          {showQRCode ? "Hide" : "Show"} QR
+        </button>
+
+        <p className="text-white/70 mt-4">
+          {actualPlayerName
+            ? `ðŸ’‹Player: ${actualPlayerName}ðŸ’‹`
+            : "No Player Selected"}
+        </p>
+      </div>
+    </div>
+  );
+});
