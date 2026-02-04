@@ -498,12 +498,18 @@ export const gamesRouter = createTRPCRouter({
         let previousQuestionsIds = room.previousQuestionsId || [];
         const questionsWhichHaveNotPlayed = questions.filter(
           (id) =>
-            ![...previousQuestionsIds, input.currentQuestionId].includes(id),
+            ![
+              ...previousQuestionsIds,
+              parseInt(input.currentQuestionId),
+            ].includes(id),
         );
         const questionsWhichHaveNotPlayedForTruthOrDrink =
           questionsForTruthOrDrink.filter(
             (id) =>
-              ![...previousQuestionsIds, input.currentQuestionId].includes(id),
+              ![
+                ...previousQuestionsIds,
+                parseInt(input.currentQuestionId),
+              ].includes(id),
           );
 
         if (input.gamecode === "truth-or-drink") {
@@ -631,7 +637,10 @@ export const gamesRouter = createTRPCRouter({
         let previousQuestionsIds = room.previousQuestionsId || [];
         const questionsWhichHaveNotPlayed = questions.filter(
           (id) =>
-            ![...previousQuestionsIds, input.currentQuestionId].includes(id),
+            ![
+              ...previousQuestionsIds,
+              parseInt(input.currentQuestionId),
+            ].includes(id),
         );
 
         if (questionsWhichHaveNotPlayed?.length > 0) {
@@ -930,7 +939,10 @@ export const gamesRouter = createTRPCRouter({
         let previousQuestionsIds = room.previousQuestionsId || [];
         const questionsWhichHaveNotPlayed = questions.filter(
           (id) =>
-            ![...previousQuestionsIds, input.currentQuestionId].includes(id),
+            ![
+              ...previousQuestionsIds,
+              parseInt(input.currentQuestionId),
+            ].includes(id),
         );
 
         if (questionsWhichHaveNotPlayed?.length > 0) {
@@ -1013,7 +1025,10 @@ export const gamesRouter = createTRPCRouter({
         let previousQuestionsIds = room.previousQuestionsId || [];
         const questionsWhichHaveNotPlayed = questions.filter(
           (id) =>
-            ![...previousQuestionsIds, input.currentQuestionId].includes(id),
+            ![
+              ...previousQuestionsIds,
+              parseInt(input.currentQuestionId),
+            ].includes(id),
         );
 
         if (questionsWhichHaveNotPlayed?.length > 0) {
@@ -1186,7 +1201,10 @@ export const gamesRouter = createTRPCRouter({
         let previousQuestionsIds = room.previousQuestionsId || [];
         const questionsWhichHaveNotPlayed = questions.filter(
           (id) =>
-            ![...previousQuestionsIds, input.currentQuestionId].includes(id),
+            ![
+              ...previousQuestionsIds,
+              parseInt(input.currentQuestionId),
+            ].includes(id),
         );
 
         if (questionsWhichHaveNotPlayed?.length > 0) {
@@ -1199,10 +1217,13 @@ export const gamesRouter = createTRPCRouter({
             parseInt(input.currentQuestionId),
           ];
         } else {
+          const availableQuestions = questions.filter(
+            (id) => id !== parseInt(input.currentQuestionId),
+          );
           nextQuestionId =
-            room.game.questions[
-              Math.floor(Math.random() * room.game.questions.length)
-            ]?.id || null;
+            availableQuestions[
+              Math.floor(Math.random() * availableQuestions.length)
+            ];
           previousQuestionsIds = [];
         }
 
@@ -1536,7 +1557,10 @@ export const gamesRouter = createTRPCRouter({
         let previousQuestionsIds = room.previousQuestionsId || [];
         const questionsWhichHaveNotPlayed = questions.filter(
           (id) =>
-            ![...previousQuestionsIds, input.currentQuestionId].includes(id),
+            ![
+              ...previousQuestionsIds,
+              parseInt(input.currentQuestionId),
+            ].includes(id),
         );
 
         if (questionsWhichHaveNotPlayed?.length > 0) {
@@ -1610,7 +1634,10 @@ export const gamesRouter = createTRPCRouter({
         let previousQuestionsIds = room.previousQuestionsId || [];
         const questionsWhichHaveNotPlayed = questions.filter(
           (id) =>
-            ![...previousQuestionsIds, input.currentQuestionId].includes(id),
+            ![
+              ...previousQuestionsIds,
+              parseInt(input.currentQuestionId),
+            ].includes(id),
         );
 
         if (questionsWhichHaveNotPlayed?.length > 0) {
@@ -1799,7 +1826,10 @@ export const gamesRouter = createTRPCRouter({
         let previousQuestionsIds = room.previousQuestionsId || [];
         const questionsWhichHaveNotPlayed = questions.filter(
           (id) =>
-            ![...previousQuestionsIds, input.currentQuestionId].includes(id),
+            ![
+              ...previousQuestionsIds,
+              parseInt(input.currentQuestionId),
+            ].includes(id),
         );
 
         if (questionsWhichHaveNotPlayed?.length > 0) {
@@ -1926,7 +1956,10 @@ export const gamesRouter = createTRPCRouter({
         let previousQuestionsIds = room.previousQuestionsId || [];
         const questionsWhichHaveNotPlayed = questions.filter(
           (id) =>
-            ![...previousQuestionsIds, input.currentQuestionId].includes(id),
+            ![
+              ...previousQuestionsIds,
+              parseInt(input.currentQuestionId),
+            ].includes(id),
         );
 
         if (questionsWhichHaveNotPlayed?.length > 0) {
@@ -2144,7 +2177,10 @@ export const gamesRouter = createTRPCRouter({
         let previousQuestionsIds = room.previousQuestionsId || [];
         const questionsWhichHaveNotPlayed = questions.filter(
           (id) =>
-            ![...previousQuestionsIds, input.currentQuestionId].includes(id),
+            ![
+              ...previousQuestionsIds,
+              parseInt(input.currentQuestionId),
+            ].includes(id),
         );
 
         if (questionsWhichHaveNotPlayed?.length > 0) {
@@ -2200,29 +2236,6 @@ export const gamesRouter = createTRPCRouter({
             });
           }
         }
-
-        // if (input.forefit === false && input.winningTeams.length === 0) {
-        //   const losingTeams = teams.filter(
-        //     (teamName: string) =>
-        //       ![input.winningTeams, input.currentPlayingTeam].includes(
-        //         teamName,
-        //       ),
-        //   );
-
-        //   for (let index = 0; index < losingTeams.length; index++) {
-        //     const element = losingTeams[index];
-        //     await prisma.player.updateMany({
-        //       where: {
-        //         team: element,
-        //       },
-        //       data: {
-        //         drinks: {
-        //           increment: 1,
-        //         },
-        //       },
-        //     });
-        //   }
-        // }
 
         const updatedRoom = await prisma.room.update({
           where: { id: input.roomId },
