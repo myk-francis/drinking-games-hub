@@ -26,11 +26,200 @@ const teamInfoSchema = z.object({
     .max(10, { message: "Maximum 10 players are allowed" }),
 });
 
+const CODENAMES_TEAM_VALUES = ["RED", "BLUE"] as const;
+const CODENAMES_ASSIGNMENT_VALUES = [
+  "RED",
+  "BLUE",
+  "NEUTRAL",
+  "ASSASSIN",
+] as const;
+
+type CodenamesTeam = (typeof CODENAMES_TEAM_VALUES)[number];
+type CodenamesAssignment = (typeof CODENAMES_ASSIGNMENT_VALUES)[number];
+
+type CodenamesState = {
+  status: "LOBBY" | "PLAYING" | "ENDED";
+  board: number[];
+  assignments: Record<number, CodenamesAssignment>;
+  startingTeam: CodenamesTeam;
+  turnTeam: CodenamesTeam;
+  guessesRemaining: number | null;
+  winner: CodenamesTeam | null;
+};
+
+function shuffleArray<T>(items: T[]): T[] {
+  const next = [...items];
+  for (let i = next.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [next[i], next[j]] = [next[j], next[i]];
+  }
+  return next;
+}
+
+function getOtherCodenamesTeam(team: CodenamesTeam): CodenamesTeam {
+  return team === "RED" ? "BLUE" : "RED";
+}
+
+function getDefaultCodenamesState(): CodenamesState {
+  return {
+    status: "LOBBY",
+    board: [],
+    assignments: {},
+    startingTeam: "RED",
+    turnTeam: "RED",
+    guessesRemaining: null,
+    winner: null,
+  };
+}
+
+function parseCodenamesState(raw: string | null): CodenamesState {
+  if (!raw) {
+    return getDefaultCodenamesState();
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<CodenamesState>;
+    const status =
+      parsed.status === "LOBBY" ||
+      parsed.status === "PLAYING" ||
+      parsed.status === "ENDED"
+        ? parsed.status
+        : "LOBBY";
+    const startingTeam =
+      parsed.startingTeam === "RED" || parsed.startingTeam === "BLUE"
+        ? parsed.startingTeam
+        : "RED";
+    const turnTeam =
+      parsed.turnTeam === "RED" || parsed.turnTeam === "BLUE"
+        ? parsed.turnTeam
+        : startingTeam;
+    const winner =
+      parsed.winner === "RED" || parsed.winner === "BLUE" ? parsed.winner : null;
+
+    const board = Array.isArray(parsed.board)
+      ? parsed.board.filter((id) => typeof id === "number")
+      : [];
+
+    const assignments: Record<number, CodenamesAssignment> = {};
+    const rawAssignments = parsed.assignments ?? {};
+    for (const [questionId, assignment] of Object.entries(rawAssignments)) {
+      const parsedQuestionId = Number(questionId);
+      if (
+        Number.isFinite(parsedQuestionId) &&
+        typeof assignment === "string" &&
+        CODENAMES_ASSIGNMENT_VALUES.includes(assignment as CodenamesAssignment)
+      ) {
+        assignments[parsedQuestionId] = assignment as CodenamesAssignment;
+      }
+    }
+
+    const guessesRemaining =
+      typeof parsed.guessesRemaining === "number" &&
+      Number.isFinite(parsed.guessesRemaining)
+        ? parsed.guessesRemaining
+        : null;
+
+    return {
+      status,
+      board,
+      assignments,
+      startingTeam,
+      turnTeam,
+      guessesRemaining,
+      winner,
+    };
+  } catch {
+    return getDefaultCodenamesState();
+  }
+}
+
+async function normalizeCodenamesTeamStats(
+  tx: { player: typeof prisma.player },
+  roomId: string,
+  team: CodenamesTeam,
+) {
+  await tx.player.updateMany({
+    where: {
+      roomId,
+      team,
+      points: null,
+    },
+    data: { points: 0 },
+  });
+
+  await tx.player.updateMany({
+    where: {
+      roomId,
+      team,
+      drinks: null,
+    },
+    data: { drinks: 0 },
+  });
+}
+
+async function assignCodenamesSpymasters(roomId: string) {
+  const room = await prisma.room.findUnique({
+    where: { id: roomId },
+    include: {
+      players: {
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
+      game: true,
+    },
+  });
+
+  if (!room) {
+    throw new Error("Room not found");
+  }
+  if (room.game.code !== "codenames") {
+    throw new Error("This room is not a Codenames game");
+  }
+
+  const redPlayers = room.players.filter((player) => player.team === "RED");
+  const bluePlayers = room.players.filter((player) => player.team === "BLUE");
+  const isReady =
+    room.players.length >= 4 && redPlayers.length > 0 && bluePlayers.length > 0;
+
+  if (!isReady) {
+    return {
+      isReady,
+      redSpymasterId: room.playerOneId ?? null,
+      blueSpymasterId: room.playerTwoId ?? null,
+    };
+  }
+
+  const redSpymasterId = redPlayers[0]?.id ?? null;
+  const blueSpymasterId = bluePlayers[0]?.id ?? null;
+
+  if (
+    room.playerOneId !== redSpymasterId ||
+    room.playerTwoId !== blueSpymasterId ||
+    room.playingTeams.join(",") !== "RED,BLUE"
+  ) {
+    await prisma.room.update({
+      where: { id: roomId },
+      data: {
+        playerOneId: redSpymasterId,
+        playerTwoId: blueSpymasterId,
+        playingTeams: ["RED", "BLUE"],
+      },
+    });
+  }
+
+  return {
+    isReady,
+    redSpymasterId,
+    blueSpymasterId,
+  };
+}
+
 export const gamesRouter = createTRPCRouter({
   getMany: baseProcedure.query(async () => {
     const games = await prisma.game.findMany({
       where: {
-        published: true, // Only fetch published games
+        published: false, // Only fetch published games
       },
       orderBy: {
         updatedAt: "asc",
@@ -2252,6 +2441,422 @@ export const gamesRouter = createTRPCRouter({
         console.error("Failed to generate category card:", error);
         throw new Error("Failed to generate category card");
       }
+    }),
+
+  assignPlayerTeam: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        team: z.enum(CODENAMES_TEAM_VALUES),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: true,
+          game: true,
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+      if (room.game.code !== "codenames") {
+        throw new Error("This assignment flow is only for Codenames");
+      }
+
+      const player = room.players.find((item) => item.id === input.playerId);
+      if (!player) {
+        throw new Error("Player not found");
+      }
+
+      await prisma.player.update({
+        where: { id: input.playerId },
+        data: {
+          team: input.team,
+        },
+      });
+
+      return assignCodenamesSpymasters(input.roomId);
+    }),
+
+  codenamesAutoAssignSpymasters: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      return assignCodenamesSpymasters(input.roomId);
+    }),
+
+  codenamesStart: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: {
+            include: {
+              questions: true,
+            },
+          },
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+      if (room.game.code !== "codenames") {
+        throw new Error("This room is not a Codenames game");
+      }
+
+      const redPlayers = room.players.filter((player) => player.team === "RED");
+      const bluePlayers = room.players.filter((player) => player.team === "BLUE");
+      if (room.players.length < 4 || redPlayers.length < 1 || bluePlayers.length < 1) {
+        throw new Error("Need at least 4 players and both teams represented");
+      }
+
+      const spymasterAssignment = await assignCodenamesSpymasters(input.roomId);
+      if (!spymasterAssignment.redSpymasterId || !spymasterAssignment.blueSpymasterId) {
+        throw new Error("Failed to assign spymasters");
+      }
+
+      const allQuestionIds = room.game.questions.map((question) => question.id);
+      if (allQuestionIds.length < 25) {
+        throw new Error("Codenames requires at least 25 words");
+      }
+
+      const board = shuffleArray(allQuestionIds).slice(0, 25);
+      const startingTeam: CodenamesTeam = Math.random() >= 0.5 ? "RED" : "BLUE";
+      const otherTeam = getOtherCodenamesTeam(startingTeam);
+      const assignmentPool = shuffleArray<CodenamesAssignment>([
+        ...Array(9).fill(startingTeam),
+        ...Array(8).fill(otherTeam),
+        ...Array(7).fill("NEUTRAL"),
+        "ASSASSIN",
+      ]);
+      const assignments: Record<number, CodenamesAssignment> = {};
+      board.forEach((questionId, index) => {
+        assignments[questionId] = assignmentPool[index] ?? "NEUTRAL";
+      });
+
+      const state: CodenamesState = {
+        status: "PLAYING",
+        board,
+        assignments,
+        startingTeam,
+        turnTeam: startingTeam,
+        guessesRemaining: null,
+        winner: null,
+      };
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          // Codenames state is persisted in Room.currentAnswer.
+          currentAnswer: JSON.stringify(state),
+          // Revealed cards are persisted in Room.previousQuestionsId.
+          previousQuestionsId: [],
+          // Spymasters live in Room.playerOneId (RED) and Room.playerTwoId (BLUE).
+          playerOneId: spymasterAssignment.redSpymasterId,
+          playerTwoId: spymasterAssignment.blueSpymasterId,
+          playingTeams: ["RED", "BLUE"],
+          gameEnded: false,
+          gameEndedAt: null,
+          startedAt: new Date(),
+        },
+      });
+
+      return true;
+    }),
+
+  codenamesSetGuesses: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        number: z.number().int().min(1).max(9),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: true,
+          game: true,
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+      if (room.game.code !== "codenames") {
+        throw new Error("This room is not a Codenames game");
+      }
+
+      const player = room.players.find((item) => item.id === input.playerId);
+      if (!player) {
+        throw new Error("Player not found");
+      }
+
+      const state = parseCodenamesState(room.currentAnswer);
+      if (state.status !== "PLAYING" || state.winner) {
+        throw new Error("Game is not in playing state");
+      }
+
+      const expectedSpymasterId =
+        state.turnTeam === "RED" ? room.playerOneId : room.playerTwoId;
+      if (!expectedSpymasterId || expectedSpymasterId !== input.playerId) {
+        throw new Error("Only the active spymaster can set guesses");
+      }
+
+      state.guessesRemaining = input.number + 1;
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentAnswer: JSON.stringify(state),
+        },
+      });
+
+      return true;
+    }),
+
+  codenamesGuess: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        questionId: z.number().int(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: true,
+          game: true,
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+      if (room.game.code !== "codenames") {
+        throw new Error("This room is not a Codenames game");
+      }
+
+      const player = room.players.find((item) => item.id === input.playerId);
+      if (!player) {
+        throw new Error("Player not found");
+      }
+
+      const state = parseCodenamesState(room.currentAnswer);
+      if (state.status !== "PLAYING" || state.winner) {
+        throw new Error("Game is not in playing state");
+      }
+      if (player.team !== state.turnTeam) {
+        throw new Error("Only active team can guess");
+      }
+
+      const turnSpymasterId =
+        state.turnTeam === "RED" ? room.playerOneId : room.playerTwoId;
+      if (turnSpymasterId && turnSpymasterId === input.playerId) {
+        throw new Error("Spymaster cannot make guesses");
+      }
+      if (!state.board.includes(input.questionId)) {
+        throw new Error("Card is not in this board");
+      }
+      if (room.previousQuestionsId.includes(input.questionId)) {
+        throw new Error("Card already revealed");
+      }
+
+      const assignment = state.assignments[input.questionId] ?? "NEUTRAL";
+      const revealedIds = [...room.previousQuestionsId, input.questionId];
+      const guessingTeam = state.turnTeam;
+      let endTurn = false;
+      let gameEnded = false;
+
+      await prisma.$transaction(async (tx) => {
+        if (assignment === guessingTeam) {
+          await normalizeCodenamesTeamStats(tx, room.id, guessingTeam);
+          await tx.player.updateMany({
+            where: {
+              roomId: room.id,
+              team: guessingTeam,
+            },
+            data: {
+              points: {
+                increment: 1,
+              },
+            },
+          });
+
+          if (state.guessesRemaining !== null) {
+            state.guessesRemaining = Math.max(state.guessesRemaining - 1, 0);
+          }
+          const allOwnCardsRevealed = state.board
+            .filter((questionId) => state.assignments[questionId] === guessingTeam)
+            .every((questionId) => revealedIds.includes(questionId));
+
+          if (allOwnCardsRevealed) {
+            state.status = "ENDED";
+            state.winner = guessingTeam;
+            gameEnded = true;
+          } else if (state.guessesRemaining !== null && state.guessesRemaining <= 0) {
+            endTurn = true;
+          }
+        } else if (assignment === "NEUTRAL") {
+          await normalizeCodenamesTeamStats(tx, room.id, guessingTeam);
+          await tx.player.updateMany({
+            where: {
+              roomId: room.id,
+              team: guessingTeam,
+            },
+            data: {
+              drinks: {
+                increment: 1,
+              },
+            },
+          });
+          endTurn = true;
+        } else if (assignment === "ASSASSIN") {
+          await normalizeCodenamesTeamStats(tx, room.id, guessingTeam);
+          await tx.player.updateMany({
+            where: {
+              roomId: room.id,
+              team: guessingTeam,
+            },
+            data: {
+              drinks: {
+                increment: 1,
+              },
+            },
+          });
+
+          state.status = "ENDED";
+          state.winner = getOtherCodenamesTeam(guessingTeam);
+          gameEnded = true;
+        } else {
+          const opponentTeam = assignment;
+
+          await normalizeCodenamesTeamStats(tx, room.id, guessingTeam);
+          await normalizeCodenamesTeamStats(tx, room.id, opponentTeam);
+
+          await tx.player.updateMany({
+            where: {
+              roomId: room.id,
+              team: guessingTeam,
+            },
+            data: {
+              drinks: {
+                increment: 1,
+              },
+            },
+          });
+          await tx.player.updateMany({
+            where: {
+              roomId: room.id,
+              team: opponentTeam,
+            },
+            data: {
+              points: {
+                increment: 1,
+              },
+            },
+          });
+
+          const allOpponentCardsRevealed = state.board
+            .filter((questionId) => state.assignments[questionId] === opponentTeam)
+            .every((questionId) => revealedIds.includes(questionId));
+
+          if (allOpponentCardsRevealed) {
+            state.status = "ENDED";
+            state.winner = opponentTeam;
+            gameEnded = true;
+          } else {
+            endTurn = true;
+          }
+        }
+
+        if (!gameEnded && endTurn) {
+          state.turnTeam = getOtherCodenamesTeam(guessingTeam);
+          state.guessesRemaining = null;
+        }
+
+        await tx.room.update({
+          where: { id: room.id },
+          data: {
+            previousQuestionsId: revealedIds,
+            currentAnswer: JSON.stringify(state),
+            gameEnded,
+            gameEndedAt: gameEnded ? new Date() : null,
+          },
+        });
+      });
+
+      return true;
+    }),
+
+  codenamesEndTurn: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: true,
+          game: true,
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+      if (room.game.code !== "codenames") {
+        throw new Error("This room is not a Codenames game");
+      }
+
+      const player = room.players.find((item) => item.id === input.playerId);
+      if (!player) {
+        throw new Error("Player not found");
+      }
+
+      const state = parseCodenamesState(room.currentAnswer);
+      if (state.status !== "PLAYING" || state.winner) {
+        throw new Error("Game is not in playing state");
+      }
+      if (player.team !== state.turnTeam) {
+        throw new Error("Only active team can end turn");
+      }
+
+      state.turnTeam = getOtherCodenamesTeam(state.turnTeam);
+      state.guessesRemaining = null;
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentAnswer: JSON.stringify(state),
+        },
+      });
+
+      return true;
     }),
 
   checkForOpenRooms: baseProcedure.query(async () => {

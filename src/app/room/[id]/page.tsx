@@ -10,6 +10,7 @@ import { Loading } from "@/components/ui/loading";
 import ErrorPage from "@/app/error";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import AddPlayerModal from "./addPlayerModal";
 import { QRCodeCanvas } from "qrcode.react";
 import {
@@ -24,6 +25,18 @@ import { Textarea } from "@/components/ui/textarea";
 
 import { Star } from "lucide-react";
 import { DRINKING_QUOTES } from "@/lib/quotes";
+
+type CodenamesTeam = "RED" | "BLUE";
+type CodenamesAssignment = "RED" | "BLUE" | "NEUTRAL" | "ASSASSIN";
+type CodenamesRoomState = {
+  status: "LOBBY" | "PLAYING" | "ENDED";
+  board: number[];
+  assignments: Record<number, CodenamesAssignment>;
+  startingTeam: CodenamesTeam;
+  turnTeam: CodenamesTeam;
+  guessesRemaining: number | null;
+  winner: CodenamesTeam | null;
+};
 
 interface TeamStats {
   [team: string]: {
@@ -259,6 +272,50 @@ function EndGameFeedback({
       </DialogContent>
     </Dialog>
   );
+}
+
+function parseCodenamesState(raw: string | null | undefined): CodenamesRoomState {
+  const fallback: CodenamesRoomState = {
+    status: "LOBBY",
+    board: [],
+    assignments: {},
+    startingTeam: "RED",
+    turnTeam: "RED",
+    guessesRemaining: null,
+    winner: null,
+  };
+
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<CodenamesRoomState>;
+    return {
+      status:
+        parsed.status === "PLAYING" || parsed.status === "ENDED"
+          ? parsed.status
+          : "LOBBY",
+      board: Array.isArray(parsed.board)
+        ? parsed.board.filter((id): id is number => typeof id === "number")
+        : [],
+      assignments: (parsed.assignments || {}) as Record<
+        number,
+        CodenamesAssignment
+      >,
+      startingTeam:
+        parsed.startingTeam === "BLUE" ? parsed.startingTeam : "RED",
+      turnTeam: parsed.turnTeam === "BLUE" ? parsed.turnTeam : "RED",
+      guessesRemaining:
+        typeof parsed.guessesRemaining === "number"
+          ? parsed.guessesRemaining
+          : null,
+      winner:
+        parsed.winner === "RED" || parsed.winner === "BLUE"
+          ? parsed.winner
+          : null,
+    };
+  } catch {
+    return fallback;
+  }
 }
 
 export default function RoomPage() {
@@ -504,6 +561,73 @@ export default function RoomPage() {
     }),
   );
 
+  const assignPlayerTeam = useMutation(
+    trpc.games.assignPlayerTeam.mutationOptions({
+      onSuccess: () => {
+        toast.success("Team selected");
+        setClicked(false);
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error assigning team:", error);
+        setClicked(false);
+      },
+    }),
+  );
+
+  const codenamesAutoAssignSpymasters = useMutation(
+    trpc.games.codenamesAutoAssignSpymasters.mutationOptions({
+      onSuccess: () => {
+        setClicked(false);
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error auto assigning spymasters:", error);
+      },
+    }),
+  );
+
+  const codenamesStart = useMutation(
+    trpc.games.codenamesStart.mutationOptions({
+      onSuccess: () => {
+        toast.success("Codenames started");
+        setClicked(false);
+      },
+      onError: (error) => {
+        toast.error(error.message);
+        setClicked(false);
+      },
+    }),
+  );
+
+  const codenamesGuess = useMutation(
+    trpc.games.codenamesGuess.mutationOptions({
+      onSuccess: () => {
+        setClicked(false);
+      },
+      onError: (error) => {
+        toast.error(error.message);
+        setClicked(false);
+      },
+      onSettled: () => {
+        setCodenamesSelectedCardId(null);
+      },
+    }),
+  );
+
+  const codenamesEndTurn = useMutation(
+    trpc.games.codenamesEndTurn.mutationOptions({
+      onSuccess: () => {
+        toast.success("Turn ended");
+        setClicked(false);
+      },
+      onError: (error) => {
+        toast.error(error.message);
+        setClicked(false);
+      },
+    }),
+  );
+
   const vote = useMutation(
     trpc.games.votePlayer.mutationOptions({
       onSuccess: () => {
@@ -531,6 +655,10 @@ export default function RoomPage() {
     name: string;
     team: string;
   } | null>(null);
+  const [selectedTeamPlayerId, setSelectedTeamPlayerId] = React.useState("");
+  const [codenamesSelectedCardId, setCodenamesSelectedCardId] = React.useState<
+    number | null
+  >(null);
   const [openAddPlayerModal, setOpenAddPlayerModal] = React.useState(false);
   const [showAddPlayerModal, setShowAddPlayerModal] = React.useState(false);
   const [openDialog, setOpenDialog] = React.useState(false);
@@ -559,6 +687,50 @@ export default function RoomPage() {
     return teamStats;
   }, [room, players, selectedGame]);
 
+  const codenamesState = React.useMemo(() => {
+    return parseCodenamesState(room?.currentAnswer);
+  }, [room?.currentAnswer]);
+
+  const codenamesBoard = React.useMemo(() => {
+    if (!game?.questions || codenamesState.board.length === 0) return [];
+
+    const questionMap = new Map(
+      game.questions.map((question) => [question.id, question]),
+    );
+    return codenamesState.board.map((questionId) => ({
+      id: questionId,
+      text: questionMap.get(questionId)?.text || "Unknown",
+      assignment: codenamesState.assignments[questionId] || "NEUTRAL",
+      revealed: room?.previousQuestionsId?.includes(questionId) || false,
+    }));
+  }, [
+    game?.questions,
+    codenamesState.assignments,
+    codenamesState.board,
+    room?.previousQuestionsId,
+  ]);
+
+  const codenamesUnassignedPlayers = React.useMemo(() => {
+    if (!players.length) return [];
+
+    if (selectedGame === "codenames") {
+      return players;
+    }
+
+    if (actualPlayer) {
+      return players.filter((player) => player.id === actualPlayer && !player.team);
+    }
+
+    return players.filter((player) => !player.team);
+  }, [actualPlayer, players, selectedGame]);
+
+  const codenamesIsReadyToStart = React.useMemo(() => {
+    if (selectedGame !== "codenames") return false;
+    const redCount = players.filter((player) => player.team === "RED").length;
+    const blueCount = players.filter((player) => player.team === "BLUE").length;
+    return players.length >= 4 && redCount > 0 && blueCount > 0;
+  }, [players, selectedGame]);
+
   const SelectedOption = ({ option }: { option: string }) => {
     if (option === "FORFEIT") {
       setForfited((prev) => !prev);
@@ -581,6 +753,7 @@ export default function RoomPage() {
   const [isRunning, setIsRunning] = React.useState(false);
   const [showQRCode, setShowQRCode] = React.useState(false);
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const codenamesIdentityInitializedRef = React.useRef(false);
 
   const playerAddedComment = React.useMemo(() => {
     return (comments?.length || 0) >= players.length;
@@ -675,6 +848,26 @@ export default function RoomPage() {
     [room, game, addNewPlayerToTeam],
   );
 
+  const handleAssignExistingPlayerToTeam = React.useCallback(
+    ({ team, playerId }: { team: string; playerId: string }) => {
+      if (!team.trim() || !playerId.trim()) {
+        toast.error("Please select a team and your name.");
+        return;
+      }
+
+      assignPlayerTeam.mutate({
+        roomId: room?.id || "",
+        playerId: playerId.trim(),
+        team: team.trim() as "RED" | "BLUE",
+      });
+      setActualPlayer(playerId.trim());
+      localStorage.setItem("actualPlayerId", playerId.trim());
+      setSelectedTeamPlayerId("");
+      setOpenAddPlayerModal(false);
+    },
+    [assignPlayerTeam, room?.id],
+  );
+
   const handleActualSelectPlayer = (id: string) => {
     setActualPlayer(id);
     localStorage.setItem("actualPlayerId", id);
@@ -682,6 +875,36 @@ export default function RoomPage() {
   };
 
   React.useLayoutEffect(() => {
+    if (selectedGame === "codenames") {
+      if (codenamesIdentityInitializedRef.current) {
+        return;
+      }
+
+      const navEntry = performance.getEntriesByType(
+        "navigation",
+      )[0] as PerformanceNavigationTiming | undefined;
+      const isReload =
+        navEntry?.type === "reload" ||
+        // Fallback for older navigation API.
+        (performance as Performance & { navigation?: { type?: number } })
+          .navigation?.type === 1;
+
+      if (isReload) {
+        setActualPlayer("");
+        localStorage.removeItem("actualPlayerId");
+      } else {
+        const storedPlayerId = localStorage.getItem("actualPlayerId");
+        if (storedPlayerId) {
+          setActualPlayer(storedPlayerId);
+        }
+      }
+
+      codenamesIdentityInitializedRef.current = true;
+      return;
+    }
+
+    codenamesIdentityInitializedRef.current = false;
+
     const storedPlayerId = localStorage.getItem("actualPlayerId");
     if (storedPlayerId) {
       setActualPlayer(storedPlayerId);
@@ -694,7 +917,43 @@ export default function RoomPage() {
     return () => {
       localStorage.removeItem("actualPlayerId");
     };
-  }, [room]);
+  }, [room, selectedGame]);
+
+  React.useEffect(() => {
+    if (selectedGame !== "codenames" || room?.gameEnded) {
+      return;
+    }
+
+    const selectedPlayer = players.find((player) => player.id === actualPlayer);
+    const needsTeamSelection =
+      !actualPlayer || Boolean(selectedPlayer && !selectedPlayer.team);
+
+    setOpenAddPlayerModal(needsTeamSelection);
+  }, [actualPlayer, players, room?.gameEnded, selectedGame]);
+
+  React.useEffect(() => {
+    if (selectedGame !== "codenames" || codenamesState.status !== "LOBBY") {
+      return;
+    }
+
+    if (
+      codenamesIsReadyToStart &&
+      (!room?.playerOneId || !room?.playerTwoId) &&
+      !codenamesAutoAssignSpymasters.isPending
+    ) {
+      codenamesAutoAssignSpymasters.mutate({
+        roomId: room?.id || "",
+      });
+    }
+  }, [
+    codenamesAutoAssignSpymasters,
+    codenamesIsReadyToStart,
+    codenamesState.status,
+    room?.id,
+    room?.playerOneId,
+    room?.playerTwoId,
+    selectedGame,
+  ]);
 
   // Convert seconds to MM:SS
   function formatTime(seconds: number) {
@@ -1853,6 +2112,199 @@ export default function RoomPage() {
             </div>
           );
 
+        case "codenames": {
+          const me = players.find((player) => player.id === actualPlayer);
+          const myTeam = me?.team || "";
+          const redPlayers = players.filter((player) => player.team === "RED");
+          const bluePlayers = players.filter((player) => player.team === "BLUE");
+          const isSpymaster =
+            actualPlayer === room?.playerOneId || actualPlayer === room?.playerTwoId;
+          const activeSpymasterId =
+            codenamesState.turnTeam === "RED" ? room?.playerOneId : room?.playerTwoId;
+          const canEndTurn =
+            codenamesState.status === "PLAYING" && myTeam === codenamesState.turnTeam;
+          const guessBlockReason = () => {
+            if (codenamesState.status !== "PLAYING") return "Game is not in progress.";
+            if (!actualPlayer) return "Select your player first.";
+            if (!myTeam) return "Pick a team first.";
+            if (myTeam !== codenamesState.turnTeam) return "It is not your team's turn.";
+            if (actualPlayer === activeSpymasterId)
+              return "Spymaster cannot guess. Let operatives guess.";
+            return "";
+          };
+
+          return (
+            <div className="w-full">
+              <div className="mb-6 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary">Status: {codenamesState.status}</Badge>
+                  <Badge
+                    className={
+                      codenamesState.turnTeam === "RED" ? "bg-red-600" : "bg-blue-600"
+                    }
+                  >
+                    Turn: {codenamesState.turnTeam}
+                  </Badge>
+                  <Badge variant="outline">
+                    Guesses:{" "}
+                    {codenamesState.guessesRemaining === null
+                      ? "Not Set"
+                      : codenamesState.guessesRemaining}
+                  </Badge>
+                  {myTeam && <Badge variant="outline">Your Team: {myTeam}</Badge>}
+                  {isSpymaster && <Badge className="bg-purple-600">Role: Spymaster</Badge>}
+                  {codenamesState.winner && (
+                    <Badge className="bg-emerald-600">
+                      Winner: {codenamesState.winner}
+                    </Badge>
+                  )}
+                </div>
+
+                {codenamesState.status === "LOBBY" && (
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <Button
+                      onClick={() => {
+                        codenamesStart.mutate({ roomId: room?.id || "" });
+                      }}
+                      disabled={!codenamesIsReadyToStart}
+                      className="bg-green-500 hover:bg-green-600 disabled:bg-gray-500"
+                    >
+                      Start Game
+                    </Button>
+                    {!codenamesIsReadyToStart && (
+                      <p className="text-sm text-amber-300">
+                        Need 4+ players and at least one player per team.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {codenamesState.status === "PLAYING" && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {canEndTurn && (
+                      <Button
+                        onClick={() =>
+                          codenamesEndTurn.mutate({
+                            roomId: room?.id || "",
+                            playerId: actualPlayer || "",
+                          })
+                        }
+                        size="sm"
+                        variant="destructive"
+                      >
+                        End Turn
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+                <div className="rounded-xl border border-white/20 bg-white/10 p-3 backdrop-blur-sm">
+                  <div className="grid grid-cols-5 gap-2">
+                    {codenamesBoard.map((card) => {
+                      const hiddenClass =
+                        isSpymaster && !card.revealed
+                          ? card.assignment === "RED"
+                            ? "bg-red-500/20 border-red-300/40"
+                            : card.assignment === "BLUE"
+                              ? "bg-blue-500/20 border-blue-300/40"
+                              : card.assignment === "ASSASSIN"
+                                ? "bg-zinc-950/60 border-zinc-100/40"
+                                : "bg-zinc-300/20 border-zinc-200/40"
+                          : "bg-amber-50/90 border-amber-200 text-zinc-900";
+                      const revealedClass = card.revealed
+                        ? card.assignment === "RED"
+                          ? "bg-red-500/80 border-red-200 text-white"
+                          : card.assignment === "BLUE"
+                            ? "bg-blue-500/80 border-blue-200 text-white"
+                            : card.assignment === "ASSASSIN"
+                              ? "bg-black/90 border-zinc-100 text-white"
+                              : "bg-zinc-400/70 border-zinc-200 text-black"
+                        : hiddenClass;
+
+                    return (
+                      <button
+                        key={card.id}
+                        disabled={
+                          card.revealed ||
+                          codenamesGuess.isPending ||
+                          codenamesSelectedCardId !== null
+                        }
+                        onClick={() => {
+                          const blockReason = guessBlockReason();
+                          if (blockReason) {
+                            toast.error(blockReason);
+                            return;
+                          }
+                          setCodenamesSelectedCardId(card.id);
+                          toast.success("Card selected");
+                          codenamesGuess.mutate({
+                            roomId: room?.id || "",
+                            playerId: actualPlayer || "",
+                            questionId: card.id,
+                          });
+                        }}
+                        className={`min-h-24 rounded-md border p-2 text-center text-sm font-semibold transition ${revealedClass} ${
+                          !card.revealed &&
+                          !codenamesGuess.isPending &&
+                          codenamesSelectedCardId === null
+                            ? "cursor-pointer hover:scale-[1.02]"
+                            : "cursor-default"
+                        } whitespace-normal break-words leading-tight overflow-hidden text-[11px] sm:text-sm sm:leading-snug`}
+                      >
+                        {card.text}
+                      </button>
+                    );
+                  })}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-red-300/40 bg-red-500/10 p-4 backdrop-blur-sm">
+                    <div className="mb-2 flex items-center justify-between">
+                      <div className="text-lg font-semibold">RED Team</div>
+                      <Badge className="bg-red-600">{redPlayers.length}</Badge>
+                    </div>
+                    <div className="space-y-2">
+                      {redPlayers.map((player) => (
+                        <div
+                          key={player.id}
+                          className="flex items-center justify-between rounded-md bg-black/20 px-3 py-2"
+                        >
+                          <span>{player.name}</span>
+                          {player.id === room?.playerOneId && (
+                            <Badge variant="secondary">Spymaster</Badge>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-blue-300/40 bg-blue-500/10 p-4 backdrop-blur-sm">
+                    <div className="mb-2 flex items-center justify-between">
+                      <div className="text-lg font-semibold">BLUE Team</div>
+                      <Badge className="bg-blue-600">{bluePlayers.length}</Badge>
+                    </div>
+                    <div className="space-y-2">
+                      {bluePlayers.map((player) => (
+                        <div
+                          key={player.id}
+                          className="flex items-center justify-between rounded-md bg-black/20 px-3 py-2"
+                        >
+                          <span>{player.name}</span>
+                          {player.id === room?.playerTwoId && (
+                            <Badge variant="secondary">Spymaster</Badge>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
         default:
           return (
             <div className="text-center">
@@ -1903,14 +2355,14 @@ export default function RoomPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white">
-      {actualPlayer === "" && (
+      {actualPlayer === "" && selectedGame !== "codenames" && (
         <UserConfirmModal
           players={players}
           handleActualSelectPlayer={handleActualSelectPlayer}
           selectedGame={selectedGame}
         />
       )}
-      {actualPlayer === players[0].id && (
+      {(actualPlayer === players[0].id || selectedGame === "codenames") && (
         <AddPlayerModal
           newPlayer={newPlayer}
           setNewPlayer={setNewPlayer}
@@ -1921,7 +2373,11 @@ export default function RoomPage() {
           openAddPlayerModal={openAddPlayerModal}
           setOpenAddPlayerModal={setOpenAddPlayerModal}
           selectedGame={selectedGame}
-          teams={room?.playingTeams || []}
+          teams={selectedGame === "codenames" ? ["RED", "BLUE"] : room?.playingTeams || []}
+          teamPlayers={codenamesUnassignedPlayers}
+          selectedTeamPlayerId={selectedTeamPlayerId}
+          setSelectedTeamPlayerId={setSelectedTeamPlayerId}
+          handleAssignExistingPlayerToTeam={handleAssignExistingPlayerToTeam}
         />
       )}
 
