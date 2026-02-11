@@ -94,7 +94,9 @@ function parseCodenamesState(raw: string | null): CodenamesState {
         ? parsed.turnTeam
         : startingTeam;
     const winner =
-      parsed.winner === "RED" || parsed.winner === "BLUE" ? parsed.winner : null;
+      parsed.winner === "RED" || parsed.winner === "BLUE"
+        ? parsed.winner
+        : null;
 
     const board = Array.isArray(parsed.board)
       ? parsed.board.filter((id) => typeof id === "number")
@@ -219,7 +221,7 @@ export const gamesRouter = createTRPCRouter({
   getMany: baseProcedure.query(async () => {
     const games = await prisma.game.findMany({
       where: {
-        published: false, // Only fetch published games
+        published: true, // Only fetch published games
       },
       orderBy: {
         updatedAt: "asc",
@@ -2523,13 +2525,22 @@ export const gamesRouter = createTRPCRouter({
       }
 
       const redPlayers = room.players.filter((player) => player.team === "RED");
-      const bluePlayers = room.players.filter((player) => player.team === "BLUE");
-      if (room.players.length < 4 || redPlayers.length < 1 || bluePlayers.length < 1) {
+      const bluePlayers = room.players.filter(
+        (player) => player.team === "BLUE",
+      );
+      if (
+        room.players.length < 4 ||
+        redPlayers.length < 1 ||
+        bluePlayers.length < 1
+      ) {
         throw new Error("Need at least 4 players and both teams represented");
       }
 
       const spymasterAssignment = await assignCodenamesSpymasters(input.roomId);
-      if (!spymasterAssignment.redSpymasterId || !spymasterAssignment.blueSpymasterId) {
+      if (
+        !spymasterAssignment.redSpymasterId ||
+        !spymasterAssignment.blueSpymasterId
+      ) {
         throw new Error("Failed to assign spymasters");
       }
 
@@ -2708,14 +2719,19 @@ export const gamesRouter = createTRPCRouter({
             state.guessesRemaining = Math.max(state.guessesRemaining - 1, 0);
           }
           const allOwnCardsRevealed = state.board
-            .filter((questionId) => state.assignments[questionId] === guessingTeam)
+            .filter(
+              (questionId) => state.assignments[questionId] === guessingTeam,
+            )
             .every((questionId) => revealedIds.includes(questionId));
 
           if (allOwnCardsRevealed) {
             state.status = "ENDED";
             state.winner = guessingTeam;
             gameEnded = true;
-          } else if (state.guessesRemaining !== null && state.guessesRemaining <= 0) {
+          } else if (
+            state.guessesRemaining !== null &&
+            state.guessesRemaining <= 0
+          ) {
             endTurn = true;
           }
         } else if (assignment === "NEUTRAL") {
@@ -2779,7 +2795,9 @@ export const gamesRouter = createTRPCRouter({
           });
 
           const allOpponentCardsRevealed = state.board
-            .filter((questionId) => state.assignments[questionId] === opponentTeam)
+            .filter(
+              (questionId) => state.assignments[questionId] === opponentTeam,
+            )
             .every((questionId) => revealedIds.includes(questionId));
 
           if (allOpponentCardsRevealed) {
