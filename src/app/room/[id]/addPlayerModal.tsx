@@ -22,12 +22,97 @@ export default function AddPlayerModal({
   handleAddPlayerToTeam,
   newTeamPlayer,
   setNewTeamPlayer,
+  teamPlayers,
+  selectedTeamPlayerId,
+  setSelectedTeamPlayerId,
+  handleAssignExistingPlayerToTeam,
 }: // eslint-disable-next-line @typescript-eslint/no-explicit-any
 any) {
   const [selectedTeam, setSelectedTeam] = React.useState<string | null>(null);
 
   if (!openAddPlayerModal) {
     return null;
+  }
+
+  if (selectedGame === "codenames" && teams.length > 0) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <Dialog open={openAddPlayerModal} onOpenChange={setOpenAddPlayerModal}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Pick Team</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">
+                  Choose a team
+                </p>
+
+                <div className="flex flex-wrap gap-2">
+                  {teams.map((team: string) => {
+                    const isSelected = selectedTeam === team;
+
+                    return (
+                      <button
+                        key={team}
+                        onClick={() => setSelectedTeam(team)}
+                        className={`rounded-full px-4 py-2 text-sm font-medium transition-all
+                      ${
+                        isSelected
+                          ? "bg-green-600 text-white scale-105"
+                          : "bg-white/20 hover:bg-white/30"
+                      }
+                    `}
+                      >
+                        {team}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">
+                  Choose your name
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {teamPlayers?.map((player: { id: string; name: string }) => {
+                    const isSelected = selectedTeamPlayerId === player.id;
+                    return (
+                      <button
+                        key={player.id}
+                        onClick={() => setSelectedTeamPlayerId(player.id)}
+                        className={`rounded-full px-4 py-2 text-sm font-medium transition-all
+                        ${
+                          isSelected
+                            ? "bg-green-600 text-white scale-105"
+                            : "bg-white/20 hover:bg-white/30"
+                        }`}
+                      >
+                        {player.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <Button
+                disabled={!selectedTeam || !selectedTeamPlayerId}
+                onClick={() => {
+                  handleAssignExistingPlayerToTeam({
+                    team: selectedTeam,
+                    playerId: selectedTeamPlayerId,
+                  });
+                }}
+              >
+                Confirm
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
   }
 
   if (selectedGame === "triviyay" && teams.length > 0) {

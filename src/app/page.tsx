@@ -15,6 +15,7 @@ import {
   Wand2Icon,
   Gamepad2,
   Rainbow,
+  Layers,
 } from "lucide-react";
 import React from "react";
 import { useTRPC } from "@/trpc/client";
@@ -178,6 +179,8 @@ export default function HomePage() {
       return <Rainbow className="w-6 h-6" />;
     } else if (gamecode === "truth-or-lie") {
       return <Star className="w-6 h-6" />;
+    } else if (gamecode === "codenames") {
+      return <Layers className="w-6 h-6" />;
     } else {
       return <Heart className="w-6 h-6" />;
     }
@@ -210,6 +213,8 @@ export default function HomePage() {
       return "from-purple-500 to-pink-500";
     } else if (gamecode === "truth-or-lie") {
       return "from-fuchsia-500 to-indigo-500";
+    } else if (gamecode === "codenames") {
+      return "from-red-500 to-blue-500";
     } else {
       return "from-teal-500 to-cyan-500";
     }
