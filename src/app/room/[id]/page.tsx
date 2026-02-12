@@ -784,8 +784,12 @@ export default function RoomPage() {
   };
 
   const [timeLeft, setTimeLeft] = React.useState(
-    selectedGame === "verbal-charades" ? 30 : 60,
-  ); // 30 seconds
+    selectedGame === "verbal-charades"
+      ? 30
+      : selectedGame === "taboo-lite"
+        ? 45
+        : 60,
+  );
   const [isRunning, setIsRunning] = React.useState(false);
   const [showQRCode, setShowQRCode] = React.useState(false);
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -800,7 +804,7 @@ export default function RoomPage() {
       onSuccess: () => {
         toast.success("Next card coming up!");
         setIsRunning(false);
-        setTimeLeft(30);
+        setTimeLeft(selectedGame === "taboo-lite" ? 45 : 30);
         setClicked(false);
       },
       onError: (error) => {
@@ -1127,6 +1131,17 @@ export default function RoomPage() {
 
     return "Draw a Card";
   }, [currentQuestion?.edition]);
+
+  const tabooForbiddenWords = React.useMemo(() => {
+    if (!currentQuestion?.answer) {
+      return [];
+    }
+
+    return currentQuestion.answer
+      .split(",")
+      .map((word) => word.trim())
+      .filter(Boolean);
+  }, [currentQuestion?.answer]);
 
   const wouldRatherResult = React.useMemo(() => {
     if (!room) {
@@ -2024,6 +2039,118 @@ export default function RoomPage() {
                     </button>
                   </div>
                 )}
+            </div>
+          );
+
+        case "taboo-lite":
+          const tabooClueGiver = room?.playerOneId
+            ? players.find((p) => p.id === room.playerOneId)?.name ||
+              "Unknown Player"
+            : "No player selected";
+          const tabooGuesser = room?.playerTwoId
+            ? players.find((p) => p.id === room.playerTwoId)?.name ||
+              "Unknown Player"
+            : "No player selected";
+          const isClueGiver = actualPlayer === room?.playerOneId;
+          const isGuesser = actualPlayer === room?.playerTwoId;
+
+          return (
+            <div className="text-center">
+              <div className="text-xl text-emerald-400 mb-4">
+                👤 {tabooClueGiver} ➕ {tabooGuesser} {"🧠"}
+              </div>
+              {isClueGiver && (
+                <div className="text-6xl mb-6 text-white font-bold">
+                  {formatTime(timeLeft)}
+                </div>
+              )}
+              {isClueGiver ? (
+                <div className="mb-6">
+                  <p className="text-lg text-white/80 mb-2">Target Word</p>
+                  <p className="text-4xl font-extrabold text-cyan-300 mb-4">
+                    {currentQuestion?.text ||
+                      "No card available. Please wait for the next one."}
+                  </p>
+                  <p className="text-lg text-white/80 mb-2">Forbidden Words</p>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {tabooForbiddenWords.length > 0 ? (
+                      tabooForbiddenWords.map((word) => (
+                        <Badge key={word} variant="secondary">
+                          {word}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-white/70">No forbidden words</span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-lg text-white/80 mb-6">
+                  {isGuesser
+                    ? "Listen to clues and guess the target word before time runs out."
+                    : "Watch the round. Only the clue giver can see the card."}
+                </p>
+              )}
+
+              {isClueGiver && timeLeft !== 0 && (
+                <div className="flex gap-4 justify-center">
+                  <button
+                    onClick={handleStop}
+                    disabled={!isRunning}
+                    className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Stop ⏰
+                  </button>
+                  <button
+                    onClick={() => handleStart()}
+                    disabled={isRunning || timeLeft === 0}
+                    className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Start ⏰
+                  </button>
+                </div>
+              )}
+
+              {isClueGiver && timeLeft === 0 && !clicked && (
+                <div className="flex gap-4 justify-center mt-4">
+                  <button
+                    onClick={() => {
+                      nextCharadeCard.mutate({
+                        roomId: room.id,
+                        result: "INCORRECT",
+                        playerOneId: room.playerOneId ?? "",
+                        playerTwoId: room.playerTwoId ?? "",
+                        currentQuestionId:
+                          room.currentQuestionId == null
+                            ? ""
+                            : String(room.currentQuestionId),
+                      });
+                      setClicked(true);
+                    }}
+                    className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Failed ❌
+                  </button>
+                  <button
+                    onClick={() => {
+                      nextCharadeCard.mutate({
+                        roomId: room.id,
+                        result: "CORRECT",
+                        playerOneId: room.playerOneId ?? "",
+                        playerTwoId: room.playerTwoId ?? "",
+                        currentQuestionId:
+                          room.currentQuestionId == null
+                            ? ""
+                            : String(room.currentQuestionId),
+                      });
+                      setClicked(true);
+                    }}
+                    className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Passed ✅
+                  </button>
+                </div>
+              )}
             </div>
           );
 
