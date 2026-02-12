@@ -167,6 +167,8 @@ export default function HomePage() {
       return <Dice1 className="w-6 h-6" />;
     } else if (gamecode === "verbal-charades") {
       return <Zap className="w-6 h-6" />;
+    } else if (gamecode === "taboo-lite") {
+      return <Brain className="w-6 h-6" />;
     } else if (gamecode === "would-you-rather") {
       return <Clock className="w-6 h-6" />;
     } else if (gamecode === "pick-a-card") {
@@ -205,6 +207,8 @@ export default function HomePage() {
       return "from-indigo-500 to-blue-500";
     } else if (gamecode === "verbal-charades") {
       return "from-yellow-500 to-orange-500";
+    } else if (gamecode === "taboo-lite") {
+      return "from-sky-500 to-cyan-600";
     } else if (gamecode === "would-you-rather") {
       return "from-cyan-500 to-blue-500";
     } else if (gamecode === "pick-a-card") {
@@ -579,6 +583,7 @@ export default function HomePage() {
                       (selectedGame === "paranoia" && players.length < 3) ||
                       (selectedGame === "verbal-charades" &&
                         players.length < 4) ||
+                      (selectedGame === "taboo-lite" && players.length < 4) ||
                       (selectedGame === "higher-lower" && players.length < 2) ||
                       (selectedGame === "never-have-i-ever" &&
                         players.length < 2) ||

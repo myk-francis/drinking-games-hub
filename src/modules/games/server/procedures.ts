@@ -521,7 +521,10 @@ export const gamesRouter = createTRPCRouter({
           const previousPairIds = [];
           let playerOneId = "";
           let playerTwoId = "";
-          if (input.selectedGame === "verbal-charades") {
+          if (
+            input.selectedGame === "verbal-charades" ||
+            input.selectedGame === "taboo-lite"
+          ) {
             for (let i = 0; i < createdRoom.players.length; i++) {
               for (let j = i + 1; j < createdRoom.players.length; j++) {
                 const pairKey = [
@@ -2525,10 +2528,16 @@ export const gamesRouter = createTRPCRouter({
           },
         });
 
-        if (input.gamecode === "verbal-charades") {
+        if (
+          input.gamecode === "verbal-charades" ||
+          input.gamecode === "taboo-lite"
+        ) {
           const allPairs = room.allPairIds || [];
           const createdRoomPlayers = room.players;
-          if (input.gamecode === "verbal-charades") {
+          if (
+            input.gamecode === "verbal-charades" ||
+            input.gamecode === "taboo-lite"
+          ) {
             for (let i = 0; i < room.players.length; i++) {
               const pairKey = [newPlayer.id, createdRoomPlayers[i].id].join(
                 "&",
