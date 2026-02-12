@@ -7,6 +7,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import React from "react";
+import { toast } from "sonner";
 
 import Link from "next/link";
 
@@ -23,6 +25,8 @@ export function UserAvatarPopover({
   handleLogout,
   isAdmin,
 }: UserAvatarPopoverProps) {
+  const [open, setOpen] = React.useState(false);
+
   const initials = name
     .split(" ")
     .map((n) => n[0])
@@ -30,8 +34,39 @@ export function UserAvatarPopover({
     .slice(0, 2)
     .toUpperCase();
 
+  const normalizeAppUrl = (rawUrl?: string) => {
+    let value = (rawUrl ?? "").trim();
+    if (!value) {
+      return typeof window !== "undefined" ? window.location.origin : "";
+    }
+    if (!/^https?:\/\//i.test(value)) {
+      value = `https://${value}`;
+    }
+    return value.replace(/\/+$/, "");
+  };
+
+  const closeMenu = () => setOpen(false);
+
+  const handleCopySelfServiceLink = async () => {
+    const baseUrl = normalizeAppUrl(process.env.NEXT_PUBLIC_APP_URL);
+    const selfServiceUrl = `${baseUrl}/self-service`;
+    try {
+      await navigator.clipboard.writeText(selfServiceUrl);
+      toast.success("Self-service link copied.");
+    } catch {
+      toast.error("Could not copy self-service link.");
+    } finally {
+      closeMenu();
+    }
+  };
+
+  const onLogoutClick = () => {
+    closeMenu();
+    handleLogout?.();
+  };
+
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button className="outline-none">
           <Avatar className="cursor-pointer ring-2 ring-white/10 hover:ring-white/30 transition">
@@ -61,6 +96,7 @@ export function UserAvatarPopover({
             <Button
               variant="ghost"
               className="w-full justify-start text-white hover:bg-white/10"
+              onClick={closeMenu}
             >
               Profile
             </Button>
@@ -71,6 +107,7 @@ export function UserAvatarPopover({
               <Button
                 variant="ghost"
                 className="w-full justify-start text-white hover:bg-white/10"
+                onClick={closeMenu}
               >
                 Admin
               </Button>
@@ -79,8 +116,16 @@ export function UserAvatarPopover({
 
           <Button
             variant="ghost"
+            className="w-full justify-start text-white hover:bg-white/10"
+            onClick={handleCopySelfServiceLink}
+          >
+            Self Service
+          </Button>
+
+          <Button
+            variant="ghost"
             className="w-full justify-start text-red-400 hover:bg-red-500/10"
-            onClick={handleLogout}
+            onClick={onLogoutClick}
           >
             Logout
           </Button>

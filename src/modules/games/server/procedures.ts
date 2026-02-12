@@ -47,6 +47,17 @@ type CodenamesState = {
   winner: CodenamesTeam | null;
 };
 
+type MemoryChainState = {
+  status: "PLAYING" | "ENDED";
+  board: number[];
+  sequence: number[];
+  revealed: number[];
+  progress: number;
+  winnerPlayerId: string | null;
+  pendingMissQuestionId: number | null;
+  pendingMissNextPlayerId: string | null;
+};
+
 function shuffleArray<T>(items: T[]): T[] {
   const next = [...items];
   for (let i = next.length - 1; i > 0; i -= 1) {
@@ -132,6 +143,58 @@ function parseCodenamesState(raw: string | null): CodenamesState {
     };
   } catch {
     return getDefaultCodenamesState();
+  }
+}
+
+function getDefaultMemoryChainState(): MemoryChainState {
+  return {
+    status: "PLAYING",
+    board: [],
+    sequence: [],
+    revealed: [],
+    progress: 0,
+    winnerPlayerId: null,
+    pendingMissQuestionId: null,
+    pendingMissNextPlayerId: null,
+  };
+}
+
+function parseMemoryChainState(raw: string | null): MemoryChainState {
+  if (!raw) {
+    return getDefaultMemoryChainState();
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<MemoryChainState>;
+    return {
+      status: parsed.status === "ENDED" ? "ENDED" : "PLAYING",
+      board: Array.isArray(parsed.board)
+        ? parsed.board.filter((id): id is number => typeof id === "number")
+        : [],
+      sequence: Array.isArray(parsed.sequence)
+        ? parsed.sequence.filter((id): id is number => typeof id === "number")
+        : [],
+      revealed: Array.isArray(parsed.revealed)
+        ? parsed.revealed.filter((id): id is number => typeof id === "number")
+        : [],
+      progress:
+        typeof parsed.progress === "number" && Number.isFinite(parsed.progress)
+          ? parsed.progress
+          : 0,
+      winnerPlayerId:
+        typeof parsed.winnerPlayerId === "string" ? parsed.winnerPlayerId : null,
+      pendingMissQuestionId:
+        typeof parsed.pendingMissQuestionId === "number" &&
+        Number.isFinite(parsed.pendingMissQuestionId)
+          ? parsed.pendingMissQuestionId
+          : null,
+      pendingMissNextPlayerId:
+        typeof parsed.pendingMissNextPlayerId === "string"
+          ? parsed.pendingMissNextPlayerId
+          : null,
+    };
+  } catch {
+    return getDefaultMemoryChainState();
   }
 }
 
@@ -423,6 +486,13 @@ export const gamesRouter = createTRPCRouter({
           throw new Error("Game not found");
         }
 
+        if (
+          input.selectedGame === "memory-chain" &&
+          (input.players?.length || 0) < 2
+        ) {
+          throw new Error("Memory Chain requires at least 2 players.");
+        }
+
         if (input.selectedGame === "triviyay") {
           if (!input.teamsInfo || input.teamsInfo.length < 1) {
             throw new Error("Please add at least one team with players.");
@@ -551,6 +621,7 @@ export const gamesRouter = createTRPCRouter({
           }
 
           let currentQuestionId = null;
+          let roomCurrentAnswer: string | null = null;
 
           if (input.selectedGame === "truth-or-drink") {
             currentQuestionId =
@@ -571,6 +642,28 @@ export const gamesRouter = createTRPCRouter({
               ]?.id || null;
           }
 
+          if (input.selectedGame === "memory-chain") {
+            const allWordIds = createdRoom.game.questions.map(
+              (question) => question.id,
+            );
+            if (allWordIds.length < 20) {
+              throw new Error("Memory Chain requires at least 20 words");
+            }
+
+            const board = shuffleArray(allWordIds).slice(0, 20);
+            const sequence = shuffleArray(board);
+            roomCurrentAnswer = JSON.stringify({
+              status: "PLAYING",
+              board,
+              sequence,
+              revealed: [],
+              progress: 0,
+              winnerPlayerId: null,
+              pendingMissQuestionId: null,
+              pendingMissNextPlayerId: null,
+            } satisfies MemoryChainState);
+          }
+
           const createdRoomId = createdRoom.id;
           await prisma.room.update({
             where: { id: createdRoomId },
@@ -588,7 +681,7 @@ export const gamesRouter = createTRPCRouter({
               playerTwoId: playerTwoId || "",
               questionAVotes: [],
               questionBVotes: [],
-              currentAnswer: null,
+              currentAnswer: roomCurrentAnswer,
             },
           });
 
@@ -3185,6 +3278,204 @@ export const gamesRouter = createTRPCRouter({
       });
 
       return true;
+    }),
+
+  memoryChainGuess: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        questionId: z.number().int(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+      if (room.game.code !== "memory-chain") {
+        throw new Error("This room is not a Memory Chain game");
+      }
+
+      if (room.currentPlayerId !== input.playerId) {
+        throw new Error("It is not your turn");
+      }
+
+      const player = room.players.find((item) => item.id === input.playerId);
+      if (!player) {
+        throw new Error("Player not found");
+      }
+
+      const state = parseMemoryChainState(room.currentAnswer);
+      if (state.status !== "PLAYING") {
+        throw new Error("Game is not in playing state");
+      }
+      if (state.pendingMissQuestionId) {
+        throw new Error("Finish this turn first using Next Player");
+      }
+      if (!state.board.includes(input.questionId)) {
+        throw new Error("Card is not in this board");
+      }
+      if (state.sequence.length !== 20 || state.board.length !== 20) {
+        throw new Error("Game board is not initialized correctly");
+      }
+
+      const expectedQuestionId = state.sequence[state.progress];
+      if (typeof expectedQuestionId !== "number") {
+        throw new Error("No expected card available");
+      }
+
+      const currentPlayerIndex = room.players.findIndex(
+        (item) => item.id === input.playerId,
+      );
+      const nextPlayerId =
+        room.players[
+          currentPlayerIndex >= 0
+            ? (currentPlayerIndex + 1) % room.players.length
+            : 0
+        ]?.id ?? input.playerId;
+
+      if (input.questionId === expectedQuestionId) {
+        const nextProgress = state.progress + 1;
+        state.progress = nextProgress;
+        if (!state.revealed.includes(input.questionId)) {
+          state.revealed = [...state.revealed, input.questionId];
+        }
+
+        let result: "CORRECT" | "WIN" = "CORRECT";
+        let gameEnded = false;
+        if (nextProgress >= state.sequence.length) {
+          state.status = "ENDED";
+          state.winnerPlayerId = input.playerId;
+          result = "WIN";
+          gameEnded = true;
+        }
+        state.pendingMissQuestionId = null;
+        state.pendingMissNextPlayerId = null;
+
+        await prisma.$transaction(async (tx) => {
+          await tx.player.update({
+            where: {
+              id: input.playerId,
+            },
+            data: {
+              points: (player.points ?? 0) + 1,
+            },
+          });
+
+          await tx.room.update({
+            where: { id: input.roomId },
+            data: {
+              currentAnswer: JSON.stringify(state),
+              gameEnded,
+              gameEndedAt: gameEnded ? new Date() : null,
+            },
+          });
+        });
+
+        return {
+          result,
+          progress: state.progress,
+          nextPlayerId: input.playerId,
+        };
+      }
+
+      state.progress = 0;
+      state.revealed = [];
+      state.pendingMissQuestionId = input.questionId;
+      state.pendingMissNextPlayerId = nextPlayerId;
+
+      await prisma.$transaction(async (tx) => {
+        await tx.player.update({
+          where: {
+            id: input.playerId,
+          },
+          data: {
+            drinks: (player.drinks ?? 0) + 1,
+          },
+        });
+
+        await tx.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentAnswer: JSON.stringify(state),
+          },
+        });
+      });
+
+      return {
+        result: "MISS" as const,
+        progress: 0,
+        nextPlayerId,
+      };
+    }),
+
+  memoryChainNextPlayer: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+      if (room.game.code !== "memory-chain") {
+        throw new Error("This room is not a Memory Chain game");
+      }
+      if (room.currentPlayerId !== input.playerId) {
+        throw new Error("Only the current player can pass turn");
+      }
+
+      const state = parseMemoryChainState(room.currentAnswer);
+      if (!state.pendingMissQuestionId) {
+        return { resolved: false };
+      }
+
+      const nextPlayerId =
+        state.pendingMissNextPlayerId ||
+        room.players[0]?.id ||
+        room.currentPlayerId ||
+        "";
+
+      state.pendingMissQuestionId = null;
+      state.pendingMissNextPlayerId = null;
+      state.progress = 0;
+      state.revealed = [];
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentPlayerId: nextPlayerId,
+          currentAnswer: JSON.stringify(state),
+        },
+      });
+
+      return { resolved: true, nextPlayerId };
     }),
 
   checkForOpenRooms: baseProcedure.query(async () => {
