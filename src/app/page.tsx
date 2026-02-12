@@ -239,9 +239,24 @@ export default function HomePage() {
 
   const handleCreateRoom = () => {
     if (!selectedGame) {
-      alert("Please select a game and add at least two players.");
+      toast.warning("Please select a game and add at least two players.");
       return;
     }
+
+    const minPlayersByGame: Record<string, number> = {
+      paranoia: 3,
+      "kings-cup": 2,
+      "taboo-lite": 4,
+    };
+
+    const requiredPlayers = minPlayersByGame[selectedGame];
+    if (requiredPlayers && players.length < requiredPlayers) {
+      toast.error(
+        `This game needs at least ${requiredPlayers} players. You currently have ${players.length}.`,
+      );
+      return;
+    }
+
     createRoom.mutate({
       selectedGame,
       players,
@@ -585,10 +600,8 @@ export default function HomePage() {
                     disabled={
                       !selectedGame ||
                       (selectedGame === "most-likely" && players.length < 3) ||
-                      (selectedGame === "paranoia" && players.length < 3) ||
                       (selectedGame === "verbal-charades" &&
                         players.length < 4) ||
-                      (selectedGame === "taboo-lite" && players.length < 4) ||
                       (selectedGame === "higher-lower" && players.length < 2) ||
                       (selectedGame === "never-have-i-ever" &&
                         players.length < 2) ||
@@ -599,7 +612,6 @@ export default function HomePage() {
                       (selectedGame === "would-you-rather" &&
                         players.length < 3) ||
                       (selectedGame === "pick-a-card" && players.length < 3) ||
-                      (selectedGame === "kings-cup" && players.length < 2) ||
                       (selectedGame === "imposter" && players.length < 4) ||
                       (selectedGame === "truth-or-lie" && players.length < 2) ||
                       (selectedGame === "triviyay" && teams.length > 2)
