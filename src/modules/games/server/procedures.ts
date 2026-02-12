@@ -33,6 +33,7 @@ const CODENAMES_ASSIGNMENT_VALUES = [
   "NEUTRAL",
   "ASSASSIN",
 ] as const;
+const MEMORY_CHAIN_CARD_COUNT = 10;
 
 type CodenamesTeam = (typeof CODENAMES_TEAM_VALUES)[number];
 type CodenamesAssignment = (typeof CODENAMES_ASSIGNMENT_VALUES)[number];
@@ -646,11 +647,16 @@ export const gamesRouter = createTRPCRouter({
             const allWordIds = createdRoom.game.questions.map(
               (question) => question.id,
             );
-            if (allWordIds.length < 20) {
-              throw new Error("Memory Chain requires at least 20 words");
+            if (allWordIds.length < MEMORY_CHAIN_CARD_COUNT) {
+              throw new Error(
+                `Memory Chain requires at least ${MEMORY_CHAIN_CARD_COUNT} words`,
+              );
             }
 
-            const board = shuffleArray(allWordIds).slice(0, 20);
+            const board = shuffleArray(allWordIds).slice(
+              0,
+              MEMORY_CHAIN_CARD_COUNT,
+            );
             const sequence = shuffleArray(board);
             roomCurrentAnswer = JSON.stringify({
               status: "PLAYING",
@@ -3327,7 +3333,10 @@ export const gamesRouter = createTRPCRouter({
       if (!state.board.includes(input.questionId)) {
         throw new Error("Card is not in this board");
       }
-      if (state.sequence.length !== 20 || state.board.length !== 20) {
+      if (
+        state.sequence.length !== MEMORY_CHAIN_CARD_COUNT ||
+        state.board.length !== MEMORY_CHAIN_CARD_COUNT
+      ) {
         throw new Error("Game board is not initialized correctly");
       }
 

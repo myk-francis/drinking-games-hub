@@ -2695,7 +2695,7 @@ export default function RoomPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="secondary">
                     Progress: {memoryChainState.progress}/
-                    {memoryChainSequence.length || 20}
+                    {memoryChainSequence.length || 10}
                   </Badge>
                   <Badge variant="outline">Turn: {currentPlayer}</Badge>
                   {memoryChainState.status === "ENDED" && (
