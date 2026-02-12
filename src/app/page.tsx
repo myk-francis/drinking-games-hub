@@ -2,20 +2,25 @@
 import {
   Users,
   Play,
-  Zap,
   Heart,
-  Brain,
-  Dice1,
-  Music,
-  Clock,
   Shuffle,
-  Star,
   Building,
   Share2,
-  Wand2Icon,
   Gamepad2,
   Rainbow,
   Layers,
+  FlaskConical,
+  Eye,
+  Mic,
+  ArrowUpRight,
+  Theater,
+  ShieldQuestion,
+  Compass,
+  Crown,
+  Sparkles,
+  ScrollText,
+  VenetianMask,
+  Scale,
 } from "lucide-react";
 import React from "react";
 import { useTRPC } from "@/trpc/client";
@@ -156,77 +161,77 @@ export default function HomePage() {
     if (gamecode === "never-have-i-ever") {
       return <Heart className="w-6 h-6" />;
     } else if (gamecode === "truth-or-drink") {
-      return <Brain className="w-6 h-6" />;
+      return <FlaskConical className="w-6 h-6" />;
     } else if (gamecode === "most-likely") {
       return <Users className="w-6 h-6" />;
     } else if (gamecode === "paranoia") {
-      return <Users className="w-6 h-6" />;
+      return <Eye className="w-6 h-6" />;
     } else if (gamecode === "rhyme-time") {
-      return <Music className="w-6 h-6" />;
+      return <Mic className="w-6 h-6" />;
     } else if (gamecode === "higher-lower") {
-      return <Dice1 className="w-6 h-6" />;
+      return <ArrowUpRight className="w-6 h-6" />;
     } else if (gamecode === "verbal-charades") {
-      return <Zap className="w-6 h-6" />;
+      return <Theater className="w-6 h-6" />;
     } else if (gamecode === "taboo-lite") {
-      return <Brain className="w-6 h-6" />;
+      return <ShieldQuestion className="w-6 h-6" />;
     } else if (gamecode === "would-you-rather") {
-      return <Clock className="w-6 h-6" />;
+      return <Compass className="w-6 h-6" />;
     } else if (gamecode === "pick-a-card") {
       return <Shuffle className="w-6 h-6" />;
     } else if (gamecode === "kings-cup") {
-      return <Dice1 className="w-6 h-6" />;
+      return <Crown className="w-6 h-6" />;
     } else if (gamecode === "catherines-special") {
-      return <Wand2Icon className="w-6 h-6" />;
+      return <Sparkles className="w-6 h-6" />;
     } else if (gamecode === "story-building") {
-      return <Star className="w-6 h-6" />;
+      return <ScrollText className="w-6 h-6" />;
     } else if (gamecode === "imposter") {
-      return <Gamepad2 className="w-6 h-6" />;
+      return <VenetianMask className="w-6 h-6" />;
     } else if (gamecode === "triviyay") {
       return <Rainbow className="w-6 h-6" />;
     } else if (gamecode === "truth-or-lie") {
-      return <Star className="w-6 h-6" />;
+      return <Scale className="w-6 h-6" />;
     } else if (gamecode === "codenames") {
       return <Layers className="w-6 h-6" />;
     } else {
-      return <Heart className="w-6 h-6" />;
+      return <Gamepad2 className="w-6 h-6" />;
     }
   };
 
   const GameColor = (gamecode: string) => {
     if (gamecode === "never-have-i-ever") {
-      return "from-pink-500 to-rose-500";
+      return "from-pink-500 to-rose-600";
     } else if (gamecode === "truth-or-drink") {
-      return "from-blue-500 to-purple-500";
+      return "from-cyan-500 to-blue-700";
     } else if (gamecode === "most-likely") {
-      return "from-green-500 to-teal-500";
+      return "from-emerald-500 to-lime-600";
     } else if (gamecode === "paranoia") {
-      return "from-rose-500 to-orange-500";
+      return "from-slate-600 to-rose-700";
     } else if (gamecode === "rhyme-time") {
-      return "from-orange-500 to-red-500";
+      return "from-violet-500 to-fuchsia-600";
     } else if (gamecode === "higher-lower") {
-      return "from-indigo-500 to-blue-500";
+      return "from-indigo-600 to-sky-500";
     } else if (gamecode === "verbal-charades") {
-      return "from-yellow-500 to-orange-500";
+      return "from-amber-500 to-orange-600";
     } else if (gamecode === "taboo-lite") {
-      return "from-sky-500 to-cyan-600";
+      return "from-teal-500 to-cyan-700";
     } else if (gamecode === "would-you-rather") {
-      return "from-cyan-500 to-blue-500";
+      return "from-blue-500 to-indigo-700";
     } else if (gamecode === "pick-a-card") {
-      return "from-red-500 to-pink-500";
+      return "from-red-500 to-pink-600";
     } else if (gamecode === "kings-cup") {
-      return "from-amber-500 to-red-600";
+      return "from-yellow-500 to-red-700";
     } else if (gamecode === "catherines-special") {
-      return "from-emerald-500 to-green-500";
+      return "from-green-500 to-emerald-700";
     } else if (gamecode === "story-building") {
-      return "from-teal-500 to-cyan-500";
+      return "from-orange-500 to-amber-700";
     } else if (gamecode === "imposter") {
-      return "from-yellow-500 to-rose-500";
+      return "from-zinc-700 to-rose-600";
     } else if (gamecode === "triviyay") {
-      return "from-purple-500 to-pink-500";
+      return "from-purple-600 to-pink-600";
     } else if (gamecode === "truth-or-lie") {
-      return "from-fuchsia-500 to-indigo-500";
+      return "from-fuchsia-600 to-indigo-600";
     } else if (gamecode === "codenames") {
-      return "from-red-500 to-blue-500";
+      return "from-red-600 to-blue-700";
     } else {
       return "from-teal-500 to-cyan-500";
     }
