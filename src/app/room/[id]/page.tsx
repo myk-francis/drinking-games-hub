@@ -505,6 +505,42 @@ export default function RoomPage() {
     }),
   );
 
+  const paranoiaVote = useMutation(
+    trpc.games.paranoiaVote.mutationOptions({
+      onSuccess: () => {
+        toast.success("Vote submitted!");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Something went wrong. Please try again.");
+        console.error("Error submitting paranoia vote:", error);
+      },
+    }),
+  );
+
+  const paranoiaReveal = useMutation(
+    trpc.games.paranoiaReveal.mutationOptions({
+      onSuccess: () => {
+        toast.success("Result revealed!");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Something went wrong. Please try again.");
+        console.error("Error revealing paranoia result:", error);
+      },
+    }),
+  );
+
+  const paranoiaNextCard = useMutation(
+    trpc.games.paranoiaNextCard.mutationOptions({
+      onSuccess: () => {
+        toast.success("Next question coming up!");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Something went wrong. Please try again.");
+        console.error("Error moving to next paranoia question:", error);
+      },
+    }),
+  );
+
   const nextWouldRatherQuestion = useMutation(
     trpc.games.nextWouldRatherQuestion.mutationOptions({
       onSuccess: () => {
@@ -1169,7 +1205,10 @@ export default function RoomPage() {
     <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center border border-white/20">
       <div className="font-bold text-lg text-white mb-1">{player}</div>
       <div className="text-2xl font-bold text-emerald-400 mb-1">
-        {points || 0} {selectedGame === "most-likely" ? "votes" : "pts"}
+        {points || 0}{" "}
+        {selectedGame === "most-likely" || selectedGame === "paranoia"
+          ? "votes"
+          : "pts"}
       </div>
       <div className="text-sm text-orange-300">{drinks || 0} drinks</div>
     </div>
@@ -1321,7 +1360,7 @@ export default function RoomPage() {
                             ?.drinks + 1 || 0,
                         ),
                         currentPlayerId: actualPlayer ?? "",
-                        currentQuestionId: String(room.currentQuestionId) ?? "",
+                        currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                       });
                       setClicked(true);
                     }}
@@ -1336,7 +1375,7 @@ export default function RoomPage() {
                       nextQuestion.mutate({
                         gamecode: "never-have-i-ever",
                         roomId: room.id,
-                        currentQuestionId: String(room.currentQuestionId) ?? "",
+                        currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                       });
                       setClicked(true);
                     }}
@@ -1380,7 +1419,7 @@ export default function RoomPage() {
                             ?.drinks + 1 || 0,
                         ),
                         currentPlayerId: actualPlayer ?? "",
-                        currentQuestionId: String(room.currentQuestionId) ?? "",
+                        currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                       });
                       setClicked(true);
                     }}
@@ -1398,7 +1437,7 @@ export default function RoomPage() {
                           gamecode: "imposter",
                           roomId: room.id,
                           currentQuestionId:
-                            String(room.currentQuestionId) ?? "",
+                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                           currentPlayerId: room.currentPlayerId ?? "",
                         });
                         setClicked(true);
@@ -1441,7 +1480,7 @@ export default function RoomPage() {
                           )?.drinks || 0,
                         ),
                         currentPlayerId: room.currentPlayerId ?? "",
-                        currentQuestionId: String(room.currentQuestionId) ?? "",
+                        currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                       });
                       setClicked(true);
                     }}
@@ -1466,7 +1505,7 @@ export default function RoomPage() {
                           )?.drinks + 1 || 0,
                         ),
                         currentPlayerId: room.currentPlayerId ?? "",
-                        currentQuestionId: String(room.currentQuestionId) ?? "",
+                        currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                       });
                       setClicked(true);
                     }}
@@ -1514,7 +1553,7 @@ export default function RoomPage() {
                           ),
                           currentPlayerId: room.currentPlayerId ?? "",
                           currentQuestionId:
-                            String(room.currentQuestionId) ?? "",
+                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                         });
                         setClicked(true);
                       }}
@@ -1540,7 +1579,7 @@ export default function RoomPage() {
                           ),
                           currentPlayerId: room.currentPlayerId ?? "",
                           currentQuestionId:
-                            String(room.currentQuestionId) ?? "",
+                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                         });
                         setClicked(true);
                       }}
@@ -1556,7 +1595,7 @@ export default function RoomPage() {
                     nextCardPOD.mutate({
                       gamecode: "pick-a-card",
                       roomId: room.id,
-                      currentQuestionId: String(room.currentQuestionId) ?? "",
+                      currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                       currentPlayerId: room.currentPlayerId ?? "",
                     });
                     setClicked(true);
@@ -1669,7 +1708,7 @@ export default function RoomPage() {
                     nextRound.mutate({
                       gamecode: "most-likely",
                       roomId: room.id,
-                      currentQuestionId: String(room.currentQuestionId) ?? "",
+                      currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                     });
                     setClicked(true);
                   }}
@@ -1680,6 +1719,136 @@ export default function RoomPage() {
               )}
             </div>
           );
+
+        case "paranoia":
+          {
+            const isCurrentPlayer = actualPlayer === room?.currentPlayerId;
+            const revealedPlayerId = room?.currentAnswer || "";
+            const hasVoted = room?.questionAVotes?.includes(actualPlayer) || false;
+            const totalVotes = room?.questionAVotes?.length || 0;
+            const requiredVotes = Math.max(0, players.length - 1);
+            const allVoted = totalVotes >= requiredVotes;
+            const voteCounts = (room?.questionBVotes || []).reduce(
+              (acc, playerId) => {
+                acc[playerId] = (acc[playerId] || 0) + 1;
+                return acc;
+              },
+              {} as Record<string, number>,
+            );
+            const sortedVotes = Object.entries(voteCounts).sort((a, b) => b[1] - a[1]);
+            const revealedPlayerName =
+              players.find((player) => player.id === revealedPlayerId)?.name ||
+              "Unknown Player";
+
+            return (
+              <div className="text-center">
+                <div className="text-xl text-emerald-400 mb-4">
+                  👤 {currentPlayer}&apos;s Turn
+                </div>
+                <div className="text-2xl mb-6 text-white leading-relaxed">
+                  {currentQuestion?.text ||
+                    "No question available. Please wait for the next round."}
+                </div>
+
+                {!revealedPlayerId && (
+                  <>
+                    <p className="text-lg text-white/80 mb-4">
+                      Vote anonymously for who fits this prompt best.
+                    </p>
+                    <p className="text-sm text-white/70 mb-6">
+                      Votes in: {totalVotes}/{requiredVotes}
+                    </p>
+
+                    {!isCurrentPlayer && (
+                      <div className="flex gap-3 justify-center flex-wrap mb-4">
+                        {players
+                          .filter((player) => player.id !== room?.currentPlayerId)
+                          .map((player) => (
+                            <button
+                              key={player.id}
+                              onClick={() => {
+                                paranoiaVote.mutate({
+                                  roomId: room.id,
+                                  playerId: actualPlayer,
+                                  votedPlayerId: player.id,
+                                });
+                              }}
+                              disabled={
+                                hasVoted || !actualPlayer || paranoiaVote.isPending
+                              }
+                              className="px-4 py-2 bg-rose-500 hover:bg-rose-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white transition-colors"
+                            >
+                              Select: {player.name}
+                            </button>
+                          ))}
+                      </div>
+                    )}
+
+                    {isCurrentPlayer && !allVoted && (
+                      <p className="text-white/70">
+                        Waiting for everyone else to vote.
+                      </p>
+                    )}
+
+                    {isCurrentPlayer && allVoted && (
+                      <button
+                        onClick={() => {
+                          paranoiaReveal.mutate({
+                            roomId: room.id,
+                            playerId: actualPlayer,
+                          });
+                        }}
+                        disabled={paranoiaReveal.isPending}
+                        className="px-6 py-3 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
+                      >
+                        Reveal Result
+                      </button>
+                    )}
+                  </>
+                )}
+
+                {revealedPlayerId && (
+                  <div className="mt-6">
+                    <div className="text-3xl font-extrabold text-yellow-300 animate-bounce">
+                      Revealed: {revealedPlayerName}
+                    </div>
+                    <div className="mt-4 text-white/80">
+                      Top votes:
+                      {sortedVotes.length === 0 && " none"}
+                    </div>
+                    <div className="mt-2 flex flex-wrap justify-center gap-2">
+                      {sortedVotes.slice(0, 5).map(([playerId, count]) => {
+                        const playerName =
+                          players.find((player) => player.id === playerId)?.name ||
+                          "Unknown";
+                        return (
+                          <Badge key={playerId} variant="secondary">
+                            {playerName}: {count}
+                          </Badge>
+                        );
+                      })}
+                    </div>
+
+                    {isCurrentPlayer && (
+                      <button
+                        onClick={() => {
+                          paranoiaNextCard.mutate({
+                            roomId: room?.id || "",
+                            currentQuestionId: room?.currentQuestionId == null ? "" : String(room.currentQuestionId),
+                            currentPlayerId: room?.currentPlayerId ?? "",
+                          });
+                        }}
+                        disabled={paranoiaNextCard.isPending}
+                        className="mt-6 px-6 py-3 bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
+                      >
+                        Next Question
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          }
 
         case "verbal-charades":
           const PlayerOne = room?.playerOneId
@@ -1742,7 +1911,7 @@ export default function RoomPage() {
                           playerOneId: room.playerOneId ?? "",
                           playerTwoId: room.playerTwoId ?? "",
                           currentQuestionId:
-                            String(room.currentQuestionId) ?? "",
+                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                         });
                         setClicked(true);
                       }}
@@ -1758,7 +1927,7 @@ export default function RoomPage() {
                           playerOneId: room.playerOneId ?? "",
                           playerTwoId: room.playerTwoId ?? "",
                           currentQuestionId:
-                            String(room.currentQuestionId) ?? "",
+                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                         });
                         setClicked(true);
                       }}
@@ -1823,7 +1992,7 @@ export default function RoomPage() {
                           result: "INCORRECT",
                           currentPlayerId: room.currentPlayerId ?? "",
                           currentQuestionId:
-                            String(room.currentQuestionId) ?? "",
+                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                         });
                         setClicked(true);
                       }}
@@ -1838,7 +2007,7 @@ export default function RoomPage() {
                           result: "CORRECT",
                           currentPlayerId: room.currentPlayerId ?? "",
                           currentQuestionId:
-                            String(room.currentQuestionId) ?? "",
+                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                         });
                         setClicked(true);
                       }}
@@ -1976,7 +2145,7 @@ export default function RoomPage() {
                         nextTruthLieCard.mutate({
                           roomId: room?.id || "",
                           currentQuestionId:
-                            String(room?.currentQuestionId) ?? "",
+                            room?.currentQuestionId == null ? "" : String(room.currentQuestionId),
                           currentPlayerId: room?.currentPlayerId ?? "",
                         });
                       }}
@@ -2046,7 +2215,7 @@ export default function RoomPage() {
                     nextWouldRatherQuestion.mutate({
                       gamecode: "would-you-rather",
                       roomId: room.id,
-                      currentQuestionId: String(room.currentQuestionId) ?? "",
+                      currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                     });
                     setClicked(true);
                   }}
@@ -2096,7 +2265,7 @@ export default function RoomPage() {
                           winningTeams: winningTeams,
                           forefit: forfited,
                           currentQuestionId:
-                            String(room.currentQuestionId) ?? "",
+                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                         });
                         setClicked(true);
                         setWinningTeams([]);
@@ -2569,3 +2738,4 @@ const RoomControls = React.memo(function RoomControls({
     </div>
   );
 });
+
