@@ -171,6 +171,8 @@ export default function HomePage() {
       return <Clock className="w-6 h-6" />;
     } else if (gamecode === "pick-a-card") {
       return <Shuffle className="w-6 h-6" />;
+    } else if (gamecode === "kings-cup") {
+      return <Dice1 className="w-6 h-6" />;
     } else if (gamecode === "catherines-special") {
       return <Wand2Icon className="w-6 h-6" />;
     } else if (gamecode === "story-building") {
@@ -207,6 +209,8 @@ export default function HomePage() {
       return "from-cyan-500 to-blue-500";
     } else if (gamecode === "pick-a-card") {
       return "from-red-500 to-pink-500";
+    } else if (gamecode === "kings-cup") {
+      return "from-amber-500 to-red-600";
     } else if (gamecode === "catherines-special") {
       return "from-emerald-500 to-green-500";
     } else if (gamecode === "story-building") {
@@ -585,6 +589,7 @@ export default function HomePage() {
                       (selectedGame === "would-you-rather" &&
                         players.length < 3) ||
                       (selectedGame === "pick-a-card" && players.length < 3) ||
+                      (selectedGame === "kings-cup" && players.length < 2) ||
                       (selectedGame === "imposter" && players.length < 4) ||
                       (selectedGame === "truth-or-lie" && players.length < 2) ||
                       (selectedGame === "triviyay" && teams.length > 2)
