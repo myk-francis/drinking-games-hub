@@ -159,6 +159,8 @@ export default function HomePage() {
       return <Brain className="w-6 h-6" />;
     } else if (gamecode === "most-likely") {
       return <Users className="w-6 h-6" />;
+    } else if (gamecode === "paranoia") {
+      return <Users className="w-6 h-6" />;
     } else if (gamecode === "rhyme-time") {
       return <Music className="w-6 h-6" />;
     } else if (gamecode === "higher-lower") {
@@ -193,6 +195,8 @@ export default function HomePage() {
       return "from-blue-500 to-purple-500";
     } else if (gamecode === "most-likely") {
       return "from-green-500 to-teal-500";
+    } else if (gamecode === "paranoia") {
+      return "from-rose-500 to-orange-500";
     } else if (gamecode === "rhyme-time") {
       return "from-orange-500 to-red-500";
     } else if (gamecode === "higher-lower") {
@@ -568,6 +572,7 @@ export default function HomePage() {
                     disabled={
                       !selectedGame ||
                       (selectedGame === "most-likely" && players.length < 3) ||
+                      (selectedGame === "paranoia" && players.length < 3) ||
                       (selectedGame === "verbal-charades" &&
                         players.length < 4) ||
                       (selectedGame === "higher-lower" && players.length < 2) ||

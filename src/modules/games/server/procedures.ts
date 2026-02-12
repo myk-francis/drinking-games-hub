@@ -1791,6 +1791,284 @@ export const gamesRouter = createTRPCRouter({
       }
     }),
 
+  paranoiaVote: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string(),
+        playerId: z.string(),
+        votedPlayerId: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const room = await prisma.room.findFirst({
+          where: {
+            id: input.roomId,
+          },
+          include: {
+            players: true,
+            game: true,
+          },
+        });
+
+        if (!room) {
+          throw new Error("Room not found");
+        }
+
+        if (room.game.code !== "paranoia") {
+          throw new Error("This room is not a Paranoia game");
+        }
+
+        if (room.currentAnswer) {
+          throw new Error("Round already revealed");
+        }
+
+        if (room.currentPlayerId === input.playerId) {
+          throw new Error("Current player cannot vote");
+        }
+
+        if (input.votedPlayerId === room.currentPlayerId) {
+          throw new Error("Cannot vote for the current player");
+        }
+
+        const voter = room.players.find((player) => player.id === input.playerId);
+        if (!voter) {
+          throw new Error("Voter not found");
+        }
+
+        const votedPlayer = room.players.find(
+          (player) => player.id === input.votedPlayerId,
+        );
+        if (!votedPlayer) {
+          throw new Error("Selected player not found");
+        }
+
+        const questionAVotes = [...(room.questionAVotes || [])];
+        const questionBVotes = [...(room.questionBVotes || [])];
+
+        if (questionAVotes.includes(input.playerId)) {
+          throw new Error("You already voted this round");
+        }
+
+        questionAVotes.push(input.playerId);
+        questionBVotes.push(input.votedPlayerId);
+
+        const updatedRoom = await prisma.room.update({
+          where: { id: input.roomId },
+          data: {
+            questionAVotes,
+            questionBVotes,
+          },
+        });
+
+        return updatedRoom;
+      } catch (error) {
+        console.error("Failed to submit paranoia vote", error);
+        throw new Error("Failed to submit paranoia vote");
+      }
+    }),
+
+  paranoiaReveal: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string(),
+        playerId: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const room = await prisma.room.findFirst({
+          where: {
+            id: input.roomId,
+          },
+          include: {
+            players: true,
+            game: true,
+          },
+        });
+
+        if (!room) {
+          throw new Error("Room not found");
+        }
+
+        if (room.game.code !== "paranoia") {
+          throw new Error("This room is not a Paranoia game");
+        }
+
+        if (room.currentPlayerId !== input.playerId) {
+          throw new Error("Only the current player can reveal");
+        }
+
+        const totalVotes = room.questionAVotes?.length || 0;
+        const requiredVotes = Math.max(0, room.players.length - 1);
+        if (totalVotes < requiredVotes) {
+          throw new Error("Not all players have voted yet");
+        }
+
+        if ((room.questionBVotes?.length || 0) === 0) {
+          throw new Error("No votes found for this round");
+        }
+
+        const voteCounts = (room.questionBVotes || []).reduce(
+          (acc, playerId) => {
+            acc[playerId] = (acc[playerId] || 0) + 1;
+            return acc;
+          },
+          {} as Record<string, number>,
+        );
+
+        const rankedVotes = Object.entries(voteCounts).sort((a, b) => b[1] - a[1]);
+        const highestCount = rankedVotes[0]?.[1] || 0;
+        const topPlayers = rankedVotes
+          .filter(([, count]) => count === highestCount)
+          .map(([playerId]) => playerId);
+        const selectedPlayerId =
+          topPlayers[Math.floor(Math.random() * topPlayers.length)] || "";
+
+        if (!selectedPlayerId) {
+          throw new Error("Failed to resolve revealed player");
+        }
+
+        await prisma.player.update({
+          where: { id: selectedPlayerId },
+          data: {
+            points: {
+              increment: 1,
+            },
+          },
+        });
+
+        const updatedRoom = await prisma.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentAnswer: selectedPlayerId,
+          },
+        });
+
+        return updatedRoom;
+      } catch (error) {
+        console.error("Failed to reveal paranoia result", error);
+        throw new Error("Failed to reveal paranoia result");
+      }
+    }),
+
+  paranoiaNextCard: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string(),
+        currentQuestionId: z.string(),
+        currentPlayerId: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const room = await prisma.room.findFirst({
+          where: {
+            id: input.roomId,
+          },
+          include: {
+            players: true,
+            game: {
+              include: {
+                questions: true,
+              },
+            },
+          },
+        });
+
+        if (!room) {
+          throw new Error("Room not found");
+        }
+
+        if (room.game.code !== "paranoia") {
+          throw new Error("This room is not a Paranoia game");
+        }
+
+        if (room.currentPlayerId !== input.currentPlayerId) {
+          throw new Error("Only the current player can move to next question");
+        }
+
+        if (!room.currentAnswer) {
+          throw new Error("Reveal the result before moving on");
+        }
+
+        let nextPlayerId = "";
+        const players = room.players.map((obj) => obj.id);
+        let previousPlayersIds = room.previousPlayersIds || [];
+        const playersWhoHaveNotPlayed = players.filter(
+          (id) => ![...previousPlayersIds, input.currentPlayerId].includes(id),
+        );
+
+        if (players.length === 2) {
+          previousPlayersIds = [];
+          previousPlayersIds.push(input.currentPlayerId);
+          nextPlayerId = players.filter(
+            (id) => !previousPlayersIds.includes(id),
+          )[0];
+        } else {
+          if (playersWhoHaveNotPlayed.length > 0) {
+            nextPlayerId = playersWhoHaveNotPlayed[0];
+            previousPlayersIds = [...previousPlayersIds, input.currentPlayerId];
+          } else {
+            const availablePlayers = players.filter(
+              (id) => id !== input.currentPlayerId,
+            );
+            nextPlayerId =
+              availablePlayers[
+                Math.floor(Math.random() * availablePlayers.length)
+              ];
+            previousPlayersIds = [];
+          }
+        }
+
+        let nextQuestionId = null;
+        const questions = room.game.questions.map((obj) => obj.id);
+        let previousQuestionsIds = room.previousQuestionsId || [];
+        const questionsWhichHaveNotPlayed = questions.filter(
+          (id) =>
+            ![
+              ...previousQuestionsIds,
+              parseInt(input.currentQuestionId),
+            ].includes(id),
+        );
+
+        if (questionsWhichHaveNotPlayed?.length > 0) {
+          nextQuestionId =
+            questionsWhichHaveNotPlayed[
+              Math.floor(Math.random() * questionsWhichHaveNotPlayed.length)
+            ];
+          previousQuestionsIds = [
+            ...previousQuestionsIds,
+            parseInt(input.currentQuestionId),
+          ];
+        } else {
+          nextQuestionId =
+            room.game.questions[
+              Math.floor(Math.random() * room.game.questions.length)
+            ]?.id || null;
+          previousQuestionsIds = [];
+        }
+
+        const updatedRoom = await prisma.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentPlayerId: nextPlayerId,
+            previousPlayersIds,
+            currentQuestionId: nextQuestionId ?? null,
+            previousQuestionsId: previousQuestionsIds,
+            questionAVotes: [],
+            questionBVotes: [],
+            currentAnswer: null,
+          },
+        });
+
+        return updatedRoom;
+      } catch (error) {
+        console.error("Failed to move to next paranoia card", error);
+        throw new Error("Failed to move to next paranoia card");
+      }
+    }),
+
   nextWouldRatherQuestion: baseProcedure
     .input(
       z.object({
