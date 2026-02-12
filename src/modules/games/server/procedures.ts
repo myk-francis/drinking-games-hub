@@ -1863,7 +1863,15 @@ export const gamesRouter = createTRPCRouter({
 
         return updatedRoom;
       } catch (error) {
-        console.error("Failed to submit paranoia vote", error);
+        if (error instanceof Error) {
+          throw error;
+        }
+        console.error("Failed to submit paranoia vote", {
+          roomId: input.roomId,
+          playerId: input.playerId,
+          votedPlayerId: input.votedPlayerId,
+          error,
+        });
         throw new Error("Failed to submit paranoia vote");
       }
     }),
@@ -1947,7 +1955,14 @@ export const gamesRouter = createTRPCRouter({
 
         return updatedRoom;
       } catch (error) {
-        console.error("Failed to reveal paranoia result", error);
+        if (error instanceof Error) {
+          throw error;
+        }
+        console.error("Failed to reveal paranoia result", {
+          roomId: input.roomId,
+          playerId: input.playerId,
+          error,
+        });
         throw new Error("Failed to reveal paranoia result");
       }
     }),
@@ -2064,7 +2079,15 @@ export const gamesRouter = createTRPCRouter({
 
         return updatedRoom;
       } catch (error) {
-        console.error("Failed to move to next paranoia card", error);
+        if (error instanceof Error) {
+          throw error;
+        }
+        console.error("Failed to move to next paranoia card", {
+          roomId: input.roomId,
+          currentQuestionId: input.currentQuestionId,
+          currentPlayerId: input.currentPlayerId,
+          error,
+        });
         throw new Error("Failed to move to next paranoia card");
       }
     }),

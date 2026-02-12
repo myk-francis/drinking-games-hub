@@ -1360,7 +1360,7 @@ export default function RoomPage() {
                             ?.drinks + 1 || 0,
                         ),
                         currentPlayerId: actualPlayer ?? "",
-                        currentQuestionId: String(room.currentQuestionId) ?? "",
+                        currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                       });
                       setClicked(true);
                     }}
@@ -1375,7 +1375,7 @@ export default function RoomPage() {
                       nextQuestion.mutate({
                         gamecode: "never-have-i-ever",
                         roomId: room.id,
-                        currentQuestionId: String(room.currentQuestionId) ?? "",
+                        currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                       });
                       setClicked(true);
                     }}
@@ -1419,7 +1419,7 @@ export default function RoomPage() {
                             ?.drinks + 1 || 0,
                         ),
                         currentPlayerId: actualPlayer ?? "",
-                        currentQuestionId: String(room.currentQuestionId) ?? "",
+                        currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                       });
                       setClicked(true);
                     }}
@@ -1437,7 +1437,7 @@ export default function RoomPage() {
                           gamecode: "imposter",
                           roomId: room.id,
                           currentQuestionId:
-                            String(room.currentQuestionId) ?? "",
+                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                           currentPlayerId: room.currentPlayerId ?? "",
                         });
                         setClicked(true);
@@ -1480,7 +1480,7 @@ export default function RoomPage() {
                           )?.drinks || 0,
                         ),
                         currentPlayerId: room.currentPlayerId ?? "",
-                        currentQuestionId: String(room.currentQuestionId) ?? "",
+                        currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                       });
                       setClicked(true);
                     }}
@@ -1505,7 +1505,7 @@ export default function RoomPage() {
                           )?.drinks + 1 || 0,
                         ),
                         currentPlayerId: room.currentPlayerId ?? "",
-                        currentQuestionId: String(room.currentQuestionId) ?? "",
+                        currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                       });
                       setClicked(true);
                     }}
@@ -1553,7 +1553,7 @@ export default function RoomPage() {
                           ),
                           currentPlayerId: room.currentPlayerId ?? "",
                           currentQuestionId:
-                            String(room.currentQuestionId) ?? "",
+                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                         });
                         setClicked(true);
                       }}
@@ -1579,7 +1579,7 @@ export default function RoomPage() {
                           ),
                           currentPlayerId: room.currentPlayerId ?? "",
                           currentQuestionId:
-                            String(room.currentQuestionId) ?? "",
+                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                         });
                         setClicked(true);
                       }}
@@ -1595,7 +1595,7 @@ export default function RoomPage() {
                     nextCardPOD.mutate({
                       gamecode: "pick-a-card",
                       roomId: room.id,
-                      currentQuestionId: String(room.currentQuestionId) ?? "",
+                      currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                       currentPlayerId: room.currentPlayerId ?? "",
                     });
                     setClicked(true);
@@ -1708,7 +1708,7 @@ export default function RoomPage() {
                     nextRound.mutate({
                       gamecode: "most-likely",
                       roomId: room.id,
-                      currentQuestionId: String(room.currentQuestionId) ?? "",
+                      currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                     });
                     setClicked(true);
                   }}
@@ -1834,7 +1834,7 @@ export default function RoomPage() {
                         onClick={() => {
                           paranoiaNextCard.mutate({
                             roomId: room?.id || "",
-                            currentQuestionId: String(room?.currentQuestionId) ?? "",
+                            currentQuestionId: room?.currentQuestionId == null ? "" : String(room.currentQuestionId),
                             currentPlayerId: room?.currentPlayerId ?? "",
                           });
                         }}
@@ -1911,7 +1911,7 @@ export default function RoomPage() {
                           playerOneId: room.playerOneId ?? "",
                           playerTwoId: room.playerTwoId ?? "",
                           currentQuestionId:
-                            String(room.currentQuestionId) ?? "",
+                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                         });
                         setClicked(true);
                       }}
@@ -1927,7 +1927,7 @@ export default function RoomPage() {
                           playerOneId: room.playerOneId ?? "",
                           playerTwoId: room.playerTwoId ?? "",
                           currentQuestionId:
-                            String(room.currentQuestionId) ?? "",
+                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                         });
                         setClicked(true);
                       }}
@@ -1992,7 +1992,7 @@ export default function RoomPage() {
                           result: "INCORRECT",
                           currentPlayerId: room.currentPlayerId ?? "",
                           currentQuestionId:
-                            String(room.currentQuestionId) ?? "",
+                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                         });
                         setClicked(true);
                       }}
@@ -2007,7 +2007,7 @@ export default function RoomPage() {
                           result: "CORRECT",
                           currentPlayerId: room.currentPlayerId ?? "",
                           currentQuestionId:
-                            String(room.currentQuestionId) ?? "",
+                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                         });
                         setClicked(true);
                       }}
@@ -2145,7 +2145,7 @@ export default function RoomPage() {
                         nextTruthLieCard.mutate({
                           roomId: room?.id || "",
                           currentQuestionId:
-                            String(room?.currentQuestionId) ?? "",
+                            room?.currentQuestionId == null ? "" : String(room.currentQuestionId),
                           currentPlayerId: room?.currentPlayerId ?? "",
                         });
                       }}
@@ -2215,7 +2215,7 @@ export default function RoomPage() {
                     nextWouldRatherQuestion.mutate({
                       gamecode: "would-you-rather",
                       roomId: room.id,
-                      currentQuestionId: String(room.currentQuestionId) ?? "",
+                      currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                     });
                     setClicked(true);
                   }}
@@ -2265,7 +2265,7 @@ export default function RoomPage() {
                           winningTeams: winningTeams,
                           forefit: forfited,
                           currentQuestionId:
-                            String(room.currentQuestionId) ?? "",
+                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
                         });
                         setClicked(true);
                         setWinningTeams([]);
@@ -2738,3 +2738,4 @@ const RoomControls = React.memo(function RoomControls({
     </div>
   );
 });
+
