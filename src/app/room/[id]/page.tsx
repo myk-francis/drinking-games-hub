@@ -1108,6 +1108,26 @@ export default function RoomPage() {
     return "🟩 QUESTION";
   }, [room]);
 
+  const kingsCupCardInfo = React.useMemo(() => {
+    const edition = currentQuestion?.edition;
+
+    if (edition === 1) return "ACE - Waterfall";
+    if (edition === 2) return "TWO - You";
+    if (edition === 3) return "THREE - Me";
+    if (edition === 4) return "FOUR - Floor";
+    if (edition === 5) return "FIVE - Guys";
+    if (edition === 6) return "SIX - Chicks";
+    if (edition === 7) return "SEVEN - Heaven";
+    if (edition === 8) return "EIGHT - Mate";
+    if (edition === 9) return "NINE - Rhyme";
+    if (edition === 10) return "TEN - Categories";
+    if (edition === 11) return "JACK - Make a Rule";
+    if (edition === 12) return "QUEEN - Question Master";
+    if (edition === 13) return "KING - King's Cup";
+
+    return "Draw a Card";
+  }, [currentQuestion?.edition]);
+
   const wouldRatherResult = React.useMemo(() => {
     if (!room) {
       return "";
@@ -1604,6 +1624,73 @@ export default function RoomPage() {
                 >
                   Next Card
                 </button>
+              )}
+            </div>
+          );
+
+        case "kings-cup":
+          return (
+            <div className="text-center">
+              <div className="text-xl text-yellow-400 mb-4">
+                {kingsCupCardInfo}
+              </div>
+              <div className="text-xl text-emerald-400 mb-4">
+                👤 {currentPlayer}&apos;s Turn
+              </div>
+              <div className="text-xl mb-6 text-white leading-relaxed">
+                {currentQuestion?.text ||
+                  "No rule card available. Please draw the next card."}
+              </div>
+              {currentQuestion?.edition === 13 && (
+                <p className="text-red-300 mb-4">
+                  If this is the last King, drink the center cup and end the round.
+                </p>
+              )}
+              {actualPlayer === room?.currentPlayerId && !clicked && (
+                <div className="flex gap-4 justify-center">
+                  <button
+                    onClick={() => {
+                      nextCardPOD.mutate({
+                        gamecode: "kings-cup",
+                        roomId: room.id,
+                        currentQuestionId:
+                          room.currentQuestionId == null
+                            ? ""
+                            : String(room.currentQuestionId),
+                        currentPlayerId: room.currentPlayerId ?? "",
+                      });
+                      setClicked(true);
+                    }}
+                    className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Next Card
+                  </button>
+                  <button
+                    onClick={() => {
+                      updatePlayerStatsPOD.mutate({
+                        gamecode: "kings-cup",
+                        roomId: room.id,
+                        points: String(
+                          room?.players?.find((p) => p.id === room.currentPlayerId)
+                            ?.points || 0,
+                        ),
+                        drinks: String(
+                          (room?.players?.find((p) => p.id === room.currentPlayerId)
+                            ?.drinks || 0) + 1,
+                        ),
+                        currentPlayerId: room.currentPlayerId ?? "",
+                        currentQuestionId:
+                          room.currentQuestionId == null
+                            ? ""
+                            : String(room.currentQuestionId),
+                      });
+                      setClicked(true);
+                    }}
+                    className="px-6 py-3 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-semibold transition-colors"
+                  >
+                    Took a Drink
+                  </button>
+                </div>
               )}
             </div>
           );
