@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Edit, Trash2, Loader2, ArrowUpRight } from "lucide-react";
 import { useTRPC } from "@/trpc/client";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Loading } from "@/components/ui/loading";
 import { UserComboBox } from "@/components/apps-components/userComboBox";
@@ -180,6 +180,7 @@ const TransactionForm = ({
 
 export default function TransactionPage() {
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const router = useRouter();
 
   const { data: currentUser, isLoading: userLoading } = useQuery(
@@ -189,7 +190,7 @@ export default function TransactionPage() {
   const isAuthed = !!currentUser;
   const isAdmin = !!currentUser?.isAdmin;
 
-  const { data: roomsOpen } = useQuery(
+  const { data: roomsOpen, refetch: refetchOpenRooms } = useQuery(
     trpc.games.checkForOpenRooms.queryOptions(undefined, {
       enabled: isAuthed && isAdmin,
     }),
@@ -230,7 +231,11 @@ export default function TransactionPage() {
 
   const closeTwoHourLongRooms = useMutation(
     trpc.games.closeOpenRooms.mutationOptions({
-      onSuccess: () => {
+      onSuccess: async () => {
+        await refetchOpenRooms();
+        await queryClient.invalidateQueries(
+          trpc.games.checkForOpenRooms.queryFilter(),
+        );
         toast.success("Rooms closed successfully!");
       },
       onError: () => {

@@ -3489,21 +3489,16 @@ export const gamesRouter = createTRPCRouter({
 
   checkForOpenRooms: baseProcedure.query(async () => {
     try {
+      const twoHoursAgo = new Date(Date.now() - 120 * 60 * 1000);
       const openRooms = await prisma.room.findMany({
         where: {
           gameEnded: false,
-          // createdAt: {
-          //   gt: new Date(Date.now() - 120 * 60 * 1000), // 2 hours
-          // },
+          createdAt: {
+            lte: twoHoursAgo,
+          },
         },
       });
-
-      const filteredOpenRooms = openRooms.filter((room) => {
-        const roomAgeInMs = Date.now() - room.createdAt.getTime();
-        return roomAgeInMs >= 120 * 60 * 1000; // 2 hours
-      });
-
-      return filteredOpenRooms;
+      return openRooms;
     } catch (error) {
       console.error("Failed to fetch open rooms:", error);
       throw new Error("Failed to fetch open rooms");
@@ -3512,29 +3507,19 @@ export const gamesRouter = createTRPCRouter({
 
   closeOpenRooms: baseProcedure.mutation(async () => {
     try {
-      const openRooms = await prisma.room.findMany({
+      const twoHoursAgo = new Date(Date.now() - 120 * 60 * 1000);
+      await prisma.room.updateMany({
         where: {
           gameEnded: false,
           createdAt: {
-            gt: new Date(Date.now() - 120 * 60 * 1000), // 2 hours ago
+            lte: twoHoursAgo,
           },
         },
+        data: {
+          gameEnded: true,
+          gameEndedAt: new Date(),
+        },
       });
-
-      const filteredOpenRooms = openRooms.filter((room) => {
-        const roomAgeInMs = Date.now() - room.createdAt.getTime();
-        return roomAgeInMs >= 120 * 60 * 1000; // 2 hours old
-      });
-
-      for (const room of filteredOpenRooms) {
-        await prisma.room.update({
-          where: { id: room.id },
-          data: {
-            gameEnded: true,
-            gameEndedAt: new Date(room.createdAt.getTime() + 120 * 60 * 1000), // Set to 2 hours from creation
-          },
-        });
-      }
 
       return true;
     } catch (error) {
