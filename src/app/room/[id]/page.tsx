@@ -37,6 +37,16 @@ type CodenamesRoomState = {
   guessesRemaining: number | null;
   winner: CodenamesTeam | null;
 };
+type MemoryChainRoomState = {
+  status: "PLAYING" | "ENDED";
+  board: number[];
+  sequence: number[];
+  revealed: number[];
+  progress: number;
+  winnerPlayerId: string | null;
+  pendingMissQuestionId: number | null;
+  pendingMissNextPlayerId: string | null;
+};
 
 interface TeamStats {
   [team: string]: {
@@ -274,7 +284,9 @@ function EndGameFeedback({
   );
 }
 
-function parseCodenamesState(raw: string | null | undefined): CodenamesRoomState {
+function parseCodenamesState(
+  raw: string | null | undefined,
+): CodenamesRoomState {
   const fallback: CodenamesRoomState = {
     status: "LOBBY",
     board: [],
@@ -311,6 +323,58 @@ function parseCodenamesState(raw: string | null | undefined): CodenamesRoomState
       winner:
         parsed.winner === "RED" || parsed.winner === "BLUE"
           ? parsed.winner
+          : null,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function parseMemoryChainState(
+  raw: string | null | undefined,
+): MemoryChainRoomState {
+  const fallback: MemoryChainRoomState = {
+    status: "PLAYING",
+    board: [],
+    sequence: [],
+    revealed: [],
+    progress: 0,
+    winnerPlayerId: null,
+    pendingMissQuestionId: null,
+    pendingMissNextPlayerId: null,
+  };
+
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<MemoryChainRoomState>;
+    return {
+      status: parsed.status === "ENDED" ? "ENDED" : "PLAYING",
+      board: Array.isArray(parsed.board)
+        ? parsed.board.filter((id): id is number => typeof id === "number")
+        : [],
+      sequence: Array.isArray(parsed.sequence)
+        ? parsed.sequence.filter((id): id is number => typeof id === "number")
+        : [],
+      revealed: Array.isArray(parsed.revealed)
+        ? parsed.revealed.filter((id): id is number => typeof id === "number")
+        : [],
+      progress:
+        typeof parsed.progress === "number" && Number.isFinite(parsed.progress)
+          ? parsed.progress
+          : 0,
+      winnerPlayerId:
+        typeof parsed.winnerPlayerId === "string"
+          ? parsed.winnerPlayerId
+          : null,
+      pendingMissQuestionId:
+        typeof parsed.pendingMissQuestionId === "number" &&
+        Number.isFinite(parsed.pendingMissQuestionId)
+          ? parsed.pendingMissQuestionId
+          : null,
+      pendingMissNextPlayerId:
+        typeof parsed.pendingMissNextPlayerId === "string"
+          ? parsed.pendingMissNextPlayerId
           : null,
     };
   } catch {
@@ -664,6 +728,36 @@ export default function RoomPage() {
     }),
   );
 
+  const memoryChainGuess = useMutation(
+    trpc.games.memoryChainGuess.mutationOptions({
+      onSuccess: (data) => {
+        if (data.result === "WIN") {
+          toast.success("Sequence completed. Game over!");
+        } else if (data.result === "MISS") {
+          const nextPlayer =
+            players.find((player) => player.id === data.nextPlayerId)?.name ||
+            "next player";
+          toast.error(`Missed 😵.  ${nextPlayer} Next.`);
+        } else {
+          toast.success("Correct!");
+        }
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not process guess.");
+      },
+    }),
+  );
+  const memoryChainNextPlayer = useMutation(
+    trpc.games.memoryChainNextPlayer.mutationOptions({
+      onSuccess: () => {
+        toast.success("Turn passed to next player.");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not move to next player.");
+      },
+    }),
+  );
+
   const vote = useMutation(
     trpc.games.votePlayer.mutationOptions({
       onSuccess: () => {
@@ -746,6 +840,33 @@ export default function RoomPage() {
     room?.previousQuestionsId,
   ]);
 
+  const memoryChainState = React.useMemo(() => {
+    return parseMemoryChainState(room?.currentAnswer);
+  }, [room?.currentAnswer]);
+
+  const memoryChainBoard = React.useMemo(() => {
+    if (!game?.questions || memoryChainState.board.length === 0) return [];
+    const questionMap = new Map(
+      game.questions.map((question) => [question.id, question]),
+    );
+    return memoryChainState.board.map((questionId) => ({
+      id: questionId,
+      text: questionMap.get(questionId)?.text || "Unknown",
+      revealed: memoryChainState.revealed.includes(questionId),
+    }));
+  }, [game?.questions, memoryChainState.board, memoryChainState.revealed]);
+
+  const memoryChainSequence = React.useMemo(() => {
+    if (!game?.questions || memoryChainState.sequence.length === 0) return [];
+    const questionMap = new Map(
+      game.questions.map((question) => [question.id, question]),
+    );
+    return memoryChainState.sequence.map((questionId) => ({
+      id: questionId,
+      text: questionMap.get(questionId)?.text || "Unknown",
+    }));
+  }, [game?.questions, memoryChainState.sequence]);
+
   const codenamesUnassignedPlayers = React.useMemo(() => {
     if (!players.length) return [];
 
@@ -754,7 +875,9 @@ export default function RoomPage() {
     }
 
     if (actualPlayer) {
-      return players.filter((player) => player.id === actualPlayer && !player.team);
+      return players.filter(
+        (player) => player.id === actualPlayer && !player.team,
+      );
     }
 
     return players.filter((player) => !player.team);
@@ -920,9 +1043,9 @@ export default function RoomPage() {
         return;
       }
 
-      const navEntry = performance.getEntriesByType(
-        "navigation",
-      )[0] as PerformanceNavigationTiming | undefined;
+      const navEntry = performance.getEntriesByType("navigation")[0] as
+        | PerformanceNavigationTiming
+        | undefined;
       const isReload =
         navEntry?.type === "reload" ||
         // Fallback for older navigation API.
@@ -1395,7 +1518,10 @@ export default function RoomPage() {
                             ?.drinks + 1 || 0,
                         ),
                         currentPlayerId: actualPlayer ?? "",
-                        currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
+                        currentQuestionId:
+                          room.currentQuestionId == null
+                            ? ""
+                            : String(room.currentQuestionId),
                       });
                       setClicked(true);
                     }}
@@ -1410,7 +1536,10 @@ export default function RoomPage() {
                       nextQuestion.mutate({
                         gamecode: "never-have-i-ever",
                         roomId: room.id,
-                        currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
+                        currentQuestionId:
+                          room.currentQuestionId == null
+                            ? ""
+                            : String(room.currentQuestionId),
                       });
                       setClicked(true);
                     }}
@@ -1454,7 +1583,10 @@ export default function RoomPage() {
                             ?.drinks + 1 || 0,
                         ),
                         currentPlayerId: actualPlayer ?? "",
-                        currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
+                        currentQuestionId:
+                          room.currentQuestionId == null
+                            ? ""
+                            : String(room.currentQuestionId),
                       });
                       setClicked(true);
                     }}
@@ -1472,7 +1604,9 @@ export default function RoomPage() {
                           gamecode: "imposter",
                           roomId: room.id,
                           currentQuestionId:
-                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
+                            room.currentQuestionId == null
+                              ? ""
+                              : String(room.currentQuestionId),
                           currentPlayerId: room.currentPlayerId ?? "",
                         });
                         setClicked(true);
@@ -1515,7 +1649,10 @@ export default function RoomPage() {
                           )?.drinks || 0,
                         ),
                         currentPlayerId: room.currentPlayerId ?? "",
-                        currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
+                        currentQuestionId:
+                          room.currentQuestionId == null
+                            ? ""
+                            : String(room.currentQuestionId),
                       });
                       setClicked(true);
                     }}
@@ -1540,7 +1677,10 @@ export default function RoomPage() {
                           )?.drinks + 1 || 0,
                         ),
                         currentPlayerId: room.currentPlayerId ?? "",
-                        currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
+                        currentQuestionId:
+                          room.currentQuestionId == null
+                            ? ""
+                            : String(room.currentQuestionId),
                       });
                       setClicked(true);
                     }}
@@ -1588,7 +1728,9 @@ export default function RoomPage() {
                           ),
                           currentPlayerId: room.currentPlayerId ?? "",
                           currentQuestionId:
-                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
+                            room.currentQuestionId == null
+                              ? ""
+                              : String(room.currentQuestionId),
                         });
                         setClicked(true);
                       }}
@@ -1614,7 +1756,9 @@ export default function RoomPage() {
                           ),
                           currentPlayerId: room.currentPlayerId ?? "",
                           currentQuestionId:
-                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
+                            room.currentQuestionId == null
+                              ? ""
+                              : String(room.currentQuestionId),
                         });
                         setClicked(true);
                       }}
@@ -1630,7 +1774,10 @@ export default function RoomPage() {
                     nextCardPOD.mutate({
                       gamecode: "pick-a-card",
                       roomId: room.id,
-                      currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
+                      currentQuestionId:
+                        room.currentQuestionId == null
+                          ? ""
+                          : String(room.currentQuestionId),
                       currentPlayerId: room.currentPlayerId ?? "",
                     });
                     setClicked(true);
@@ -1658,7 +1805,8 @@ export default function RoomPage() {
               </div>
               {currentQuestion?.edition === 13 && (
                 <p className="text-red-300 mb-4">
-                  If this is the last King, drink the center cup and end the round.
+                  If this is the last King, drink the center cup and end the
+                  round.
                 </p>
               )}
               {actualPlayer === room?.currentPlayerId && !clicked && (
@@ -1686,12 +1834,14 @@ export default function RoomPage() {
                         gamecode: "kings-cup",
                         roomId: room.id,
                         points: String(
-                          room?.players?.find((p) => p.id === room.currentPlayerId)
-                            ?.points || 0,
+                          room?.players?.find(
+                            (p) => p.id === room.currentPlayerId,
+                          )?.points || 0,
                         ),
                         drinks: String(
-                          (room?.players?.find((p) => p.id === room.currentPlayerId)
-                            ?.drinks || 0) + 1,
+                          (room?.players?.find(
+                            (p) => p.id === room.currentPlayerId,
+                          )?.drinks || 0) + 1,
                         ),
                         currentPlayerId: room.currentPlayerId ?? "",
                         currentQuestionId:
@@ -1810,7 +1960,10 @@ export default function RoomPage() {
                     nextRound.mutate({
                       gamecode: "most-likely",
                       roomId: room.id,
-                      currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
+                      currentQuestionId:
+                        room.currentQuestionId == null
+                          ? ""
+                          : String(room.currentQuestionId),
                     });
                     setClicked(true);
                   }}
@@ -1822,135 +1975,142 @@ export default function RoomPage() {
             </div>
           );
 
-        case "paranoia":
-          {
-            const isCurrentPlayer = actualPlayer === room?.currentPlayerId;
-            const revealedPlayerId = room?.currentAnswer || "";
-            const hasVoted = room?.questionAVotes?.includes(actualPlayer) || false;
-            const totalVotes = room?.questionAVotes?.length || 0;
-            const requiredVotes = Math.max(0, players.length - 1);
-            const allVoted = totalVotes >= requiredVotes;
-            const voteCounts = (room?.questionBVotes || []).reduce(
-              (acc, playerId) => {
-                acc[playerId] = (acc[playerId] || 0) + 1;
-                return acc;
-              },
-              {} as Record<string, number>,
-            );
-            const sortedVotes = Object.entries(voteCounts).sort((a, b) => b[1] - a[1]);
-            const revealedPlayerName =
-              players.find((player) => player.id === revealedPlayerId)?.name ||
-              "Unknown Player";
+        case "paranoia": {
+          const isCurrentPlayer = actualPlayer === room?.currentPlayerId;
+          const revealedPlayerId = room?.currentAnswer || "";
+          const hasVoted =
+            room?.questionAVotes?.includes(actualPlayer) || false;
+          const totalVotes = room?.questionAVotes?.length || 0;
+          const requiredVotes = Math.max(0, players.length - 1);
+          const allVoted = totalVotes >= requiredVotes;
+          const voteCounts = (room?.questionBVotes || []).reduce(
+            (acc, playerId) => {
+              acc[playerId] = (acc[playerId] || 0) + 1;
+              return acc;
+            },
+            {} as Record<string, number>,
+          );
+          const sortedVotes = Object.entries(voteCounts).sort(
+            (a, b) => b[1] - a[1],
+          );
+          const revealedPlayerName =
+            players.find((player) => player.id === revealedPlayerId)?.name ||
+            "Unknown Player";
 
-            return (
-              <div className="text-center">
-                <div className="text-xl text-emerald-400 mb-4">
-                  👤 {currentPlayer}&apos;s Turn
-                </div>
-                <div className="text-2xl mb-6 text-white leading-relaxed">
-                  {currentQuestion?.text ||
-                    "No question available. Please wait for the next round."}
-                </div>
-
-                {!revealedPlayerId && (
-                  <>
-                    <p className="text-lg text-white/80 mb-4">
-                      Vote anonymously for who fits this prompt best.
-                    </p>
-                    <p className="text-sm text-white/70 mb-6">
-                      Votes in: {totalVotes}/{requiredVotes}
-                    </p>
-
-                    {!isCurrentPlayer && (
-                      <div className="flex gap-3 justify-center flex-wrap mb-4">
-                        {players
-                          .filter((player) => player.id !== room?.currentPlayerId)
-                          .map((player) => (
-                            <button
-                              key={player.id}
-                              onClick={() => {
-                                paranoiaVote.mutate({
-                                  roomId: room.id,
-                                  playerId: actualPlayer,
-                                  votedPlayerId: player.id,
-                                });
-                              }}
-                              disabled={
-                                hasVoted || !actualPlayer || paranoiaVote.isPending
-                              }
-                              className="px-4 py-2 bg-rose-500 hover:bg-rose-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white transition-colors"
-                            >
-                              Select: {player.name}
-                            </button>
-                          ))}
-                      </div>
-                    )}
-
-                    {isCurrentPlayer && !allVoted && (
-                      <p className="text-white/70">
-                        Waiting for everyone else to vote.
-                      </p>
-                    )}
-
-                    {isCurrentPlayer && allVoted && (
-                      <button
-                        onClick={() => {
-                          paranoiaReveal.mutate({
-                            roomId: room.id,
-                            playerId: actualPlayer,
-                          });
-                        }}
-                        disabled={paranoiaReveal.isPending}
-                        className="px-6 py-3 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
-                      >
-                        Reveal Result
-                      </button>
-                    )}
-                  </>
-                )}
-
-                {revealedPlayerId && (
-                  <div className="mt-6">
-                    <div className="text-3xl font-extrabold text-yellow-300 animate-bounce">
-                      Revealed: {revealedPlayerName}
-                    </div>
-                    <div className="mt-4 text-white/80">
-                      Top votes:
-                      {sortedVotes.length === 0 && " none"}
-                    </div>
-                    <div className="mt-2 flex flex-wrap justify-center gap-2">
-                      {sortedVotes.slice(0, 5).map(([playerId, count]) => {
-                        const playerName =
-                          players.find((player) => player.id === playerId)?.name ||
-                          "Unknown";
-                        return (
-                          <Badge key={playerId} variant="secondary">
-                            {playerName}: {count}
-                          </Badge>
-                        );
-                      })}
-                    </div>
-
-                    {isCurrentPlayer && (
-                      <button
-                        onClick={() => {
-                          paranoiaNextCard.mutate({
-                            roomId: room?.id || "",
-                            currentQuestionId: room?.currentQuestionId == null ? "" : String(room.currentQuestionId),
-                            currentPlayerId: room?.currentPlayerId ?? "",
-                          });
-                        }}
-                        disabled={paranoiaNextCard.isPending}
-                        className="mt-6 px-6 py-3 bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
-                      >
-                        Next Question
-                      </button>
-                    )}
-                  </div>
-                )}
+          return (
+            <div className="text-center">
+              <div className="text-xl text-emerald-400 mb-4">
+                👤 {currentPlayer}&apos;s Turn
               </div>
-            );
-          }
+              <div className="text-2xl mb-6 text-white leading-relaxed">
+                {currentQuestion?.text ||
+                  "No question available. Please wait for the next round."}
+              </div>
+
+              {!revealedPlayerId && (
+                <>
+                  <p className="text-lg text-white/80 mb-4">
+                    Vote anonymously for who fits this prompt best.
+                  </p>
+                  <p className="text-sm text-white/70 mb-6">
+                    Votes in: {totalVotes}/{requiredVotes}
+                  </p>
+
+                  {!isCurrentPlayer && (
+                    <div className="flex gap-3 justify-center flex-wrap mb-4">
+                      {players
+                        .filter((player) => player.id !== room?.currentPlayerId)
+                        .map((player) => (
+                          <button
+                            key={player.id}
+                            onClick={() => {
+                              paranoiaVote.mutate({
+                                roomId: room.id,
+                                playerId: actualPlayer,
+                                votedPlayerId: player.id,
+                              });
+                            }}
+                            disabled={
+                              hasVoted ||
+                              !actualPlayer ||
+                              paranoiaVote.isPending
+                            }
+                            className="px-4 py-2 bg-rose-500 hover:bg-rose-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white transition-colors"
+                          >
+                            Select: {player.name}
+                          </button>
+                        ))}
+                    </div>
+                  )}
+
+                  {isCurrentPlayer && !allVoted && (
+                    <p className="text-white/70">
+                      Waiting for everyone else to vote.
+                    </p>
+                  )}
+
+                  {isCurrentPlayer && allVoted && (
+                    <button
+                      onClick={() => {
+                        paranoiaReveal.mutate({
+                          roomId: room.id,
+                          playerId: actualPlayer,
+                        });
+                      }}
+                      disabled={paranoiaReveal.isPending}
+                      className="px-6 py-3 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
+                    >
+                      Reveal Result
+                    </button>
+                  )}
+                </>
+              )}
+
+              {revealedPlayerId && (
+                <div className="mt-6">
+                  <div className="text-3xl font-extrabold text-yellow-300 animate-bounce">
+                    Revealed: {revealedPlayerName}
+                  </div>
+                  <div className="mt-4 text-white/80">
+                    Top votes:
+                    {sortedVotes.length === 0 && " none"}
+                  </div>
+                  <div className="mt-2 flex flex-wrap justify-center gap-2">
+                    {sortedVotes.slice(0, 5).map(([playerId, count]) => {
+                      const playerName =
+                        players.find((player) => player.id === playerId)
+                          ?.name || "Unknown";
+                      return (
+                        <Badge key={playerId} variant="secondary">
+                          {playerName}: {count}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+
+                  {isCurrentPlayer && (
+                    <button
+                      onClick={() => {
+                        paranoiaNextCard.mutate({
+                          roomId: room?.id || "",
+                          currentQuestionId:
+                            room?.currentQuestionId == null
+                              ? ""
+                              : String(room.currentQuestionId),
+                          currentPlayerId: room?.currentPlayerId ?? "",
+                        });
+                      }}
+                      disabled={paranoiaNextCard.isPending}
+                      className="mt-6 px-6 py-3 bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
+                    >
+                      Next Question
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        }
 
         case "verbal-charades":
           const PlayerOne = room?.playerOneId
@@ -2013,7 +2173,9 @@ export default function RoomPage() {
                           playerOneId: room.playerOneId ?? "",
                           playerTwoId: room.playerTwoId ?? "",
                           currentQuestionId:
-                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
+                            room.currentQuestionId == null
+                              ? ""
+                              : String(room.currentQuestionId),
                         });
                         setClicked(true);
                       }}
@@ -2029,7 +2191,9 @@ export default function RoomPage() {
                           playerOneId: room.playerOneId ?? "",
                           playerTwoId: room.playerTwoId ?? "",
                           currentQuestionId:
-                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
+                            room.currentQuestionId == null
+                              ? ""
+                              : String(room.currentQuestionId),
                         });
                         setClicked(true);
                       }}
@@ -2206,7 +2370,9 @@ export default function RoomPage() {
                           result: "INCORRECT",
                           currentPlayerId: room.currentPlayerId ?? "",
                           currentQuestionId:
-                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
+                            room.currentQuestionId == null
+                              ? ""
+                              : String(room.currentQuestionId),
                         });
                         setClicked(true);
                       }}
@@ -2221,7 +2387,9 @@ export default function RoomPage() {
                           result: "CORRECT",
                           currentPlayerId: room.currentPlayerId ?? "",
                           currentQuestionId:
-                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
+                            room.currentQuestionId == null
+                              ? ""
+                              : String(room.currentQuestionId),
                         });
                         setClicked(true);
                       }}
@@ -2359,7 +2527,9 @@ export default function RoomPage() {
                         nextTruthLieCard.mutate({
                           roomId: room?.id || "",
                           currentQuestionId:
-                            room?.currentQuestionId == null ? "" : String(room.currentQuestionId),
+                            room?.currentQuestionId == null
+                              ? ""
+                              : String(room.currentQuestionId),
                           currentPlayerId: room?.currentPlayerId ?? "",
                         });
                       }}
@@ -2429,7 +2599,10 @@ export default function RoomPage() {
                     nextWouldRatherQuestion.mutate({
                       gamecode: "would-you-rather",
                       roomId: room.id,
-                      currentQuestionId: room.currentQuestionId == null ? "" : String(room.currentQuestionId),
+                      currentQuestionId:
+                        room.currentQuestionId == null
+                          ? ""
+                          : String(room.currentQuestionId),
                     });
                     setClicked(true);
                   }}
@@ -2479,7 +2652,9 @@ export default function RoomPage() {
                           winningTeams: winningTeams,
                           forefit: forfited,
                           currentQuestionId:
-                            room.currentQuestionId == null ? "" : String(room.currentQuestionId),
+                            room.currentQuestionId == null
+                              ? ""
+                              : String(room.currentQuestionId),
                         });
                         setClicked(true);
                         setWinningTeams([]);
@@ -2495,22 +2670,177 @@ export default function RoomPage() {
             </div>
           );
 
+        case "memory-chain": {
+          const isMyTurn = actualPlayer === room?.currentPlayerId;
+          const nextWord = memoryChainSequence[memoryChainState.progress];
+          const pendingMissActive = Boolean(
+            memoryChainState.pendingMissQuestionId,
+          );
+          const nextPlayerAfterMissName =
+            memoryChainState.pendingMissNextPlayerId
+              ? players.find(
+                  (player) =>
+                    player.id === memoryChainState.pendingMissNextPlayerId,
+                )?.name || "next player"
+              : "next player";
+          const winnerName = memoryChainState.winnerPlayerId
+            ? players.find(
+                (player) => player.id === memoryChainState.winnerPlayerId,
+              )?.name || "Unknown"
+            : "";
+
+          return (
+            <div className="w-full">
+              <div className="mb-4 sm:mb-6 rounded-xl border border-white/20 bg-white/10 p-3 sm:p-4 backdrop-blur-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary">
+                    Progress: {memoryChainState.progress}/
+                    {memoryChainSequence.length || 20}
+                  </Badge>
+                  <Badge variant="outline">Turn: {currentPlayer}</Badge>
+                  {memoryChainState.status === "ENDED" && (
+                    <Badge className="bg-emerald-600">
+                      Winner: {winnerName}
+                    </Badge>
+                  )}
+                </div>
+                {memoryChainState.status === "PLAYING" && (
+                  <p className="mt-3 text-sm sm:text-base text-white/90">
+                    Next word:{" "}
+                    <span className="font-bold text-cyan-300">
+                      {nextWord?.text || "Loading..."}
+                    </span>
+                  </p>
+                )}
+                {pendingMissActive && (
+                  <p className="mt-2 text-sm text-red-300">
+                    Wrong card is revealed. Click Next Player to continue turn
+                    to {nextPlayerAfterMissName}.
+                  </p>
+                )}
+                {!isMyTurn && memoryChainState.status === "PLAYING" && (
+                  <p className="mt-2 text-sm text-amber-300">
+                    Waiting for {currentPlayer} to pick the next card.
+                  </p>
+                )}
+              </div>
+
+              <div className="grid gap-4 sm:gap-6 lg:grid-cols-[2fr_1fr]">
+                <div className="rounded-xl border border-white/20 bg-white/10 p-2 sm:p-3 backdrop-blur-sm">
+                  <div className="grid grid-cols-4 md:grid-cols-5 gap-1.5 sm:gap-2">
+                    {memoryChainBoard.map((card) => {
+                      const isMissCard =
+                        memoryChainState.pendingMissQuestionId === card.id &&
+                        pendingMissActive;
+                      const isRevealed = card.revealed || isMissCard;
+                      return (
+                        <button
+                          key={card.id}
+                          onClick={() => {
+                            if (pendingMissActive) {
+                              toast.error("Wait for reset to finish.");
+                              return;
+                            }
+                            if (!isMyTurn) {
+                              toast.error("It is not your turn.");
+                              return;
+                            }
+                            memoryChainGuess.mutate({
+                              roomId: room?.id || "",
+                              playerId: actualPlayer || "",
+                              questionId: card.id,
+                            });
+                          }}
+                          disabled={
+                            memoryChainState.status !== "PLAYING" ||
+                            pendingMissActive ||
+                            memoryChainGuess.isPending
+                          }
+                          className={`min-h-[72px] sm:min-h-24 rounded-md border p-1.5 sm:p-2 text-center text-[11px] sm:text-sm font-semibold transition whitespace-normal break-words leading-tight overflow-hidden ${
+                            isMissCard
+                              ? "bg-red-500/80 border-red-200 text-white"
+                              : isRevealed
+                                ? "bg-emerald-500/80 border-emerald-200 text-white"
+                                : "bg-slate-900/70 border-white/20 text-white hover:scale-[1.02]"
+                          }`}
+                        >
+                          {isRevealed ? card.text : "Hidden"}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {pendingMissActive && isMyTurn && (
+                    <div className="mt-4 flex justify-center">
+                      <Button
+                        onClick={() =>
+                          memoryChainNextPlayer.mutate({
+                            roomId: room?.id || "",
+                            playerId: actualPlayer || "",
+                          })
+                        }
+                        disabled={memoryChainNextPlayer.isPending}
+                        className="w-full sm:w-auto bg-yellow-500 hover:bg-yellow-600"
+                      >
+                        Next Player
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-white/20 bg-white/10 p-3 sm:p-4 backdrop-blur-sm">
+                  <h3 className="text-base sm:text-lg font-semibold mb-3">
+                    Word Order
+                  </h3>
+                  <div className="max-h-64 sm:max-h-96 overflow-auto space-y-2 pr-1">
+                    {memoryChainSequence.map((item, index) => {
+                      const isDone = index < memoryChainState.progress;
+                      const isCurrent = index === memoryChainState.progress;
+                      return (
+                        <div
+                          key={item.id}
+                          className={`rounded-md px-3 py-2 text-xs sm:text-sm ${
+                            isDone
+                              ? "bg-emerald-600/40 border border-emerald-300/40"
+                              : isCurrent
+                                ? "bg-cyan-600/30 border border-cyan-300/40"
+                                : "bg-black/20 border border-white/10"
+                          }`}
+                        >
+                          {index + 1}. {item.text}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
         case "codenames": {
           const me = players.find((player) => player.id === actualPlayer);
           const myTeam = me?.team || "";
           const redPlayers = players.filter((player) => player.team === "RED");
-          const bluePlayers = players.filter((player) => player.team === "BLUE");
+          const bluePlayers = players.filter(
+            (player) => player.team === "BLUE",
+          );
           const isSpymaster =
-            actualPlayer === room?.playerOneId || actualPlayer === room?.playerTwoId;
+            actualPlayer === room?.playerOneId ||
+            actualPlayer === room?.playerTwoId;
           const activeSpymasterId =
-            codenamesState.turnTeam === "RED" ? room?.playerOneId : room?.playerTwoId;
+            codenamesState.turnTeam === "RED"
+              ? room?.playerOneId
+              : room?.playerTwoId;
           const canEndTurn =
-            codenamesState.status === "PLAYING" && myTeam === codenamesState.turnTeam;
+            codenamesState.status === "PLAYING" &&
+            myTeam === codenamesState.turnTeam;
           const guessBlockReason = () => {
-            if (codenamesState.status !== "PLAYING") return "Game is not in progress.";
+            if (codenamesState.status !== "PLAYING")
+              return "Game is not in progress.";
             if (!actualPlayer) return "Select your player first.";
             if (!myTeam) return "Pick a team first.";
-            if (myTeam !== codenamesState.turnTeam) return "It is not your team's turn.";
+            if (myTeam !== codenamesState.turnTeam)
+              return "It is not your team's turn.";
             if (actualPlayer === activeSpymasterId)
               return "Spymaster cannot guess. Let operatives guess.";
             return "";
@@ -2520,10 +2850,14 @@ export default function RoomPage() {
             <div className="w-full">
               <div className="mb-6 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="secondary">Status: {codenamesState.status}</Badge>
+                  <Badge variant="secondary">
+                    Status: {codenamesState.status}
+                  </Badge>
                   <Badge
                     className={
-                      codenamesState.turnTeam === "RED" ? "bg-red-600" : "bg-blue-600"
+                      codenamesState.turnTeam === "RED"
+                        ? "bg-red-600"
+                        : "bg-blue-600"
                     }
                   >
                     Turn: {codenamesState.turnTeam}
@@ -2534,8 +2868,12 @@ export default function RoomPage() {
                       ? "Not Set"
                       : codenamesState.guessesRemaining}
                   </Badge>
-                  {myTeam && <Badge variant="outline">Your Team: {myTeam}</Badge>}
-                  {isSpymaster && <Badge className="bg-purple-600">Role: Spymaster</Badge>}
+                  {myTeam && (
+                    <Badge variant="outline">Your Team: {myTeam}</Badge>
+                  )}
+                  {isSpymaster && (
+                    <Badge className="bg-purple-600">Role: Spymaster</Badge>
+                  )}
                   {codenamesState.winner && (
                     <Badge className="bg-emerald-600">
                       Winner: {codenamesState.winner}
@@ -2606,40 +2944,40 @@ export default function RoomPage() {
                               : "bg-zinc-400/70 border-zinc-200 text-black"
                         : hiddenClass;
 
-                    return (
-                      <button
-                        key={card.id}
-                        disabled={
-                          card.revealed ||
-                          codenamesGuess.isPending ||
-                          codenamesSelectedCardId !== null
-                        }
-                        onClick={() => {
-                          const blockReason = guessBlockReason();
-                          if (blockReason) {
-                            toast.error(blockReason);
-                            return;
+                      return (
+                        <button
+                          key={card.id}
+                          disabled={
+                            card.revealed ||
+                            codenamesGuess.isPending ||
+                            codenamesSelectedCardId !== null
                           }
-                          setCodenamesSelectedCardId(card.id);
-                          toast.success("Card selected");
-                          codenamesGuess.mutate({
-                            roomId: room?.id || "",
-                            playerId: actualPlayer || "",
-                            questionId: card.id,
-                          });
-                        }}
-                        className={`min-h-24 rounded-md border p-2 text-center text-sm font-semibold transition ${revealedClass} ${
-                          !card.revealed &&
-                          !codenamesGuess.isPending &&
-                          codenamesSelectedCardId === null
-                            ? "cursor-pointer hover:scale-[1.02]"
-                            : "cursor-default"
-                        } whitespace-normal break-words leading-tight overflow-hidden text-[11px] sm:text-sm sm:leading-snug`}
-                      >
-                        {card.text}
-                      </button>
-                    );
-                  })}
+                          onClick={() => {
+                            const blockReason = guessBlockReason();
+                            if (blockReason) {
+                              toast.error(blockReason);
+                              return;
+                            }
+                            setCodenamesSelectedCardId(card.id);
+                            toast.success("Card selected");
+                            codenamesGuess.mutate({
+                              roomId: room?.id || "",
+                              playerId: actualPlayer || "",
+                              questionId: card.id,
+                            });
+                          }}
+                          className={`min-h-24 rounded-md border p-2 text-center text-sm font-semibold transition ${revealedClass} ${
+                            !card.revealed &&
+                            !codenamesGuess.isPending &&
+                            codenamesSelectedCardId === null
+                              ? "cursor-pointer hover:scale-[1.02]"
+                              : "cursor-default"
+                          } whitespace-normal break-words leading-tight overflow-hidden text-[11px] sm:text-sm sm:leading-snug`}
+                        >
+                          {card.text}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -2666,7 +3004,9 @@ export default function RoomPage() {
                   <div className="rounded-xl border border-blue-300/40 bg-blue-500/10 p-4 backdrop-blur-sm">
                     <div className="mb-2 flex items-center justify-between">
                       <div className="text-lg font-semibold">BLUE Team</div>
-                      <Badge className="bg-blue-600">{bluePlayers.length}</Badge>
+                      <Badge className="bg-blue-600">
+                        {bluePlayers.length}
+                      </Badge>
                     </div>
                     <div className="space-y-2">
                       {bluePlayers.map((player) => (
@@ -2756,7 +3096,11 @@ export default function RoomPage() {
           openAddPlayerModal={openAddPlayerModal}
           setOpenAddPlayerModal={setOpenAddPlayerModal}
           selectedGame={selectedGame}
-          teams={selectedGame === "codenames" ? ["RED", "BLUE"] : room?.playingTeams || []}
+          teams={
+            selectedGame === "codenames"
+              ? ["RED", "BLUE"]
+              : room?.playingTeams || []
+          }
           teamPlayers={codenamesUnassignedPlayers}
           selectedTeamPlayerId={selectedTeamPlayerId}
           setSelectedTeamPlayerId={setSelectedTeamPlayerId}
@@ -2952,4 +3296,3 @@ const RoomControls = React.memo(function RoomControls({
     </div>
   );
 });
-

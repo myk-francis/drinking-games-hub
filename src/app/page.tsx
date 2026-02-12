@@ -21,18 +21,27 @@ import {
   ScrollText,
   VenetianMask,
   Scale,
+  ClipboardPaste,
+  Loader2,
+  Brain,
 } from "lucide-react";
 import React from "react";
 import { useTRPC } from "@/trpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loading } from "@/components/ui/loading";
 import { ComboBox } from "@/components/apps-components/comboBox";
 import { QRCodeCanvas } from "qrcode.react";
 import { UserAvatarPopover } from "@/components/apps-components/profile-avatar";
+import {
+  getSelfServiceValidationError,
+  parseSelfServicePayload,
+  type SelfServicePayload,
+} from "@/lib/self-service";
 
 interface TeamsInfo {
   teamName: string;
@@ -65,7 +74,7 @@ export default function HomePage() {
       enabled: !!currentUser,
     }),
   );
-  const [selectedGame, setSelectedGame] = React.useState(null);
+  const [selectedGame, setSelectedGame] = React.useState<string | null>(null);
   const [players, setPlayers] = React.useState<string[]>([]);
   const [teams, setTeams] = React.useState<string[]>([]);
   const [teamsInfo, setTeamsInfo] = React.useState<TeamsInfo[]>([]);
@@ -79,6 +88,11 @@ export default function HomePage() {
     React.useState(true);
   const [selectedRounds, setSelectedRounds] = React.useState<number>(0);
   const [selectedEdition, setSelectedEdition] = React.useState<number>(0);
+  const [showJsonImport, setShowJsonImport] = React.useState(false);
+  const [jsonImportInput, setJsonImportInput] = React.useState("");
+  const [roomCreateSource, setRoomCreateSource] = React.useState<
+    "manual" | "self-service" | null
+  >(null);
 
   const normalizeAppUrl = (rawUrl?: string) => {
     let value = (rawUrl ?? "").trim();
@@ -108,19 +122,26 @@ export default function HomePage() {
     trpc.games.createRoom.mutationOptions({
       onSuccess: (data) => {
         toast.success("Room created successfully");
-        // Optionally, redirect to the room or show a success message
         const newRoomId = data?.id || "";
         setRoomId(newRoomId);
         const baseUrl = normalizeAppUrl(process.env.NEXT_PUBLIC_APP_URL);
         const url = `${baseUrl}/room/${newRoomId}`;
         setGameUrl(url);
+
+        if (roomCreateSource === "self-service") {
+          setShowJsonImport(false);
+          setJsonImportInput("");
+        }
+        setRoomCreateSource(null);
       },
       onError: (error) => {
         console.error("Error creating room:", error);
+        setRoomCreateSource(null);
         // alert("Failed to create room. Please try again.");
       },
     }),
   );
+  const isCreatingRoom = createRoom.isPending;
 
   React.useEffect(() => {
     if (!userLoading) {
@@ -192,6 +213,8 @@ export default function HomePage() {
       return <Scale className="w-6 h-6" />;
     } else if (gamecode === "codenames") {
       return <Layers className="w-6 h-6" />;
+    } else if (gamecode === "memory-chain") {
+      return <Brain className="w-6 h-6" />;
     } else {
       return <Gamepad2 className="w-6 h-6" />;
     }
@@ -232,9 +255,30 @@ export default function HomePage() {
       return "from-fuchsia-600 to-indigo-600";
     } else if (gamecode === "codenames") {
       return "from-red-600 to-blue-700";
+    } else if (gamecode === "memory-chain") {
+      return "from-cyan-600 to-slate-700";
     } else {
       return "from-teal-500 to-cyan-500";
     }
+  };
+
+  const createRoomFromPayload = (
+    payload: SelfServicePayload,
+    source: "manual" | "self-service",
+  ) => {
+    const validationError = getSelfServiceValidationError(payload);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+    setRoomCreateSource(source);
+    createRoom.mutate({
+      selectedGame: payload.selectedGame,
+      players: payload.players,
+      userId: currentUser?.id || "",
+      selectedRounds: payload.selectedRounds,
+      teamsInfo: payload.teamsInfo,
+    });
   };
 
   const handleCreateRoom = () => {
@@ -243,28 +287,28 @@ export default function HomePage() {
       return;
     }
 
-    const minPlayersByGame: Record<string, number> = {
-      paranoia: 3,
-      "kings-cup": 2,
-      "taboo-lite": 4,
-    };
+    createRoomFromPayload(
+      {
+        version: 1,
+        selectedGame,
+        players,
+        selectedRounds:
+          selectedGame === "truth-or-drink" ? selectedEdition : selectedRounds,
+        teamsInfo,
+      },
+      "manual",
+    );
+  };
 
-    const requiredPlayers = minPlayersByGame[selectedGame];
-    if (requiredPlayers && players.length < requiredPlayers) {
-      toast.error(
-        `This game needs at least ${requiredPlayers} players. You currently have ${players.length}.`,
-      );
+  const handleCreateRoomFromJson = () => {
+    const parsedPayload = parseSelfServicePayload(jsonImportInput);
+    if (!parsedPayload.success) {
+      toast.error(parsedPayload.error);
       return;
     }
 
-    createRoom.mutate({
-      selectedGame,
-      players,
-      userId: currentUser?.id || "",
-      selectedRounds:
-        selectedGame === "truth-or-drink" ? selectedEdition : selectedRounds,
-      teamsInfo,
-    });
+    const payload = parsedPayload.data;
+    createRoomFromPayload(payload, "self-service");
   };
 
   const addPlayer = () => {
@@ -592,12 +636,61 @@ export default function HomePage() {
                 )}
               </div>
 
+              {permissionToCreateRoooms && (
+                <div className="mb-8 max-w-3xl mx-auto">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setShowJsonImport((prev) => !prev)}
+                    className="w-full md:w-auto"
+                    disabled={isCreatingRoom}
+                  >
+                    <ClipboardPaste className="w-4 h-4 mr-2" />
+                    {showJsonImport
+                      ? "Hide Self-Service JSON"
+                      : "Paste Self-Service JSON"}
+                  </Button>
+
+                  {showJsonImport && (
+                    <div className="mt-4 p-4 bg-white/10 border border-white/20 rounded-xl">
+                      <Textarea
+                        value={jsonImportInput}
+                        onChange={(event) =>
+                          setJsonImportInput(event.target.value)
+                        }
+                        placeholder="Paste JSON received from self-service page"
+                        className="min-h-40 bg-white text-black text-sm md:text-base"
+                        disabled={isCreatingRoom}
+                      />
+                      <div className="mt-3 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+                        <Button
+                          type="button"
+                          onClick={handleCreateRoomFromJson}
+                          disabled={isCreatingRoom}
+                          className="w-full sm:w-auto"
+                        >
+                          {isCreatingRoom ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Creating Link...
+                            </>
+                          ) : (
+                            "Create Link From JSON"
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="flex gap-4 justify-center flex-wrap">
                 {!roomId && permissionToCreateRoooms && (
                   <button
                     onClick={handleCreateRoom}
                     disabled={
+                      isCreatingRoom ||
                       !selectedGame ||
                       (selectedGame === "most-likely" && players.length < 3) ||
                       (selectedGame === "verbal-charades" &&
@@ -614,6 +707,7 @@ export default function HomePage() {
                       (selectedGame === "pick-a-card" && players.length < 3) ||
                       (selectedGame === "imposter" && players.length < 4) ||
                       (selectedGame === "truth-or-lie" && players.length < 2) ||
+                      (selectedGame === "memory-chain" && players.length < 2) ||
                       (selectedGame === "triviyay" && teams.length > 2)
                     }
                     className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
