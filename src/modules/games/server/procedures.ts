@@ -33,7 +33,7 @@ const CODENAMES_ASSIGNMENT_VALUES = [
   "NEUTRAL",
   "ASSASSIN",
 ] as const;
-const MEMORY_CHAIN_CARD_COUNT = 10;
+const MEMORY_CHAIN_CARD_COUNT = 12;
 
 type CodenamesTeam = (typeof CODENAMES_TEAM_VALUES)[number];
 type CodenamesAssignment = (typeof CODENAMES_ASSIGNMENT_VALUES)[number];
