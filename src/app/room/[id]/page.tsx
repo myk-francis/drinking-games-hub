@@ -1360,9 +1360,11 @@ export default function RoomPage() {
     drinks: number | null;
     player: string;
   }) => (
-    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center border border-white/20">
-      <div className="font-bold text-lg text-white mb-1">{player}</div>
-      <div className="text-2xl font-bold text-emerald-400 mb-1">
+    <div className="w-full min-w-0 bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center border border-white/20">
+      <div className="font-bold text-lg text-white mb-1 truncate" title={player}>
+        {player}
+      </div>
+      <div className="text-lg sm:text-2xl font-bold text-emerald-400 mb-1 whitespace-nowrap leading-tight">
         {points || 0}{" "}
         {selectedGame === "most-likely" || selectedGame === "paranoia"
           ? "votes"
@@ -1408,7 +1410,7 @@ export default function RoomPage() {
               </div>
             </>
           )}
-          <div className="flex gap-4 flex-wrap">
+          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {players.map((player) => (
               <PlayerScore
                 key={player.id}
@@ -3229,7 +3231,7 @@ const RoomScoreboard = React.memo(function RoomScoreboard({
           ))}
         </div>
       )}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
         {players.map((player) => (
           <PlayerScoreComponent
             key={player.id}
