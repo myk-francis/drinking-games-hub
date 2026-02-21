@@ -3948,7 +3948,6 @@ export const gamesRouter = createTRPCRouter({
       );
 
       let nextTargetPlayerId: string | null = null;
-      let gameEnded = false;
 
       if (everyoneGuessed) {
         const entries = expectedGuessers
