@@ -193,7 +193,8 @@ function GameComments({ comments }: GameCommentsProps) {
 
 const MAX_CHARS = 250;
 const DRINK_ALERT_STEP = 5;
-const LOSING_MEME_SOUND_PATH = "/sounds/losing-meme.wav";
+const LOSING_MEME_SOUND_PATH = "/sounds/losing-meme.mp4";
+const LOSING_MEME_FALLBACK_SOUND_PATH = "/sounds/losing-meme.wav";
 const GAME_OVER_SOUND_PATH = "/sounds/game-over-piano.mp3";
 
 const normalizeUrl = (rawUrl?: string) => {
@@ -1373,6 +1374,28 @@ export default function RoomPage() {
     setIsGameOverSoundPlaying(false);
   }, []);
 
+  const playLosingSound = React.useCallback(async () => {
+    const candidateSources = [
+      LOSING_MEME_SOUND_PATH,
+      LOSING_MEME_FALLBACK_SOUND_PATH,
+    ];
+
+    for (const source of candidateSources) {
+      const audio = new Audio(source);
+      audio.preload = "auto";
+      audio.currentTime = 0;
+      try {
+        await audio.play();
+        losingSoundRef.current = audio;
+        return true;
+      } catch {
+        // Try next fallback source.
+      }
+    }
+
+    return false;
+  }, []);
+
   React.useEffect(() => {
     if (!room?.id || !actualPlayer) {
       return;
@@ -1414,18 +1437,11 @@ export default function RoomPage() {
     }
 
     if (shouldPlay) {
-      if (!losingSoundRef.current) {
-        losingSoundRef.current = new Audio(LOSING_MEME_SOUND_PATH);
-        losingSoundRef.current.preload = "auto";
-      }
-      losingSoundRef.current.currentTime = 0;
-      void losingSoundRef.current.play().catch(() => {
-        // Ignore autoplay/permission errors silently.
-      });
+      void playLosingSound();
     }
 
     previousDrinksByPlayerRef.current[actualPlayer] = currentDrinks;
-  }, [actualPlayer, players, room?.id]);
+  }, [actualPlayer, playLosingSound, players, room?.id]);
 
   React.useEffect(() => {
     if (selectedGame !== "codenames" || codenamesState.status !== "LOBBY") {
