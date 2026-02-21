@@ -24,6 +24,7 @@ import {
   ClipboardPaste,
   Loader2,
   Brain,
+  Hash,
 } from "lucide-react";
 import React from "react";
 import { useTRPC } from "@/trpc/client";
@@ -215,6 +216,8 @@ export default function HomePage() {
       return <Layers className="w-6 h-6" />;
     } else if (gamecode === "memory-chain") {
       return <Brain className="w-6 h-6" />;
+    } else if (gamecode === "guess-the-number") {
+      return <Hash className="w-6 h-6" />;
     } else {
       return <Gamepad2 className="w-6 h-6" />;
     }
@@ -257,6 +260,8 @@ export default function HomePage() {
       return "from-red-600 to-blue-700";
     } else if (gamecode === "memory-chain") {
       return "from-cyan-600 to-slate-700";
+    } else if (gamecode === "guess-the-number") {
+      return "from-emerald-600 to-cyan-700";
     } else {
       return "from-teal-500 to-cyan-500";
     }
@@ -708,6 +713,8 @@ export default function HomePage() {
                       (selectedGame === "imposter" && players.length < 4) ||
                       (selectedGame === "truth-or-lie" && players.length < 2) ||
                       (selectedGame === "memory-chain" && players.length < 2) ||
+                      (selectedGame === "guess-the-number" &&
+                        players.length < 2) ||
                       (selectedGame === "triviyay" && teams.length > 2)
                     }
                     className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"

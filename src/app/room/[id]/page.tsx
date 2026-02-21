@@ -1,5 +1,5 @@
 "use client";
-import { Home, UserPlus2, QrCodeIcon } from "lucide-react";
+import { Home, UserPlus2, QrCodeIcon, ChevronDown, VolumeX } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useTRPC } from "@/trpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -46,6 +46,34 @@ type MemoryChainRoomState = {
   winnerPlayerId: string | null;
   pendingMissQuestionId: number | null;
   pendingMissNextPlayerId: string | null;
+};
+type GuessTheNumberFeedback = "PENDING" | "UP" | "DOWN" | "CORRECT";
+type GuessTheNumberRoundGuess = {
+  guess: number;
+  feedback: GuessTheNumberFeedback;
+};
+type GuessTheNumberRoundSummaryEntry = {
+  guesserPlayerId: string;
+  guess: number;
+  feedback: Exclude<GuessTheNumberFeedback, "PENDING">;
+};
+type GuessTheNumberRoundSummary = {
+  targetPlayerId: string;
+  targetNumber: number;
+  entries: GuessTheNumberRoundSummaryEntry[];
+};
+type GuessTheNumberRoomState = {
+  status: "SETUP" | "PLAYING" | "ENDED";
+  minValue: number;
+  maxValue: number;
+  playerNumbers: Record<string, number | null>;
+  playerOrder: string[];
+  currentRoundGuesses: Record<string, GuessTheNumberRoundGuess>;
+  roundHistory: GuessTheNumberRoundSummary[];
+  completedTargetPlayerIds: string[];
+  playerDiscoveries: Record<string, string[]>;
+  winnerPlayerId: string | null;
+  winnerTargetPlayerId: string | null;
 };
 
 interface TeamStats {
@@ -164,6 +192,9 @@ function GameComments({ comments }: GameCommentsProps) {
 }
 
 const MAX_CHARS = 250;
+const DRINK_ALERT_STEP = 5;
+const LOSING_MEME_SOUND_PATH = "/sounds/losing-meme.wav";
+const GAME_OVER_SOUND_PATH = "/sounds/game-over-piano.mp3";
 
 const normalizeUrl = (rawUrl?: string) => {
   let value = (rawUrl ?? "").trim();
@@ -375,6 +406,150 @@ function parseMemoryChainState(
       pendingMissNextPlayerId:
         typeof parsed.pendingMissNextPlayerId === "string"
           ? parsed.pendingMissNextPlayerId
+          : null,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function parseGuessTheNumberState(
+  raw: string | null | undefined,
+): GuessTheNumberRoomState {
+  const fallback: GuessTheNumberRoomState = {
+    status: "SETUP",
+    minValue: 0,
+    maxValue: 100,
+    playerNumbers: {},
+    playerOrder: [],
+    currentRoundGuesses: {},
+    roundHistory: [],
+    completedTargetPlayerIds: [],
+    playerDiscoveries: {},
+    winnerPlayerId: null,
+    winnerTargetPlayerId: null,
+  };
+
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<GuessTheNumberRoomState>;
+    const currentRoundGuesses: Record<string, GuessTheNumberRoundGuess> = {};
+    if (
+      parsed.currentRoundGuesses &&
+      typeof parsed.currentRoundGuesses === "object"
+    ) {
+      for (const [playerId, value] of Object.entries(
+        parsed.currentRoundGuesses,
+      )) {
+        if (!value || typeof value !== "object") continue;
+        if (
+          typeof value.guess === "number" &&
+          Number.isInteger(value.guess) &&
+          (value.feedback === "PENDING" ||
+            value.feedback === "UP" ||
+            value.feedback === "DOWN" ||
+            value.feedback === "CORRECT")
+        ) {
+          currentRoundGuesses[playerId] = {
+            guess: value.guess,
+            feedback: value.feedback,
+          };
+        }
+      }
+    }
+
+    return {
+      status:
+        parsed.status === "PLAYING" || parsed.status === "ENDED"
+          ? parsed.status
+          : "SETUP",
+      minValue:
+        typeof parsed.minValue === "number" && Number.isFinite(parsed.minValue)
+          ? parsed.minValue
+          : 0,
+      maxValue:
+        typeof parsed.maxValue === "number" && Number.isFinite(parsed.maxValue)
+          ? parsed.maxValue
+          : 100,
+      playerNumbers:
+        parsed.playerNumbers && typeof parsed.playerNumbers === "object"
+          ? (parsed.playerNumbers as Record<string, number | null>)
+          : {},
+      playerOrder: Array.isArray(parsed.playerOrder)
+        ? parsed.playerOrder.filter(
+            (playerId): playerId is string => typeof playerId === "string",
+          )
+        : [],
+      currentRoundGuesses,
+      roundHistory: Array.isArray(parsed.roundHistory)
+        ? parsed.roundHistory
+            .map((round) => {
+              if (!round || typeof round !== "object") return null;
+              if (
+                typeof round.targetPlayerId !== "string" ||
+                typeof round.targetNumber !== "number" ||
+                !Array.isArray(round.entries)
+              ) {
+                return null;
+              }
+
+              const entries = round.entries
+                .map((entry) => {
+                  if (!entry || typeof entry !== "object") return null;
+                  if (
+                    typeof entry.guesserPlayerId !== "string" ||
+                    typeof entry.guess !== "number" ||
+                    (entry.feedback !== "UP" &&
+                      entry.feedback !== "DOWN" &&
+                      entry.feedback !== "CORRECT")
+                  ) {
+                    return null;
+                  }
+
+                  return {
+                    guesserPlayerId: entry.guesserPlayerId,
+                    guess: entry.guess,
+                    feedback: entry.feedback,
+                  } satisfies GuessTheNumberRoundSummaryEntry;
+                })
+                .filter(
+                  (entry): entry is GuessTheNumberRoundSummaryEntry =>
+                    entry !== null,
+                );
+
+              return {
+                targetPlayerId: round.targetPlayerId,
+                targetNumber: round.targetNumber,
+                entries,
+              } satisfies GuessTheNumberRoundSummary;
+            })
+            .filter((round): round is GuessTheNumberRoundSummary => round !== null)
+        : [],
+      completedTargetPlayerIds: Array.isArray(parsed.completedTargetPlayerIds)
+        ? parsed.completedTargetPlayerIds.filter(
+            (playerId): playerId is string => typeof playerId === "string",
+          )
+        : [],
+      playerDiscoveries:
+        parsed.playerDiscoveries && typeof parsed.playerDiscoveries === "object"
+          ? Object.fromEntries(
+              Object.entries(parsed.playerDiscoveries).map(([playerId, targets]) => [
+                playerId,
+                Array.isArray(targets)
+                  ? targets.filter(
+                      (targetId): targetId is string =>
+                        typeof targetId === "string",
+                    )
+                  : [],
+              ]),
+            )
+          : {},
+      winnerPlayerId:
+        typeof parsed.winnerPlayerId === "string" ? parsed.winnerPlayerId : null,
+      winnerTargetPlayerId:
+        typeof parsed.winnerTargetPlayerId === "string"
+          ? parsed.winnerTargetPlayerId
           : null,
     };
   } catch {
@@ -757,6 +932,46 @@ export default function RoomPage() {
       },
     }),
   );
+  const guessNumberSetPlayerNumber = useMutation(
+    trpc.games.guessNumberSetPlayerNumber.mutationOptions({
+      onSuccess: () => {
+        toast.success("Your secret number is saved.");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not save your number.");
+      },
+    }),
+  );
+  const guessNumberSubmitGuess = useMutation(
+    trpc.games.guessNumberSubmitGuess.mutationOptions({
+      onSuccess: (data) => {
+        const hint =
+          data.feedback === "UP"
+            ? "⬆️ Go higher"
+            : data.feedback === "DOWN"
+              ? "⬇️ Go lower"
+              : "✅ Correct";
+        if (data.winnerPlayerId) {
+          const winnerName =
+            players.find((player) => player.id === data.winnerPlayerId)?.name ||
+            "Winner";
+          toast.success(`${hint}. ${winnerName} won. End game when ready.`);
+          return;
+        }
+        if (data.roundCompleted) {
+          const nextPlayerName =
+            players.find((player) => player.id === data.nextTargetPlayerId)
+              ?.name || "next player";
+          toast.success(`${hint}. Next target: ${nextPlayerName}`);
+          return;
+        }
+        toast.success(hint);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not submit guess.");
+      },
+    }),
+  );
 
   const vote = useMutation(
     trpc.games.votePlayer.mutationOptions({
@@ -789,6 +1004,12 @@ export default function RoomPage() {
   const [codenamesSelectedCardId, setCodenamesSelectedCardId] = React.useState<
     number | null
   >(null);
+  const [secretPickerOpenStart, setSecretPickerOpenStart] = React.useState<
+    number | null
+  >(0);
+  const [guessPickerOpenStart, setGuessPickerOpenStart] = React.useState<
+    number | null
+  >(0);
   const [openAddPlayerModal, setOpenAddPlayerModal] = React.useState(false);
   const [showAddPlayerModal, setShowAddPlayerModal] = React.useState(false);
   const [openDialog, setOpenDialog] = React.useState(false);
@@ -867,6 +1088,10 @@ export default function RoomPage() {
     }));
   }, [game?.questions, memoryChainState.sequence]);
 
+  const guessNumberState = React.useMemo(() => {
+    return parseGuessTheNumberState(room?.currentAnswer);
+  }, [room?.currentAnswer]);
+
   const codenamesUnassignedPlayers = React.useMemo(() => {
     if (!players.length) return [];
 
@@ -915,8 +1140,14 @@ export default function RoomPage() {
   );
   const [isRunning, setIsRunning] = React.useState(false);
   const [showQRCode, setShowQRCode] = React.useState(false);
+  const [isGameOverSoundPlaying, setIsGameOverSoundPlaying] =
+    React.useState(false);
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
   const codenamesIdentityInitializedRef = React.useRef(false);
+  const losingSoundRef = React.useRef<HTMLAudioElement | null>(null);
+  const gameOverSoundRef = React.useRef<HTMLAudioElement | null>(null);
+  const hasPlayedGameOverSoundRef = React.useRef(false);
+  const previousDrinksByPlayerRef = React.useRef<Record<string, number>>({});
 
   const playerAddedComment = React.useMemo(() => {
     return (comments?.length || 0) >= players.length;
@@ -1093,6 +1324,108 @@ export default function RoomPage() {
 
     setOpenAddPlayerModal(needsTeamSelection);
   }, [actualPlayer, players, room?.gameEnded, selectedGame]);
+
+  React.useEffect(() => {
+    // Reset one-time guard for each page load of a room,
+    // so a browser refresh can replay the game-over music once.
+    if (!room?.id) return;
+    hasPlayedGameOverSoundRef.current = false;
+    gameOverSoundRef.current = null;
+  }, [room?.id]);
+
+  React.useEffect(() => {
+    if (!room?.id || !room.gameEnded || hasPlayedGameOverSoundRef.current) {
+      return;
+    }
+
+    gameOverSoundRef.current = new Audio(GAME_OVER_SOUND_PATH);
+    gameOverSoundRef.current.preload = "auto";
+    gameOverSoundRef.current.currentTime = 0;
+    hasPlayedGameOverSoundRef.current = true;
+    void gameOverSoundRef.current
+      .play()
+      .then(() => {
+        setIsGameOverSoundPlaying(true);
+      })
+      .catch(() => {
+        setIsGameOverSoundPlaying(false);
+        // Ignore autoplay/permission errors silently.
+      });
+  }, [room?.gameEnded, room?.id]);
+
+  React.useEffect(() => {
+    const audio = gameOverSoundRef.current;
+    if (!audio) return;
+    const onEnded = () => setIsGameOverSoundPlaying(false);
+    const onPause = () => setIsGameOverSoundPlaying(false);
+    audio.addEventListener("ended", onEnded);
+    audio.addEventListener("pause", onPause);
+    return () => {
+      audio.removeEventListener("ended", onEnded);
+      audio.removeEventListener("pause", onPause);
+    };
+  }, [room?.id, room?.gameEnded]);
+
+  const handleStopGameOverSound = React.useCallback(() => {
+    if (!gameOverSoundRef.current) return;
+    gameOverSoundRef.current.pause();
+    gameOverSoundRef.current.currentTime = 0;
+    setIsGameOverSoundPlaying(false);
+  }, []);
+
+  React.useEffect(() => {
+    if (!room?.id || !actualPlayer) {
+      return;
+    }
+
+    const me = players.find((player) => player.id === actualPlayer);
+    if (!me) {
+      return;
+    }
+
+    const currentDrinks = Math.max(0, me.drinks ?? 0);
+    const previousDrinks = previousDrinksByPlayerRef.current[actualPlayer];
+
+    if (typeof previousDrinks !== "number") {
+      previousDrinksByPlayerRef.current[actualPlayer] = currentDrinks;
+      return;
+    }
+
+    const previousStep = Math.floor(previousDrinks / DRINK_ALERT_STEP);
+    const currentStep = Math.floor(currentDrinks / DRINK_ALERT_STEP);
+
+    const crossedThresholds: number[] = [];
+    if (currentStep > previousStep) {
+      for (let step = previousStep + 1; step <= currentStep; step += 1) {
+        const threshold = step * DRINK_ALERT_STEP;
+        if (threshold > 0) {
+          crossedThresholds.push(threshold);
+        }
+      }
+    }
+
+    let shouldPlay = false;
+    for (const threshold of crossedThresholds) {
+      const thresholdStorageKey = `room-drink-sound:${room.id}:${actualPlayer}:${threshold}`;
+      if (localStorage.getItem(thresholdStorageKey) !== "1") {
+        localStorage.setItem(thresholdStorageKey, "1");
+        shouldPlay = true;
+      }
+    }
+
+    if (shouldPlay) {
+      if (!losingSoundRef.current) {
+        losingSoundRef.current = new Audio(LOSING_MEME_SOUND_PATH);
+        losingSoundRef.current.preload = "auto";
+      }
+      losingSoundRef.current.currentTime = 0;
+      void losingSoundRef.current.play().catch(() => {
+        // Ignore autoplay/permission errors silently.
+      });
+    }
+
+    previousDrinksByPlayerRef.current[actualPlayer] = currentDrinks;
+  }, [actualPlayer, players, room?.id]);
 
   React.useEffect(() => {
     if (selectedGame !== "codenames" || codenamesState.status !== "LOBBY") {
@@ -1376,7 +1709,18 @@ export default function RoomPage() {
 
   if (room.gameEnded) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white p-6 flex items-center justify-center ">
+      <div className="relative min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white p-6 flex items-center justify-center ">
+        <Button
+          onClick={handleStopGameOverSound}
+          disabled={!isGameOverSoundPlaying}
+          size="icon"
+          variant="secondary"
+          className="absolute right-6 top-6"
+          aria-label="Stop music"
+          title="Stop music"
+        >
+          <VolumeX className="h-5 w-5" />
+        </Button>
         {showAddPlayerModal && (
           <UserConfirmModal
             players={players}
@@ -2672,6 +3016,409 @@ export default function RoomPage() {
             </div>
           );
 
+        case "guess-the-number": {
+          const numberGroups: { start: number; end: number; values: number[] }[] =
+            [];
+          for (
+            let start = guessNumberState.minValue;
+            start <= guessNumberState.maxValue;
+            start += 20
+          ) {
+            const end = Math.min(start + 19, guessNumberState.maxValue);
+            numberGroups.push({
+              start,
+              end,
+              values: Array.from(
+                { length: end - start + 1 },
+                (_, index) => start + index,
+              ),
+            });
+          }
+
+          const targetPlayerId = room?.currentPlayerId || "";
+          const targetPlayerName =
+            players.find((player) => player.id === targetPlayerId)?.name ||
+            "Unknown";
+          const isTargetPlayer = actualPlayer === targetPlayerId;
+          const allNumbersSet =
+            players.length > 1 &&
+            players.every(
+              (player) => guessNumberState.playerNumbers[player.id] !== null,
+            );
+          const mySecretNumber = actualPlayer
+            ? guessNumberState.playerNumbers[actualPlayer]
+            : null;
+          const currentTargetNumberSet =
+            targetPlayerId && guessNumberState.playerNumbers[targetPlayerId] !== null;
+          const guessers = players.filter((player) => player.id !== targetPlayerId);
+          const myCurrentGuess = actualPlayer
+            ? guessNumberState.currentRoundGuesses[actualPlayer]
+            : undefined;
+          const myDiscoveries = actualPlayer
+            ? guessNumberState.playerDiscoveries[actualPlayer] || []
+            : [];
+          const targetDiscoveriesToWin = Math.max(players.length - 1, 1);
+          const winnerName = guessNumberState.winnerPlayerId
+            ? players.find(
+                (player) => player.id === guessNumberState.winnerPlayerId,
+              )?.name || "Unknown"
+            : null;
+          const winnerTargetName = guessNumberState.winnerTargetPlayerId
+            ? players.find(
+                (player) => player.id === guessNumberState.winnerTargetPlayerId,
+              )?.name || "Unknown"
+            : null;
+
+          const toDisplayFeedback = (feedback: GuessTheNumberFeedback) => {
+            if (feedback === "UP") return "⬆️ Go Higher";
+            if (feedback === "DOWN") return "⬇️ Go Lower";
+            if (feedback === "CORRECT") return "✅ Correct";
+            return "⏳ Waiting";
+          };
+
+          return (
+            <div className="w-full">
+              <div className="mb-6 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary">
+                    Status: {guessNumberState.status}
+                  </Badge>
+                  <Badge variant="outline">
+                    Range: {guessNumberState.minValue}-{guessNumberState.maxValue}
+                  </Badge>
+                  <Badge variant="outline">Target: {targetPlayerName}</Badge>
+                  {actualPlayer && (
+                    <Badge variant="outline">
+                      Found: {myDiscoveries.length}/{targetDiscoveriesToWin}
+                    </Badge>
+                  )}
+                  {winnerName && (
+                    <Badge className="bg-emerald-600">Winner: {winnerName}</Badge>
+                  )}
+                </div>
+
+                {!allNumbersSet && (
+                  <p className="mt-3 text-sm text-amber-200">
+                    Waiting for all players to set their secret number.
+                  </p>
+                )}
+                {guessNumberState.status === "PLAYING" && (
+                  <p className="mt-3 text-sm text-white/90">
+                    Everyone guesses {targetPlayerName}&apos;s number once.
+                    Hint is automatic and turn rotates automatically after all
+                    players guessed.
+                  </p>
+                )}
+              </div>
+
+              <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.4fr_1fr]">
+                <div className="space-y-4">
+                  {mySecretNumber === null || mySecretNumber === undefined ? (
+                    <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                      <h3 className="text-lg font-semibold mb-3">
+                        Your Secret Number
+                      </h3>
+                      <p className="mb-3 text-sm text-white/80">
+                        Tap a range row, then tap a number card to save.
+                      </p>
+                      <div className="space-y-2">
+                        {numberGroups.map((group) => {
+                          const isExpanded = secretPickerOpenStart === group.start;
+                          return (
+                            <div
+                              key={`secret-${group.start}-${group.end}`}
+                              className="rounded-lg border border-white/20 bg-black/20"
+                            >
+                              <div
+                                role="button"
+                                tabIndex={0}
+                                onClick={() =>
+                                  setSecretPickerOpenStart(
+                                    isExpanded ? null : group.start,
+                                  )
+                                }
+                                onKeyDown={(event) => {
+                                  if (
+                                    event.key === "Enter" ||
+                                    event.key === " "
+                                  ) {
+                                    event.preventDefault();
+                                    setSecretPickerOpenStart(
+                                      isExpanded ? null : group.start,
+                                    );
+                                  }
+                                }}
+                                className="flex w-full cursor-pointer items-center justify-between px-4 py-3 text-left text-sm font-semibold transition hover:bg-white/10"
+                              >
+                                <span>
+                                  {group.start}-{group.end}
+                                </span>
+                                <ChevronDown
+                                  className={`h-4 w-4 transition-transform duration-200 ${
+                                    isExpanded ? "rotate-180" : "rotate-0"
+                                  }`}
+                                />
+                              </div>
+                              {isExpanded && (
+                                <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 border-t border-white/15 p-3">
+                                  {group.values.map((value) => (
+                                    <button
+                                      key={`secret-value-${value}`}
+                                      onClick={() => {
+                                        if (!actualPlayer) {
+                                          toast.error(
+                                            "Select your player first.",
+                                          );
+                                          return;
+                                        }
+                                        guessNumberSetPlayerNumber.mutate({
+                                          roomId: room?.id || "",
+                                          playerId: actualPlayer,
+                                          number: value,
+                                        });
+                                      }}
+                                      disabled={
+                                        !actualPlayer ||
+                                        guessNumberSetPlayerNumber.isPending ||
+                                        guessNumberState.status === "ENDED"
+                                      }
+                                      className={`rounded-md border px-2 py-2 text-sm font-semibold transition ${
+                                        mySecretNumber === value
+                                          ? "border-emerald-300 bg-emerald-500/30 text-emerald-100"
+                                          : "border-white/20 bg-slate-900/70 text-white hover:scale-[1.02] hover:bg-slate-800"
+                                      } disabled:opacity-60 disabled:cursor-not-allowed`}
+                                    >
+                                      {value}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {!actualPlayer && (
+                        <p className="mt-2 text-sm text-amber-200">
+                          Select your player first.
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-emerald-300/30 bg-emerald-500/10 p-4 backdrop-blur-sm">
+                      <h3 className="text-lg font-semibold mb-2">
+                        Your Secret Number
+                      </h3>
+                      <div className="text-4xl font-extrabold text-emerald-200">
+                        {mySecretNumber}
+                      </div>
+                      <p className="mt-2 text-sm text-emerald-100/90">
+                        Keep this number private.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <h3 className="text-lg font-semibold mb-3">Current Round</h3>
+
+                    {!isTargetPlayer && guessNumberState.status === "PLAYING" && (
+                      <div className="space-y-3">
+                        <p className="text-sm text-white/80">
+                          Pick one number card to guess {targetPlayerName}
+                          &apos;s number.
+                        </p>
+                        <div className="space-y-2">
+                          {numberGroups.map((group) => {
+                            const isExpanded = guessPickerOpenStart === group.start;
+                            return (
+                              <div
+                                key={`guess-${group.start}-${group.end}`}
+                                className="rounded-lg border border-white/20 bg-black/20"
+                              >
+                                <div
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={() =>
+                                    setGuessPickerOpenStart(
+                                      isExpanded ? null : group.start,
+                                    )
+                                  }
+                                  onKeyDown={(event) => {
+                                    if (
+                                      event.key === "Enter" ||
+                                      event.key === " "
+                                    ) {
+                                      event.preventDefault();
+                                      setGuessPickerOpenStart(
+                                        isExpanded ? null : group.start,
+                                      );
+                                    }
+                                  }}
+                                  className="flex w-full cursor-pointer items-center justify-between px-4 py-3 text-left text-sm font-semibold transition hover:bg-white/10"
+                                >
+                                  <span>
+                                    {group.start}-{group.end}
+                                  </span>
+                                  <ChevronDown
+                                    className={`h-4 w-4 transition-transform duration-200 ${
+                                      isExpanded ? "rotate-180" : "rotate-0"
+                                    }`}
+                                  />
+                                </div>
+                                {isExpanded && (
+                                  <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 border-t border-white/15 p-3">
+                                    {group.values.map((value) => (
+                                      <button
+                                        key={`guess-value-${value}`}
+                                        onClick={() => {
+                                          guessNumberSubmitGuess.mutate({
+                                            roomId: room?.id || "",
+                                            playerId: actualPlayer || "",
+                                            guess: value,
+                                          });
+                                        }}
+                                        disabled={
+                                          !actualPlayer ||
+                                          !allNumbersSet ||
+                                          !currentTargetNumberSet ||
+                                          targetPlayerId === actualPlayer ||
+                                          Boolean(myCurrentGuess) ||
+                                          guessNumberSubmitGuess.isPending
+                                        }
+                                        className={`rounded-md border px-2 py-2 text-sm font-semibold transition ${
+                                          myCurrentGuess?.guess === value
+                                            ? "border-cyan-300 bg-cyan-500/30 text-cyan-100"
+                                            : "border-white/20 bg-slate-900/70 text-white hover:scale-[1.02] hover:bg-slate-800"
+                                        } disabled:opacity-60 disabled:cursor-not-allowed`}
+                                      >
+                                        {value}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {myCurrentGuess && (
+                          <p className="text-sm text-white/90">
+                            Your guess:{" "}
+                            <span className="font-semibold">
+                              {myCurrentGuess.guess}
+                            </span>{" "}
+                            - {toDisplayFeedback(myCurrentGuess.feedback)}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {isTargetPlayer && guessNumberState.status === "PLAYING" && (
+                      <div className="space-y-3">
+                        <p className="text-sm text-white/90">
+                          Other players are guessing your number. The app gives
+                          automatic hints and rotates round automatically.
+                        </p>
+                      </div>
+                    )}
+
+                    {guessNumberState.status === "ENDED" && (
+                      <div className="rounded-lg border border-emerald-300/30 bg-emerald-500/10 p-3 text-emerald-100">
+                        <p className="font-semibold">
+                          Winner: {winnerName || "Unknown"}
+                        </p>
+                        {winnerTargetName && (
+                          <p className="text-sm mt-1">
+                            Final number found: {winnerTargetName}&apos;s.
+                          </p>
+                        )}
+                        <p className="text-sm mt-1">
+                          Win condition: find all other players&apos; numbers.
+                        </p>
+                        <p className="text-sm mt-1">
+                          Controls are locked. End the room manually when ready.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <h3 className="text-lg font-semibold mb-3">
+                      Round Guesses
+                    </h3>
+                    <div className="space-y-2">
+                      {guessers.map((player) => {
+                        const entry = guessNumberState.currentRoundGuesses[player.id];
+                        return (
+                          <div
+                            key={player.id}
+                            className="rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm"
+                          >
+                            <div className="font-semibold">{player.name}</div>
+                            <div className="text-white/90">
+                              {entry
+                                ? `${entry.guess} - ${toDisplayFeedback(
+                                    entry.feedback,
+                                  )}`
+                                : "No guess yet"}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <h3 className="text-lg font-semibold mb-3">
+                      Previous Rounds
+                    </h3>
+                    <div className="max-h-80 overflow-auto space-y-3 pr-1">
+                      {guessNumberState.roundHistory.length === 0 && (
+                        <p className="text-sm text-white/70">
+                          No completed rounds yet.
+                        </p>
+                      )}
+                      {[...guessNumberState.roundHistory]
+                        .reverse()
+                        .map((round, index) => {
+                          const roundTargetName =
+                            players.find(
+                              (player) => player.id === round.targetPlayerId,
+                            )?.name || "Unknown";
+                          return (
+                            <div
+                              key={`${round.targetPlayerId}-${index}`}
+                              className="rounded-md border border-white/15 bg-black/20 p-3"
+                            >
+                              <div className="mb-2 text-sm font-semibold">
+                                Target: {roundTargetName}
+                              </div>
+                              <div className="space-y-1 text-xs text-white/90">
+                                {round.entries.map((entry) => {
+                                  const guesserName =
+                                    players.find(
+                                      (player) =>
+                                        player.id === entry.guesserPlayerId,
+                                    )?.name || "Unknown";
+                                  return (
+                                    <div key={`${entry.guesserPlayerId}-${entry.guess}`}>
+                                      {guesserName}: {entry.guess} -{" "}
+                                      {toDisplayFeedback(entry.feedback)}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
         case "memory-chain": {
           const isMyTurn = actualPlayer === room?.currentPlayerId;
           const nextWord = memoryChainSequence[memoryChainState.progress];
@@ -3156,6 +3903,9 @@ export default function RoomPage() {
           onAddPlayer={() => setOpenAddPlayerModal(true)}
           showQRCode={showQRCode}
           onToggleQRCode={() => setShowQRCode((prev) => !prev)}
+          showStopGameOverMusic={Boolean(room?.gameEnded)}
+          canStopGameOverMusic={isGameOverSoundPlaying}
+          onStopGameOverMusic={handleStopGameOverSound}
           actualPlayerName={
             players.find((player) => player.id === actualPlayer)?.name || ""
           }
@@ -3251,6 +4001,9 @@ const RoomControls = React.memo(function RoomControls({
   onAddPlayer,
   showQRCode,
   onToggleQRCode,
+  showStopGameOverMusic,
+  canStopGameOverMusic,
+  onStopGameOverMusic,
   actualPlayerName,
 }: {
   onEndGame: () => void;
@@ -3258,6 +4011,9 @@ const RoomControls = React.memo(function RoomControls({
   onAddPlayer: () => void;
   showQRCode: boolean;
   onToggleQRCode: () => void;
+  showStopGameOverMusic: boolean;
+  canStopGameOverMusic: boolean;
+  onStopGameOverMusic: () => void;
   actualPlayerName: string;
 }) {
   return (
@@ -3288,6 +4044,16 @@ const RoomControls = React.memo(function RoomControls({
           <QrCodeIcon className="w-5 h-5" />
           {showQRCode ? "Hide" : "Show"} QR
         </button>
+
+        {showStopGameOverMusic && (
+          <button
+            onClick={onStopGameOverMusic}
+            disabled={!canStopGameOverMusic}
+            className="flex items-center w-40 mt-4 gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
+          >
+            Stop Music
+          </button>
+        )}
 
         <p className="text-white/70 mt-4">
           {actualPlayerName

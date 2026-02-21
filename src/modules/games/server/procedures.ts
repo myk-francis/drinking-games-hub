@@ -34,6 +34,8 @@ const CODENAMES_ASSIGNMENT_VALUES = [
   "ASSASSIN",
 ] as const;
 const MEMORY_CHAIN_CARD_COUNT = 12;
+const GUESS_THE_NUMBER_MIN = 0;
+const GUESS_THE_NUMBER_MAX = 100;
 
 type CodenamesTeam = (typeof CODENAMES_TEAM_VALUES)[number];
 type CodenamesAssignment = (typeof CODENAMES_ASSIGNMENT_VALUES)[number];
@@ -57,6 +59,39 @@ type MemoryChainState = {
   winnerPlayerId: string | null;
   pendingMissQuestionId: number | null;
   pendingMissNextPlayerId: string | null;
+};
+
+type GuessTheNumberFeedback = "PENDING" | "UP" | "DOWN" | "CORRECT";
+
+type GuessTheNumberRoundGuess = {
+  guess: number;
+  feedback: GuessTheNumberFeedback;
+};
+
+type GuessTheNumberRoundSummaryEntry = {
+  guesserPlayerId: string;
+  guess: number;
+  feedback: Exclude<GuessTheNumberFeedback, "PENDING">;
+};
+
+type GuessTheNumberRoundSummary = {
+  targetPlayerId: string;
+  targetNumber: number;
+  entries: GuessTheNumberRoundSummaryEntry[];
+};
+
+type GuessTheNumberState = {
+  status: "SETUP" | "PLAYING" | "ENDED";
+  minValue: number;
+  maxValue: number;
+  playerNumbers: Record<string, number | null>;
+  playerOrder: string[];
+  currentRoundGuesses: Record<string, GuessTheNumberRoundGuess>;
+  roundHistory: GuessTheNumberRoundSummary[];
+  completedTargetPlayerIds: string[];
+  playerDiscoveries: Record<string, string[]>;
+  winnerPlayerId: string | null;
+  winnerTargetPlayerId: string | null;
 };
 
 function shuffleArray<T>(items: T[]): T[] {
@@ -196,6 +231,237 @@ function parseMemoryChainState(raw: string | null): MemoryChainState {
     };
   } catch {
     return getDefaultMemoryChainState();
+  }
+}
+
+function getDefaultGuessTheNumberState(
+  playerIds: string[],
+  startingTargetPlayerId: string | null,
+): GuessTheNumberState {
+  const normalizedOrder = startingTargetPlayerId
+    ? [
+        startingTargetPlayerId,
+        ...playerIds.filter((id) => id !== startingTargetPlayerId),
+      ]
+    : [...playerIds];
+  const playerNumbers: Record<string, number | null> = {};
+  const playerDiscoveries: Record<string, string[]> = {};
+  for (const playerId of playerIds) {
+    playerNumbers[playerId] = null;
+    playerDiscoveries[playerId] = [];
+  }
+
+  return {
+    status: "SETUP",
+    minValue: GUESS_THE_NUMBER_MIN,
+    maxValue: GUESS_THE_NUMBER_MAX,
+    playerNumbers,
+    playerOrder: normalizedOrder,
+    currentRoundGuesses: {},
+    roundHistory: [],
+    completedTargetPlayerIds: [],
+    playerDiscoveries,
+    winnerPlayerId: null,
+    winnerTargetPlayerId: null,
+  };
+}
+
+function parseGuessTheNumberState(
+  raw: string | null,
+  playerIds: string[],
+  currentTargetPlayerId: string | null,
+): GuessTheNumberState {
+  const fallback = getDefaultGuessTheNumberState(playerIds, currentTargetPlayerId);
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<GuessTheNumberState>;
+    const normalizedOrder = [
+      ...(Array.isArray(parsed.playerOrder)
+        ? parsed.playerOrder.filter((id): id is string => playerIds.includes(id))
+        : []),
+      ...playerIds.filter(
+        (id) => !(Array.isArray(parsed.playerOrder) && parsed.playerOrder.includes(id)),
+      ),
+    ];
+
+    const parsedNumbers =
+      parsed.playerNumbers && typeof parsed.playerNumbers === "object"
+        ? parsed.playerNumbers
+        : {};
+    const playerNumbers: Record<string, number | null> = {};
+    for (const playerId of playerIds) {
+      const value = (parsedNumbers as Record<string, unknown>)[playerId];
+      playerNumbers[playerId] =
+        typeof value === "number" &&
+        Number.isInteger(value) &&
+        value >= GUESS_THE_NUMBER_MIN &&
+        value <= GUESS_THE_NUMBER_MAX
+          ? value
+          : null;
+    }
+
+    const currentRoundGuesses: Record<string, GuessTheNumberRoundGuess> = {};
+    const rawGuesses =
+      parsed.currentRoundGuesses && typeof parsed.currentRoundGuesses === "object"
+        ? parsed.currentRoundGuesses
+        : {};
+    for (const [playerId, value] of Object.entries(rawGuesses)) {
+      if (!playerIds.includes(playerId) || typeof value !== "object" || !value) {
+        continue;
+      }
+      const nextGuess = (value as { guess?: unknown; feedback?: unknown }).guess;
+      const feedback = (value as { guess?: unknown; feedback?: unknown }).feedback;
+      if (
+        typeof nextGuess === "number" &&
+        Number.isInteger(nextGuess) &&
+        nextGuess >= GUESS_THE_NUMBER_MIN &&
+        nextGuess <= GUESS_THE_NUMBER_MAX &&
+        (feedback === "PENDING" ||
+          feedback === "UP" ||
+          feedback === "DOWN" ||
+          feedback === "CORRECT")
+      ) {
+        currentRoundGuesses[playerId] = {
+          guess: nextGuess,
+          feedback,
+        };
+      }
+    }
+
+    const roundHistory = Array.isArray(parsed.roundHistory)
+      ? parsed.roundHistory
+          .map((round) => {
+            if (!round || typeof round !== "object") return null;
+            const targetPlayerId =
+              typeof round.targetPlayerId === "string" &&
+              playerIds.includes(round.targetPlayerId)
+                ? round.targetPlayerId
+                : null;
+            const targetNumber =
+              typeof round.targetNumber === "number" &&
+              Number.isInteger(round.targetNumber) &&
+              round.targetNumber >= GUESS_THE_NUMBER_MIN &&
+              round.targetNumber <= GUESS_THE_NUMBER_MAX
+                ? round.targetNumber
+                : null;
+            if (!targetPlayerId || targetNumber === null) return null;
+
+            const entries = Array.isArray(round.entries)
+              ? round.entries
+                  .map((entry) => {
+                    if (!entry || typeof entry !== "object") return null;
+                    const guesserPlayerId =
+                      typeof entry.guesserPlayerId === "string" &&
+                      playerIds.includes(entry.guesserPlayerId)
+                        ? entry.guesserPlayerId
+                        : null;
+                    const guess =
+                      typeof entry.guess === "number" &&
+                      Number.isInteger(entry.guess) &&
+                      entry.guess >= GUESS_THE_NUMBER_MIN &&
+                      entry.guess <= GUESS_THE_NUMBER_MAX
+                        ? entry.guess
+                        : null;
+                    const feedback =
+                      entry.feedback === "UP" ||
+                      entry.feedback === "DOWN" ||
+                      entry.feedback === "CORRECT"
+                        ? entry.feedback
+                        : null;
+
+                    if (!guesserPlayerId || guess === null || !feedback) {
+                      return null;
+                    }
+
+                    return {
+                      guesserPlayerId,
+                      guess,
+                      feedback,
+                    } satisfies GuessTheNumberRoundSummaryEntry;
+                  })
+                  .filter(
+                    (entry): entry is GuessTheNumberRoundSummaryEntry =>
+                      entry !== null,
+                  )
+              : [];
+
+            return {
+              targetPlayerId,
+              targetNumber,
+              entries,
+            } satisfies GuessTheNumberRoundSummary;
+          })
+          .filter(
+            (round): round is GuessTheNumberRoundSummary => round !== null,
+          )
+      : [];
+
+    const completedTargetPlayerIds = Array.isArray(parsed.completedTargetPlayerIds)
+      ? parsed.completedTargetPlayerIds.filter((id): id is string =>
+          playerIds.includes(id),
+        )
+      : [];
+
+    const playerDiscoveries: Record<string, string[]> = {};
+    const rawDiscoveries =
+      parsed.playerDiscoveries && typeof parsed.playerDiscoveries === "object"
+        ? parsed.playerDiscoveries
+        : {};
+    for (const playerId of playerIds) {
+      const rawTargets = (rawDiscoveries as Record<string, unknown>)[playerId];
+      const targets = Array.isArray(rawTargets)
+        ? rawTargets.filter(
+            (targetId): targetId is string =>
+              typeof targetId === "string" &&
+              playerIds.includes(targetId) &&
+              targetId !== playerId,
+          )
+        : [];
+      playerDiscoveries[playerId] = Array.from(new Set(targets));
+    }
+
+    const allNumbersSet = playerIds.every((id) => playerNumbers[id] !== null);
+    const status: GuessTheNumberState["status"] =
+      parsed.status === "ENDED"
+        ? "ENDED"
+        : allNumbersSet
+          ? "PLAYING"
+          : "SETUP";
+
+    return {
+      status,
+      minValue:
+        typeof parsed.minValue === "number" &&
+        Number.isFinite(parsed.minValue) &&
+        parsed.minValue <= GUESS_THE_NUMBER_MIN
+          ? parsed.minValue
+          : GUESS_THE_NUMBER_MIN,
+      maxValue:
+        typeof parsed.maxValue === "number" &&
+        Number.isFinite(parsed.maxValue) &&
+        parsed.maxValue >= GUESS_THE_NUMBER_MAX
+          ? parsed.maxValue
+          : GUESS_THE_NUMBER_MAX,
+      playerNumbers,
+      playerOrder: normalizedOrder,
+      currentRoundGuesses,
+      roundHistory,
+      completedTargetPlayerIds,
+      playerDiscoveries,
+      winnerPlayerId:
+        typeof parsed.winnerPlayerId === "string" &&
+        playerIds.includes(parsed.winnerPlayerId)
+          ? parsed.winnerPlayerId
+          : null,
+      winnerTargetPlayerId:
+        typeof parsed.winnerTargetPlayerId === "string" &&
+        playerIds.includes(parsed.winnerTargetPlayerId)
+          ? parsed.winnerTargetPlayerId
+          : null,
+    };
+  } catch {
+    return fallback;
   }
 }
 
@@ -493,6 +759,12 @@ export const gamesRouter = createTRPCRouter({
         ) {
           throw new Error("Memory Chain requires at least 2 players.");
         }
+        if (
+          input.selectedGame === "guess-the-number" &&
+          (input.players?.length || 0) < 2
+        ) {
+          throw new Error("Guess The Number requires at least 2 players.");
+        }
 
         if (input.selectedGame === "triviyay") {
           if (!input.teamsInfo || input.teamsInfo.length < 1) {
@@ -670,14 +942,23 @@ export const gamesRouter = createTRPCRouter({
             } satisfies MemoryChainState);
           }
 
+          const randomCurrentPlayerId =
+            createdRoom.players[
+              Math.floor(Math.random() * createdRoom.players.length)
+            ]?.id ?? null;
+
+          if (input.selectedGame === "guess-the-number") {
+            const playerIds = createdRoom.players.map((player) => player.id);
+            roomCurrentAnswer = JSON.stringify(
+              getDefaultGuessTheNumberState(playerIds, randomCurrentPlayerId),
+            );
+          }
+
           const createdRoomId = createdRoom.id;
           await prisma.room.update({
             where: { id: createdRoomId },
             data: {
-              currentPlayerId:
-                createdRoom.players[
-                  Math.floor(Math.random() * createdRoom.players.length)
-                ]?.id,
+              currentPlayerId: randomCurrentPlayerId,
               previousPlayersIds: [],
               currentQuestionId: currentQuestionId,
               previousQuestionsId: [],
@@ -3485,6 +3766,275 @@ export const gamesRouter = createTRPCRouter({
       });
 
       return { resolved: true, nextPlayerId };
+    }),
+
+  guessNumberSetPlayerNumber: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        number: z.number().int().min(GUESS_THE_NUMBER_MIN).max(GUESS_THE_NUMBER_MAX),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+      if (room.game.code !== "guess-the-number") {
+        throw new Error("This room is not Guess The Number");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+
+      const player = room.players.find((item) => item.id === input.playerId);
+      if (!player) {
+        throw new Error("Player not found");
+      }
+
+      const playerIds = room.players.map((item) => item.id);
+      const state = parseGuessTheNumberState(
+        room.currentAnswer,
+        playerIds,
+        room.currentPlayerId,
+      );
+
+      state.playerNumbers[input.playerId] = input.number;
+      if (!state.playerOrder.length) {
+        state.playerOrder = [...playerIds];
+      }
+
+      const allNumbersSet = playerIds.every(
+        (playerId) => state.playerNumbers[playerId] !== null,
+      );
+      if (allNumbersSet && state.status !== "ENDED") {
+        state.status = "PLAYING";
+      } else if (!allNumbersSet && state.status !== "ENDED") {
+        state.status = "SETUP";
+      }
+
+      const nextCurrentPlayerId =
+        room.currentPlayerId && playerIds.includes(room.currentPlayerId)
+          ? room.currentPlayerId
+          : state.playerOrder[0] || playerIds[0] || null;
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentPlayerId: nextCurrentPlayerId,
+          currentAnswer: JSON.stringify(state),
+        },
+      });
+
+      return {
+        status: state.status,
+        allNumbersSet,
+      };
+    }),
+
+  guessNumberSubmitGuess: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        guess: z.number().int().min(GUESS_THE_NUMBER_MIN).max(GUESS_THE_NUMBER_MAX),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+      if (room.game.code !== "guess-the-number") {
+        throw new Error("This room is not Guess The Number");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+
+      const targetPlayerId = room.currentPlayerId;
+      if (!targetPlayerId) {
+        throw new Error("No target player selected");
+      }
+      if (input.playerId === targetPlayerId) {
+        throw new Error("Target player cannot guess");
+      }
+
+      const player = room.players.find((item) => item.id === input.playerId);
+      if (!player) {
+        throw new Error("Player not found");
+      }
+
+      const playerIds = room.players.map((item) => item.id);
+      const state = parseGuessTheNumberState(
+        room.currentAnswer,
+        playerIds,
+        targetPlayerId,
+      );
+      if (state.status !== "PLAYING") {
+        throw new Error("All players must set their secret number first");
+      }
+      if (state.playerNumbers[targetPlayerId] === null) {
+        throw new Error("Target player still needs to set a number");
+      }
+
+      const existing = state.currentRoundGuesses[input.playerId];
+      if (existing) {
+        throw new Error("You already guessed this round");
+      }
+
+      const targetNumber = state.playerNumbers[targetPlayerId];
+      if (targetNumber === null) {
+        throw new Error("Target player still needs to set a number");
+      }
+      const feedback: Exclude<GuessTheNumberFeedback, "PENDING"> =
+        input.guess === targetNumber
+          ? "CORRECT"
+          : input.guess < targetNumber
+            ? "UP"
+            : "DOWN";
+
+      state.currentRoundGuesses[input.playerId] = {
+        guess: input.guess,
+        feedback,
+      };
+
+      if (!Array.isArray(state.playerDiscoveries[input.playerId])) {
+        state.playerDiscoveries[input.playerId] = [];
+      }
+
+      if (feedback === "CORRECT") {
+        const updatedDiscoveries = Array.from(
+          new Set([
+            ...state.playerDiscoveries[input.playerId],
+            targetPlayerId,
+          ]),
+        );
+        state.playerDiscoveries[input.playerId] = updatedDiscoveries;
+
+        if (updatedDiscoveries.length >= Math.max(playerIds.length - 1, 1)) {
+          state.status = "ENDED";
+          state.winnerPlayerId = input.playerId;
+          state.winnerTargetPlayerId = targetPlayerId;
+        }
+      }
+
+      const expectedGuessers = playerIds.filter((id) => id !== targetPlayerId);
+      const everyoneGuessed = expectedGuessers.every(
+        (guesserId) => Boolean(state.currentRoundGuesses[guesserId]),
+      );
+
+      let nextTargetPlayerId: string | null = null;
+      let gameEnded = false;
+
+      if (everyoneGuessed) {
+        const entries = expectedGuessers
+          .map((guesserId) => {
+            const guessEntry = state.currentRoundGuesses[guesserId];
+            if (!guessEntry) return null;
+            const normalizedFeedback: Exclude<
+              GuessTheNumberFeedback,
+              "PENDING"
+            > =
+              guessEntry.feedback === "PENDING"
+                ? guessEntry.guess === targetNumber
+                  ? "CORRECT"
+                  : guessEntry.guess < targetNumber
+                    ? "UP"
+                    : "DOWN"
+                : guessEntry.feedback;
+            return {
+              guesserPlayerId: guesserId,
+              guess: guessEntry.guess,
+              feedback: normalizedFeedback,
+            } satisfies GuessTheNumberRoundSummaryEntry;
+          })
+          .filter(
+            (entry): entry is GuessTheNumberRoundSummaryEntry => entry !== null,
+          );
+
+        state.roundHistory = [
+          ...state.roundHistory,
+          {
+            targetPlayerId,
+            targetNumber,
+            entries,
+          },
+        ];
+
+        state.currentRoundGuesses = {};
+
+        const normalizedOrder =
+          state.playerOrder.filter((playerId) => playerIds.includes(playerId))
+            .length > 0
+            ? state.playerOrder.filter((playerId) => playerIds.includes(playerId))
+            : playerIds;
+        const targetIndex = normalizedOrder.indexOf(targetPlayerId);
+        nextTargetPlayerId =
+          normalizedOrder[
+            targetIndex >= 0
+              ? (targetIndex + 1) % normalizedOrder.length
+              : 0
+          ] || null;
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentPlayerId: state.status !== "ENDED" && everyoneGuessed
+              ? nextTargetPlayerId ?? room.currentPlayerId
+              : room.currentPlayerId,
+            currentAnswer: JSON.stringify(state),
+            gameEnded: room.gameEnded,
+            gameEndedAt: room.gameEndedAt,
+          },
+        });
+
+        if (feedback !== "CORRECT") {
+          await tx.player.update({
+            where: {
+              id: input.playerId,
+            },
+            data: {
+              drinks: {
+                increment: 1,
+              },
+            },
+          });
+        }
+      });
+
+      return {
+        feedback,
+        roundCompleted: everyoneGuessed,
+        nextTargetPlayerId,
+        gameEnded: false,
+        winnerPlayerId: state.winnerPlayerId,
+      };
     }),
 
   checkForOpenRooms: baseProcedure.query(async () => {

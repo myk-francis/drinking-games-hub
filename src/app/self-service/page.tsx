@@ -22,6 +22,7 @@ import {
   Scale,
   Copy,
   Brain,
+  Hash,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -60,6 +61,7 @@ const GameIcon = (gamecode: string) => {
   if (gamecode === "truth-or-lie") return <Scale className="w-6 h-6" />;
   if (gamecode === "codenames") return <Layers className="w-6 h-6" />;
   if (gamecode === "memory-chain") return <Brain className="w-6 h-6" />;
+  if (gamecode === "guess-the-number") return <Hash className="w-6 h-6" />;
   return <Gamepad2 className="w-6 h-6" />;
 };
 
@@ -82,6 +84,7 @@ const GameColor = (gamecode: string) => {
   if (gamecode === "truth-or-lie") return "from-fuchsia-600 to-indigo-600";
   if (gamecode === "codenames") return "from-red-600 to-blue-700";
   if (gamecode === "memory-chain") return "from-cyan-600 to-slate-700";
+  if (gamecode === "guess-the-number") return "from-emerald-600 to-cyan-700";
   return "from-teal-500 to-cyan-500";
 };
 

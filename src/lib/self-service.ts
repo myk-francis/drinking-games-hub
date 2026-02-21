@@ -30,6 +30,7 @@ export const MIN_PLAYERS_BY_GAME: Record<string, number> = {
   imposter: 4,
   "truth-or-lie": 2,
   "memory-chain": 2,
+  "guess-the-number": 2,
 };
 
 const uniqueTrimmed = (items: string[]) =>
