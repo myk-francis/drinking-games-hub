@@ -25,6 +25,7 @@ import {
   Loader2,
   Brain,
   Hash,
+  Type,
 } from "lucide-react";
 import React from "react";
 import { useTRPC } from "@/trpc/client";
@@ -218,6 +219,8 @@ export default function HomePage() {
       return <Brain className="w-6 h-6" />;
     } else if (gamecode === "guess-the-number") {
       return <Hash className="w-6 h-6" />;
+    } else if (gamecode === "connect-the-letters") {
+      return <Type className="w-6 h-6" />;
     } else {
       return <Gamepad2 className="w-6 h-6" />;
     }
@@ -262,6 +265,8 @@ export default function HomePage() {
       return "from-cyan-600 to-slate-700";
     } else if (gamecode === "guess-the-number") {
       return "from-emerald-600 to-cyan-700";
+    } else if (gamecode === "connect-the-letters") {
+      return "from-fuchsia-600 to-cyan-700";
     } else {
       return "from-teal-500 to-cyan-500";
     }
@@ -470,7 +475,7 @@ export default function HomePage() {
           {/* Game Selection */}
           <div className="mb-8">
             <h2 className="text-2xl font-bold mb-6 text-center">
-              Choose Your Game
+              Choose Your Game ({games?.length ?? 0})
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {games?.map((game) => (
@@ -714,6 +719,8 @@ export default function HomePage() {
                       (selectedGame === "truth-or-lie" && players.length < 2) ||
                       (selectedGame === "memory-chain" && players.length < 2) ||
                       (selectedGame === "guess-the-number" &&
+                        players.length < 2) ||
+                      (selectedGame === "connect-the-letters" &&
                         players.length < 2) ||
                       (selectedGame === "triviyay" && teams.length > 2)
                     }
