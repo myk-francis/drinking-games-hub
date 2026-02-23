@@ -3965,7 +3965,7 @@ export default function RoomPage() {
                   <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
                     <h3 className="text-lg font-semibold mb-2">How to Win</h3>
                     <p className="text-sm text-white/85">
-                      Click "I Have a Word", the clicker answers for{" "}
+                      Click &quot;I Have a Word&quot;, the clicker answers for{" "}
                       {connectLettersTimerDuration} seconds, then the opponent
                       judges with ✅ or ❌.
                     </p>
