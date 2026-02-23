@@ -4538,6 +4538,7 @@ export const gamesRouter = createTRPCRouter({
     .input(
       z.object({
         roomId: z.string().min(1),
+        playerId: z.string().min(1),
       }),
     )
     .mutation(async ({ input }) => {
@@ -4570,6 +4571,16 @@ export const gamesRouter = createTRPCRouter({
       const state = parseConnectLettersState(room.currentAnswer, playerIds);
       if (state.phase !== "ROUND_COMPLETE") {
         throw new Error("Finish this round first");
+      }
+      if (
+        !state.currentPair ||
+        (input.playerId !== state.currentPair[0] &&
+          input.playerId !== state.currentPair[1] &&
+          input.playerId !== state.roundWinnerPlayerId)
+      ) {
+        throw new Error(
+          "Only the current pair or round winner can start the next round",
+        );
       }
 
       const nextPair = pickNextConnectLettersPair(playerIds, state.usedPairKeys);

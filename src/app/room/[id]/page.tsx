@@ -697,6 +697,10 @@ export default function RoomPage() {
   const { data: comments } = useQuery(
     trpc.comments.getCommentsByRoomId.queryOptions({ roomId: String(roomId) }),
   );
+  const connectLettersTimerDuration = React.useMemo(
+    () => parseConnectLettersState(room?.currentAnswer).timerSeconds,
+    [room?.currentAnswer],
+  );
 
   const [clicked, setClicked] = React.useState(false);
 
@@ -1091,7 +1095,9 @@ export default function RoomPage() {
   const connectLettersBuzz = useMutation(
     trpc.games.connectLettersBuzz.mutationOptions({
       onSuccess: () => {
-        toast.success("You go first. Opponent judges your answer.");
+        toast.success(
+          `You buzzed first. You have ${connectLettersTimerDuration} seconds to answer. Opponent judges your answer.`,
+        );
       },
       onError: (error) => {
         toast.error(error.message || "Could not start timer.");
@@ -3828,8 +3834,9 @@ export default function RoomPage() {
                   {connectLettersState.phase === "READY" && (
                     <div className="rounded-xl border border-cyan-300/30 bg-cyan-500/10 p-4">
                       <p className="text-sm text-cyan-100">
-                        First player to click answers first for 10 seconds.
-                        Opponent judges with ✅/❌.
+                        First player to click answers first for{" "}
+                        {connectLettersTimerDuration} seconds. Opponent judges
+                        with ✅/❌.
                       </p>
                       <div className="mt-3">
                         <Button
@@ -3941,6 +3948,7 @@ export default function RoomPage() {
                           onClick={() =>
                             connectLettersNextRound.mutate({
                               roomId: room?.id || "",
+                              playerId: actualPlayer || "",
                             })
                           }
                           disabled={connectLettersNextRound.isPending || !actualPlayer}
@@ -3957,8 +3965,9 @@ export default function RoomPage() {
                   <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
                     <h3 className="text-lg font-semibold mb-2">How to Win</h3>
                     <p className="text-sm text-white/85">
-                      Buzz first, force the other player to answer in 10 seconds,
-                      then judge with ✅ or ❌.
+                      Click "I Have a Word", the clicker answers for{" "}
+                      {connectLettersTimerDuration} seconds, then the opponent
+                      judges with ✅ or ❌.
                     </p>
                     <p className="mt-2 text-sm text-white/85">
                       On ✅: guesser +1 point, challenger +1 drink.
