@@ -75,6 +75,27 @@ type GuessTheNumberRoomState = {
   winnerPlayerId: string | null;
   winnerTargetPlayerId: string | null;
 };
+type ConnectLettersPhase =
+  | "READY"
+  | "TIMER_RUNNING"
+  | "AWAITING_JUDGMENT"
+  | "ROUND_COMPLETE";
+type ConnectLettersRoomState = {
+  status: "PLAYING" | "ENDED";
+  playerOrder: string[];
+  currentPair: [string, string] | null;
+  usedPairKeys: string[];
+  roundNumber: number;
+  phase: ConnectLettersPhase;
+  startLetter: string;
+  endLetter: string;
+  timerSeconds: number;
+  activeChallengerId: string | null;
+  activeGuesserId: string | null;
+  attemptStartedAt: string | null;
+  roundWinnerPlayerId: string | null;
+  roundLoserPlayerId: string | null;
+};
 
 interface TeamStats {
   [team: string]: {
@@ -558,6 +579,100 @@ function parseGuessTheNumberState(
   }
 }
 
+function parseConnectLettersState(
+  raw: string | null | undefined,
+): ConnectLettersRoomState {
+  const fallback: ConnectLettersRoomState = {
+    status: "PLAYING",
+    playerOrder: [],
+    currentPair: null,
+    usedPairKeys: [],
+    roundNumber: 1,
+    phase: "READY",
+    startLetter: "A",
+    endLetter: "F",
+    timerSeconds: 10,
+    activeChallengerId: null,
+    activeGuesserId: null,
+    attemptStartedAt: null,
+    roundWinnerPlayerId: null,
+    roundLoserPlayerId: null,
+  };
+
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<ConnectLettersRoomState>;
+    const parsedPair =
+      Array.isArray(parsed.currentPair) &&
+      parsed.currentPair.length === 2 &&
+      typeof parsed.currentPair[0] === "string" &&
+      typeof parsed.currentPair[1] === "string" &&
+      parsed.currentPair[0] !== parsed.currentPair[1]
+        ? ([parsed.currentPair[0], parsed.currentPair[1]] as [string, string])
+        : null;
+
+    return {
+      status: parsed.status === "ENDED" ? "ENDED" : "PLAYING",
+      playerOrder: Array.isArray(parsed.playerOrder)
+        ? parsed.playerOrder.filter(
+            (playerId): playerId is string => typeof playerId === "string",
+          )
+        : [],
+      currentPair: parsedPair,
+      usedPairKeys: Array.isArray(parsed.usedPairKeys)
+        ? parsed.usedPairKeys.filter(
+            (item): item is string => typeof item === "string",
+          )
+        : [],
+      roundNumber:
+        typeof parsed.roundNumber === "number" &&
+        Number.isFinite(parsed.roundNumber) &&
+        parsed.roundNumber > 0
+          ? parsed.roundNumber
+          : 1,
+      phase:
+        parsed.phase === "TIMER_RUNNING" ||
+        parsed.phase === "AWAITING_JUDGMENT" ||
+        parsed.phase === "ROUND_COMPLETE"
+          ? parsed.phase
+          : "READY",
+      startLetter:
+        typeof parsed.startLetter === "string" && /^[A-Z]$/.test(parsed.startLetter)
+          ? parsed.startLetter
+          : "A",
+      endLetter:
+        typeof parsed.endLetter === "string" && /^[A-Z]$/.test(parsed.endLetter)
+          ? parsed.endLetter
+          : "F",
+      timerSeconds:
+        typeof parsed.timerSeconds === "number" &&
+        Number.isFinite(parsed.timerSeconds) &&
+        parsed.timerSeconds > 0
+          ? parsed.timerSeconds
+          : 10,
+      activeChallengerId:
+        typeof parsed.activeChallengerId === "string"
+          ? parsed.activeChallengerId
+          : null,
+      activeGuesserId:
+        typeof parsed.activeGuesserId === "string" ? parsed.activeGuesserId : null,
+      attemptStartedAt:
+        typeof parsed.attemptStartedAt === "string" ? parsed.attemptStartedAt : null,
+      roundWinnerPlayerId:
+        typeof parsed.roundWinnerPlayerId === "string"
+          ? parsed.roundWinnerPlayerId
+          : null,
+      roundLoserPlayerId:
+        typeof parsed.roundLoserPlayerId === "string"
+          ? parsed.roundLoserPlayerId
+          : null,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 export default function RoomPage() {
   const [quote, setQuote] = React.useState<string>("");
   const params = useParams();
@@ -581,6 +696,10 @@ export default function RoomPage() {
 
   const { data: comments } = useQuery(
     trpc.comments.getCommentsByRoomId.queryOptions({ roomId: String(roomId) }),
+  );
+  const connectLettersTimerDuration = React.useMemo(
+    () => parseConnectLettersState(room?.currentAnswer).timerSeconds,
+    [room?.currentAnswer],
   );
 
   const [clicked, setClicked] = React.useState(false);
@@ -973,6 +1092,66 @@ export default function RoomPage() {
       },
     }),
   );
+  const connectLettersBuzz = useMutation(
+    trpc.games.connectLettersBuzz.mutationOptions({
+      onSuccess: () => {
+        toast.success(
+          `You buzzed first. You have ${connectLettersTimerDuration} seconds to answer. Opponent judges your answer.`,
+        );
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not start timer.");
+      },
+    }),
+  );
+  const connectLettersStopTimer = useMutation(
+    trpc.games.connectLettersStopTimer.mutationOptions({
+      onSuccess: () => {
+        toast.success("Timer stopped. Judge the answer.");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not stop timer.");
+      },
+    }),
+  );
+  const connectLettersJudge = useMutation(
+    trpc.games.connectLettersJudge.mutationOptions({
+      onSuccess: (data) => {
+        if (data.winnerPlayerId) {
+          const winnerName =
+            players.find((player) => player.id === data.winnerPlayerId)?.name ||
+            "Winner";
+          toast.success(`${winnerName} won this round.`);
+          return;
+        }
+        toast.success("Wrong answer. Timer swapped.");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not submit verdict.");
+      },
+    }),
+  );
+  const connectLettersNextRound = useMutation(
+    trpc.games.connectLettersNextRound.mutationOptions({
+      onSuccess: () => {
+        toast.success("Next round is ready.");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not move to next round.");
+      },
+    }),
+  );
+  const connectLettersRedrawLetters = useMutation(
+    trpc.games.connectLettersRedrawLetters.mutationOptions({
+      onSuccess: () => {
+        toast.success("Letter range refreshed.");
+        setConnectLettersRedrawCooldown(3);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not redraw letters.");
+      },
+    }),
+  );
 
   const vote = useMutation(
     trpc.games.votePlayer.mutationOptions({
@@ -1005,6 +1184,11 @@ export default function RoomPage() {
   const [codenamesSelectedCardId, setCodenamesSelectedCardId] = React.useState<
     number | null
   >(null);
+  const [connectLettersTimerNow, setConnectLettersTimerNow] = React.useState(
+    Date.now(),
+  );
+  const [connectLettersRedrawCooldown, setConnectLettersRedrawCooldown] =
+    React.useState(0);
   const [secretPickerOpenStart, setSecretPickerOpenStart] = React.useState<
     number | null
   >(0);
@@ -1092,6 +1276,9 @@ export default function RoomPage() {
   const guessNumberState = React.useMemo(() => {
     return parseGuessTheNumberState(room?.currentAnswer);
   }, [room?.currentAnswer]);
+  const connectLettersState = React.useMemo(() => {
+    return parseConnectLettersState(room?.currentAnswer);
+  }, [room?.currentAnswer]);
 
   const codenamesUnassignedPlayers = React.useMemo(() => {
     if (!players.length) return [];
@@ -1149,6 +1336,7 @@ export default function RoomPage() {
   const gameOverSoundRef = React.useRef<HTMLAudioElement | null>(null);
   const hasPlayedGameOverSoundRef = React.useRef(false);
   const previousDrinksByPlayerRef = React.useRef<Record<string, number>>({});
+  const connectLettersAutoStopRef = React.useRef<string | null>(null);
 
   const playerAddedComment = React.useMemo(() => {
     return (comments?.length || 0) >= players.length;
@@ -1466,6 +1654,107 @@ export default function RoomPage() {
     room?.playerTwoId,
     selectedGame,
   ]);
+
+  const connectLettersSecondsLeft = React.useMemo(() => {
+    if (selectedGame !== "connect-the-letters") {
+      return connectLettersState.timerSeconds;
+    }
+    if (
+      connectLettersState.phase !== "TIMER_RUNNING" ||
+      !connectLettersState.attemptStartedAt
+    ) {
+      return connectLettersState.timerSeconds;
+    }
+
+    const startedAt = new Date(connectLettersState.attemptStartedAt).getTime();
+    if (!Number.isFinite(startedAt)) {
+      return connectLettersState.timerSeconds;
+    }
+
+    const elapsedSeconds = Math.floor((connectLettersTimerNow - startedAt) / 1000);
+    return Math.max(connectLettersState.timerSeconds - elapsedSeconds, 0);
+  }, [
+    connectLettersState.attemptStartedAt,
+    connectLettersState.phase,
+    connectLettersState.timerSeconds,
+    connectLettersTimerNow,
+    selectedGame,
+  ]);
+
+  React.useEffect(() => {
+    if (selectedGame !== "connect-the-letters") {
+      return;
+    }
+    if (connectLettersState.phase !== "TIMER_RUNNING") {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setConnectLettersTimerNow(Date.now());
+    }, 250);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [connectLettersState.phase, selectedGame]);
+
+  React.useEffect(() => {
+    if (selectedGame !== "connect-the-letters") {
+      connectLettersAutoStopRef.current = null;
+      return;
+    }
+    const isInCurrentPair =
+      Boolean(actualPlayer) &&
+      Boolean(connectLettersState.currentPair?.includes(actualPlayer));
+    if (
+      connectLettersState.phase !== "TIMER_RUNNING" ||
+      !room?.id ||
+      !actualPlayer ||
+      !isInCurrentPair
+    ) {
+      connectLettersAutoStopRef.current = null;
+      return;
+    }
+
+    const autoStopKey = `${room.id}:${connectLettersState.attemptStartedAt}`;
+    if (connectLettersSecondsLeft > 0) {
+      connectLettersAutoStopRef.current = null;
+      return;
+    }
+
+    if (connectLettersAutoStopRef.current === autoStopKey) {
+      return;
+    }
+
+    connectLettersAutoStopRef.current = autoStopKey;
+    connectLettersStopTimer.mutate({
+      roomId: room.id,
+      playerId: actualPlayer,
+    });
+  }, [
+    actualPlayer,
+    connectLettersSecondsLeft,
+    connectLettersState.attemptStartedAt,
+    connectLettersState.currentPair,
+    connectLettersState.phase,
+    connectLettersStopTimer,
+    room?.id,
+    selectedGame,
+  ]);
+
+  React.useEffect(() => {
+    if (connectLettersRedrawCooldown <= 0) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setConnectLettersRedrawCooldown((prev) => Math.max(prev - 1, 0));
+    }, 1000);
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [connectLettersRedrawCooldown]);
 
   // Convert seconds to MM:SS
   function formatTime(seconds: number) {
@@ -3428,6 +3717,264 @@ export default function RoomPage() {
                           );
                         })}
                     </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        case "connect-the-letters": {
+          const currentPair = connectLettersState.currentPair;
+          const playerOneId = currentPair?.[0] ?? "";
+          const playerTwoId = currentPair?.[1] ?? "";
+          const playerOneName =
+            players.find((player) => player.id === playerOneId)?.name || "Player 1";
+          const playerTwoName =
+            players.find((player) => player.id === playerTwoId)?.name || "Player 2";
+          const challengerPlayerName =
+            players.find(
+              (player) => player.id === connectLettersState.activeChallengerId,
+            )?.name || "Unknown";
+          const guesserPlayerName =
+            players.find((player) => player.id === connectLettersState.activeGuesserId)
+              ?.name || "Unknown";
+          const winnerPlayerName =
+            players.find(
+              (player) => player.id === connectLettersState.roundWinnerPlayerId,
+            )?.name || "Unknown";
+          const loserPlayerName =
+            players.find((player) => player.id === connectLettersState.roundLoserPlayerId)
+              ?.name || "Unknown";
+          const isInCurrentPair =
+            Boolean(actualPlayer) &&
+            Boolean(currentPair?.includes(actualPlayer));
+          const canJudge =
+            connectLettersState.phase === "AWAITING_JUDGMENT" &&
+            actualPlayer === connectLettersState.activeChallengerId;
+
+          if (players.length < 2) {
+            return (
+              <div className="rounded-xl border border-white/20 bg-white/10 p-6 text-center">
+                <p className="text-amber-200">
+                  Connect the Letters needs at least 2 players.
+                </p>
+              </div>
+            );
+          }
+
+          return (
+            <div className="w-full">
+              <div className="mb-6 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary">
+                    Round: {connectLettersState.roundNumber}
+                  </Badge>
+                  <Badge variant="outline">
+                    Phase: {connectLettersState.phase.replaceAll("_", " ")}
+                  </Badge>
+                </div>
+                <div className="mt-4 rounded-lg border border-white/20 bg-black/20 px-4 py-5 text-center">
+                  <p className="flex items-center justify-center gap-2 sm:gap-4 text-cyan-200 font-extrabold leading-none">
+                    <span className="text-3xl sm:text-5xl md:text-6xl">
+                      {connectLettersState.startLetter}
+                    </span>
+                    <span className="text-xl sm:text-4xl md:text-5xl text-white/70 tracking-tight sm:tracking-[0.08em]">
+                      _______
+                    </span>
+                    <span className="text-3xl sm:text-5xl md:text-6xl">
+                      {connectLettersState.endLetter}
+                    </span>
+                  </p>
+                </div>
+                <p className="mt-3 text-sm text-white/85">
+                  Say a word that starts with{" "}
+                  <span className="font-semibold">
+                    {connectLettersState.startLetter}
+                  </span>{" "}
+                  and ends with{" "}
+                  <span className="font-semibold">
+                    {connectLettersState.endLetter}
+                  </span>{" "}
+                  with at least 4 letters between.
+                </p>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <h3 className="text-lg font-semibold">Current Pair</h3>
+                    <p className="mt-2 text-white/90">
+                      {playerOneName} vs {playerTwoName}
+                    </p>
+                    <div className="mt-3">
+                      <Button
+                        onClick={() =>
+                          connectLettersRedrawLetters.mutate({
+                            roomId: room?.id || "",
+                            playerId: actualPlayer || "",
+                          })
+                        }
+                        disabled={
+                          !isInCurrentPair ||
+                          connectLettersState.phase === "ROUND_COMPLETE" ||
+                          connectLettersRedrawCooldown > 0 ||
+                          connectLettersRedrawLetters.isPending
+                        }
+                        variant="outline"
+                        className="border-cyan-300/40 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/25"
+                      >
+                        {connectLettersRedrawCooldown > 0
+                          ? `Redraw Letters (${connectLettersRedrawCooldown}s)`
+                          : "Redraw Letters"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {connectLettersState.phase === "READY" && (
+                    <div className="rounded-xl border border-cyan-300/30 bg-cyan-500/10 p-4">
+                      <p className="text-sm text-cyan-100">
+                        First player to click answers first for{" "}
+                        {connectLettersTimerDuration} seconds. Opponent judges
+                        with ✅/❌.
+                      </p>
+                      <div className="mt-3">
+                        <Button
+                          onClick={() => {
+                            if (!actualPlayer) {
+                              toast.error("Select your player first.");
+                              return;
+                            }
+                            connectLettersBuzz.mutate({
+                              roomId: room?.id || "",
+                              playerId: actualPlayer,
+                            });
+                          }}
+                          disabled={
+                            !isInCurrentPair ||
+                            connectLettersBuzz.isPending ||
+                            !currentPair
+                          }
+                          className="bg-cyan-600 hover:bg-cyan-700"
+                        >
+                          I Have a Word
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {connectLettersState.phase === "TIMER_RUNNING" && (
+                    <div className="rounded-xl border border-amber-300/40 bg-amber-500/10 p-4">
+                      <p className="text-sm text-amber-100">
+                        {guesserPlayerName} is guessing. Judge: {challengerPlayerName}
+                      </p>
+                      <div className="mt-3 text-4xl font-extrabold text-amber-200">
+                        {connectLettersSecondsLeft}s
+                      </div>
+                      <div className="mt-3">
+                        <Button
+                          onClick={() => {
+                            if (!actualPlayer) {
+                              toast.error("Select your player first.");
+                              return;
+                            }
+                            connectLettersStopTimer.mutate({
+                              roomId: room?.id || "",
+                              playerId: actualPlayer,
+                            });
+                          }}
+                          disabled={
+                            !isInCurrentPair || connectLettersStopTimer.isPending
+                          }
+                          variant="secondary"
+                        >
+                          End Timer
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {connectLettersState.phase === "AWAITING_JUDGMENT" && (
+                    <div className="rounded-xl border border-emerald-300/30 bg-emerald-500/10 p-4">
+                      <p className="text-sm text-emerald-100">
+                        {challengerPlayerName}, was {guesserPlayerName} right?
+                      </p>
+                      <div className="mt-3 flex gap-3">
+                        <Button
+                          onClick={() =>
+                            connectLettersJudge.mutate({
+                              roomId: room?.id || "",
+                              playerId: actualPlayer || "",
+                              verdict: "RIGHT",
+                            })
+                          }
+                          disabled={!canJudge || connectLettersJudge.isPending}
+                          className="bg-emerald-600 hover:bg-emerald-700"
+                        >
+                          ✅ Right
+                        </Button>
+                        <Button
+                          onClick={() =>
+                            connectLettersJudge.mutate({
+                              roomId: room?.id || "",
+                              playerId: actualPlayer || "",
+                              verdict: "WRONG",
+                            })
+                          }
+                          disabled={!canJudge || connectLettersJudge.isPending}
+                          variant="destructive"
+                        >
+                          ❌ Wrong
+                        </Button>
+                      </div>
+                      {!canJudge && (
+                        <p className="mt-2 text-sm text-emerald-100/80">
+                          Waiting for judge: {challengerPlayerName}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {connectLettersState.phase === "ROUND_COMPLETE" && (
+                    <div className="rounded-xl border border-purple-300/30 bg-purple-500/10 p-4">
+                      <p className="text-sm text-purple-100">
+                        Winner: {winnerPlayerName} (+1 point)
+                      </p>
+                      <p className="text-sm text-purple-100/90">
+                        Drink: {loserPlayerName} (+1 drink)
+                      </p>
+                      <div className="mt-3">
+                        <Button
+                          onClick={() =>
+                            connectLettersNextRound.mutate({
+                              roomId: room?.id || "",
+                              playerId: actualPlayer || "",
+                            })
+                          }
+                          disabled={connectLettersNextRound.isPending || !actualPlayer}
+                          className="bg-purple-600 hover:bg-purple-700"
+                        >
+                          Next Round
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <h3 className="text-lg font-semibold mb-2">How to Win</h3>
+                    <p className="text-sm text-white/85">
+                      Click &quot;I Have a Word&quot;, the clicker answers for{" "}
+                      {connectLettersTimerDuration} seconds, then the opponent
+                      judges with ✅ or ❌.
+                    </p>
+                    <p className="mt-2 text-sm text-white/85">
+                      On ✅: guesser +1 point, challenger +1 drink.
+                    </p>
+                    <p className="mt-2 text-sm text-white/85">
+                      On ❌: timer swaps and the other player must guess.
+                    </p>
                   </div>
                 </div>
               </div>

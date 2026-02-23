@@ -36,6 +36,7 @@ const CODENAMES_ASSIGNMENT_VALUES = [
 const MEMORY_CHAIN_CARD_COUNT = 12;
 const GUESS_THE_NUMBER_MIN = 0;
 const GUESS_THE_NUMBER_MAX = 100;
+const CONNECT_LETTERS_TIMER_SECONDS = 10;
 
 type CodenamesTeam = (typeof CODENAMES_TEAM_VALUES)[number];
 type CodenamesAssignment = (typeof CODENAMES_ASSIGNMENT_VALUES)[number];
@@ -92,6 +93,29 @@ type GuessTheNumberState = {
   playerDiscoveries: Record<string, string[]>;
   winnerPlayerId: string | null;
   winnerTargetPlayerId: string | null;
+};
+
+type ConnectLettersPhase =
+  | "READY"
+  | "TIMER_RUNNING"
+  | "AWAITING_JUDGMENT"
+  | "ROUND_COMPLETE";
+
+type ConnectLettersState = {
+  status: "PLAYING" | "ENDED";
+  playerOrder: string[];
+  currentPair: [string, string] | null;
+  usedPairKeys: string[];
+  roundNumber: number;
+  phase: ConnectLettersPhase;
+  startLetter: string;
+  endLetter: string;
+  timerSeconds: number;
+  activeChallengerId: string | null;
+  activeGuesserId: string | null;
+  attemptStartedAt: string | null;
+  roundWinnerPlayerId: string | null;
+  roundLoserPlayerId: string | null;
 };
 
 function shuffleArray<T>(items: T[]): T[] {
@@ -465,6 +489,208 @@ function parseGuessTheNumberState(
   }
 }
 
+function getConnectLettersPairKey(playerAId: string, playerBId: string): string {
+  return [playerAId, playerBId].sort().join("&");
+}
+
+function getAllConnectLettersPairs(playerIds: string[]): [string, string][] {
+  const pairs: [string, string][] = [];
+  for (let i = 0; i < playerIds.length; i += 1) {
+    for (let j = i + 1; j < playerIds.length; j += 1) {
+      pairs.push([playerIds[i], playerIds[j]]);
+    }
+  }
+  return pairs;
+}
+
+function getRandomConnectLettersRange(): { startLetter: string; endLetter: string } {
+  const startIndex = Math.floor(Math.random() * 21);
+  const endIndex =
+    startIndex + 5 + Math.floor(Math.random() * (26 - (startIndex + 5)));
+  return {
+    startLetter: String.fromCharCode(65 + startIndex),
+    endLetter: String.fromCharCode(65 + endIndex),
+  };
+}
+
+function pickNextConnectLettersPair(
+  playerIds: string[],
+  usedPairKeys: string[],
+): { pair: [string, string]; nextUsedPairKeys: string[] } | null {
+  const allPairs = getAllConnectLettersPairs(playerIds);
+  if (!allPairs.length) {
+    return null;
+  }
+
+  const used = new Set(usedPairKeys);
+  const availablePairs = allPairs.filter(
+    ([playerAId, playerBId]) =>
+      !used.has(getConnectLettersPairKey(playerAId, playerBId)),
+  );
+  const candidatePairs = availablePairs.length > 0 ? availablePairs : allPairs;
+  const chosenPair =
+    candidatePairs[Math.floor(Math.random() * candidatePairs.length)];
+  const chosenKey = getConnectLettersPairKey(chosenPair[0], chosenPair[1]);
+
+  return {
+    pair: chosenPair,
+    nextUsedPairKeys:
+      availablePairs.length > 0 ? [...usedPairKeys, chosenKey] : [chosenKey],
+  };
+}
+
+function getDefaultConnectLettersState(playerIds: string[]): ConnectLettersState {
+  const normalizedOrder = [...playerIds];
+  const initialPair = pickNextConnectLettersPair(normalizedOrder, []);
+  const initialLetters = getRandomConnectLettersRange();
+
+  return {
+    status: initialPair ? "PLAYING" : "ENDED",
+    playerOrder: normalizedOrder,
+    currentPair: initialPair ? initialPair.pair : null,
+    usedPairKeys: initialPair ? initialPair.nextUsedPairKeys : [],
+    roundNumber: initialPair ? 1 : 0,
+    phase: initialPair ? "READY" : "ROUND_COMPLETE",
+    startLetter: initialLetters.startLetter,
+    endLetter: initialLetters.endLetter,
+    timerSeconds: CONNECT_LETTERS_TIMER_SECONDS,
+    activeChallengerId: null,
+    activeGuesserId: null,
+    attemptStartedAt: null,
+    roundWinnerPlayerId: null,
+    roundLoserPlayerId: null,
+  };
+}
+
+function parseConnectLettersState(
+  raw: string | null,
+  playerIds: string[],
+): ConnectLettersState {
+  const fallback = getDefaultConnectLettersState(playerIds);
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<ConnectLettersState>;
+    const normalizedOrder = [
+      ...(Array.isArray(parsed.playerOrder)
+        ? parsed.playerOrder.filter((id): id is string => playerIds.includes(id))
+        : []),
+      ...playerIds.filter(
+        (id) =>
+          !(
+            Array.isArray(parsed.playerOrder) && parsed.playerOrder.includes(id)
+          ),
+      ),
+    ];
+
+    const parsedPair: [string, string] | null =
+      Array.isArray(parsed.currentPair) &&
+      parsed.currentPair.length === 2 &&
+      typeof parsed.currentPair[0] === "string" &&
+      typeof parsed.currentPair[1] === "string" &&
+      parsed.currentPair[0] !== parsed.currentPair[1] &&
+      playerIds.includes(parsed.currentPair[0]) &&
+      playerIds.includes(parsed.currentPair[1])
+        ? [parsed.currentPair[0], parsed.currentPair[1]]
+        : null;
+
+    const nextPairSource =
+      parsedPair ||
+      pickNextConnectLettersPair(normalizedOrder, parsed.usedPairKeys ?? [])?.pair ||
+      fallback.currentPair;
+
+    const parsedStartLetter =
+      typeof parsed.startLetter === "string" &&
+      /^[A-Z]$/.test(parsed.startLetter)
+        ? parsed.startLetter
+        : null;
+    const parsedEndLetter =
+      typeof parsed.endLetter === "string" && /^[A-Z]$/.test(parsed.endLetter)
+        ? parsed.endLetter
+        : null;
+    const letters =
+      parsedStartLetter &&
+      parsedEndLetter &&
+      parsedStartLetter.charCodeAt(0) + 5 <= parsedEndLetter.charCodeAt(0)
+        ? { startLetter: parsedStartLetter, endLetter: parsedEndLetter }
+        : getRandomConnectLettersRange();
+
+    const normalizedUsedPairKeys = Array.isArray(parsed.usedPairKeys)
+      ? parsed.usedPairKeys.filter(
+          (item): item is string => typeof item === "string" && item.length > 0,
+        )
+      : fallback.usedPairKeys;
+
+    const activeChallengerId =
+      typeof parsed.activeChallengerId === "string" &&
+      playerIds.includes(parsed.activeChallengerId)
+        ? parsed.activeChallengerId
+        : null;
+    const activeGuesserId =
+      typeof parsed.activeGuesserId === "string" &&
+      playerIds.includes(parsed.activeGuesserId)
+        ? parsed.activeGuesserId
+        : null;
+
+    const phase: ConnectLettersPhase =
+      parsed.phase === "TIMER_RUNNING" ||
+      parsed.phase === "AWAITING_JUDGMENT" ||
+      parsed.phase === "ROUND_COMPLETE"
+        ? parsed.phase
+        : "READY";
+    const status: ConnectLettersState["status"] =
+      parsed.status === "ENDED" || playerIds.length < 2 ? "ENDED" : "PLAYING";
+
+    return {
+      status,
+      playerOrder: normalizedOrder,
+      currentPair: nextPairSource,
+      usedPairKeys: normalizedUsedPairKeys,
+      roundNumber:
+        typeof parsed.roundNumber === "number" &&
+        Number.isFinite(parsed.roundNumber) &&
+        parsed.roundNumber >= 1
+          ? parsed.roundNumber
+          : fallback.roundNumber,
+      phase: status === "ENDED" ? "ROUND_COMPLETE" : phase,
+      startLetter: letters.startLetter,
+      endLetter: letters.endLetter,
+      timerSeconds:
+        typeof parsed.timerSeconds === "number" &&
+        Number.isFinite(parsed.timerSeconds) &&
+        parsed.timerSeconds > 0
+          ? parsed.timerSeconds
+          : CONNECT_LETTERS_TIMER_SECONDS,
+      activeChallengerId,
+      activeGuesserId,
+      attemptStartedAt:
+        typeof parsed.attemptStartedAt === "string" ? parsed.attemptStartedAt : null,
+      roundWinnerPlayerId:
+        typeof parsed.roundWinnerPlayerId === "string" &&
+        playerIds.includes(parsed.roundWinnerPlayerId)
+          ? parsed.roundWinnerPlayerId
+          : null,
+      roundLoserPlayerId:
+        typeof parsed.roundLoserPlayerId === "string" &&
+        playerIds.includes(parsed.roundLoserPlayerId)
+          ? parsed.roundLoserPlayerId
+          : null,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function getConnectLettersOpponent(
+  pair: [string, string] | null,
+  playerId: string,
+): string | null {
+  if (!pair) return null;
+  if (pair[0] === playerId) return pair[1];
+  if (pair[1] === playerId) return pair[0];
+  return null;
+}
+
 async function normalizeCodenamesTeamStats(
   tx: { player: typeof prisma.player },
   roomId: string,
@@ -765,6 +991,12 @@ export const gamesRouter = createTRPCRouter({
         ) {
           throw new Error("Guess The Number requires at least 2 players.");
         }
+        if (
+          input.selectedGame === "connect-the-letters" &&
+          (input.players?.length || 0) < 2
+        ) {
+          throw new Error("Connect The Letters requires at least 2 players.");
+        }
 
         if (input.selectedGame === "triviyay") {
           if (!input.teamsInfo || input.teamsInfo.length < 1) {
@@ -951,6 +1183,12 @@ export const gamesRouter = createTRPCRouter({
             const playerIds = createdRoom.players.map((player) => player.id);
             roomCurrentAnswer = JSON.stringify(
               getDefaultGuessTheNumberState(playerIds, randomCurrentPlayerId),
+            );
+          }
+          if (input.selectedGame === "connect-the-letters") {
+            const playerIds = createdRoom.players.map((player) => player.id);
+            roomCurrentAnswer = JSON.stringify(
+              getDefaultConnectLettersState(playerIds),
             );
           }
 
@@ -4033,6 +4271,411 @@ export const gamesRouter = createTRPCRouter({
         nextTargetPlayerId,
         gameEnded: false,
         winnerPlayerId: state.winnerPlayerId,
+      };
+    }),
+
+  connectLettersBuzz: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+      if (room.game.code !== "connect-the-letters") {
+        throw new Error("This room is not Connect The Letters");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+      if (room.players.length < 2) {
+        throw new Error("At least 2 players are required");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parseConnectLettersState(room.currentAnswer, playerIds);
+      if (state.status !== "PLAYING") {
+        throw new Error("Game is not in playing state");
+      }
+      if (state.phase !== "READY") {
+        throw new Error("This round has already started");
+      }
+      if (!state.currentPair || !state.currentPair.includes(input.playerId)) {
+        throw new Error("You are not in the current pair");
+      }
+
+      const opponentPlayerId = getConnectLettersOpponent(
+        state.currentPair,
+        input.playerId,
+      );
+      if (!opponentPlayerId) {
+        throw new Error("Could not resolve opponent");
+      }
+
+      state.phase = "TIMER_RUNNING";
+      // The player who buzzes is judged first.
+      state.activeGuesserId = input.playerId;
+      state.activeChallengerId = opponentPlayerId;
+      state.attemptStartedAt = new Date().toISOString();
+      state.roundWinnerPlayerId = null;
+      state.roundLoserPlayerId = null;
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentPlayerId: input.playerId,
+          currentAnswer: JSON.stringify(state),
+        },
+      });
+
+      return {
+        challengerPlayerId: opponentPlayerId,
+        guesserPlayerId: input.playerId,
+      };
+    }),
+
+  connectLettersStopTimer: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+      if (room.game.code !== "connect-the-letters") {
+        throw new Error("This room is not Connect The Letters");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parseConnectLettersState(room.currentAnswer, playerIds);
+      if (state.phase !== "TIMER_RUNNING") {
+        throw new Error("Timer is not running");
+      }
+      if (!state.currentPair || !state.currentPair.includes(input.playerId)) {
+        throw new Error("Only players in the current pair can stop timer");
+      }
+
+      state.phase = "AWAITING_JUDGMENT";
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentAnswer: JSON.stringify(state),
+        },
+      });
+
+      return {
+        awaitingJudgment: true,
+      };
+    }),
+
+  connectLettersJudge: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        verdict: z.enum(["RIGHT", "WRONG"]),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+      if (room.game.code !== "connect-the-letters") {
+        throw new Error("This room is not Connect The Letters");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parseConnectLettersState(room.currentAnswer, playerIds);
+      if (state.phase !== "AWAITING_JUDGMENT") {
+        throw new Error("No active judgment to resolve");
+      }
+      if (state.activeChallengerId !== input.playerId) {
+        throw new Error("Only the challenger can judge");
+      }
+
+      const challengerPlayerId = state.activeChallengerId;
+      const guesserPlayerId = state.activeGuesserId;
+      if (!challengerPlayerId || !guesserPlayerId) {
+        throw new Error("Round state is invalid");
+      }
+
+      if (input.verdict === "RIGHT") {
+        state.phase = "ROUND_COMPLETE";
+        state.roundWinnerPlayerId = guesserPlayerId;
+        state.roundLoserPlayerId = challengerPlayerId;
+        state.attemptStartedAt = null;
+
+        await prisma.$transaction(async (tx) => {
+          await tx.player.updateMany({
+            where: {
+              id: guesserPlayerId,
+              points: null,
+            },
+            data: {
+              points: 0,
+            },
+          });
+          await tx.player.updateMany({
+            where: {
+              id: challengerPlayerId,
+              drinks: null,
+            },
+            data: {
+              drinks: 0,
+            },
+          });
+
+          await tx.player.update({
+            where: {
+              id: guesserPlayerId,
+            },
+            data: {
+              points: {
+                increment: 1,
+              },
+            },
+          });
+
+          await tx.player.update({
+            where: {
+              id: challengerPlayerId,
+            },
+            data: {
+              drinks: {
+                increment: 1,
+              },
+            },
+          });
+
+          await tx.room.update({
+            where: { id: input.roomId },
+            data: {
+              currentPlayerId: guesserPlayerId,
+              currentAnswer: JSON.stringify(state),
+            },
+          });
+        });
+
+        return {
+          phase: state.phase,
+          winnerPlayerId: guesserPlayerId,
+          loserPlayerId: challengerPlayerId,
+        };
+      }
+
+      state.phase = "TIMER_RUNNING";
+      state.activeChallengerId = guesserPlayerId;
+      state.activeGuesserId = challengerPlayerId;
+      state.attemptStartedAt = new Date().toISOString();
+      state.roundWinnerPlayerId = null;
+      state.roundLoserPlayerId = null;
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentPlayerId: challengerPlayerId,
+          currentAnswer: JSON.stringify(state),
+        },
+      });
+
+      return {
+        phase: state.phase,
+        winnerPlayerId: null,
+        loserPlayerId: null,
+      };
+    }),
+
+  connectLettersNextRound: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+      if (room.game.code !== "connect-the-letters") {
+        throw new Error("This room is not Connect The Letters");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+      if (room.players.length < 2) {
+        throw new Error("At least 2 players are required");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parseConnectLettersState(room.currentAnswer, playerIds);
+      if (state.phase !== "ROUND_COMPLETE") {
+        throw new Error("Finish this round first");
+      }
+      if (
+        !state.currentPair ||
+        (input.playerId !== state.currentPair[0] &&
+          input.playerId !== state.currentPair[1] &&
+          input.playerId !== state.roundWinnerPlayerId)
+      ) {
+        throw new Error(
+          "Only the current pair or round winner can start the next round",
+        );
+      }
+
+      const nextPair = pickNextConnectLettersPair(playerIds, state.usedPairKeys);
+      if (!nextPair) {
+        throw new Error("No player pair available");
+      }
+      const nextLetters = getRandomConnectLettersRange();
+
+      state.status = "PLAYING";
+      state.currentPair = nextPair.pair;
+      state.usedPairKeys = nextPair.nextUsedPairKeys;
+      state.roundNumber = state.roundNumber + 1;
+      state.phase = "READY";
+      state.startLetter = nextLetters.startLetter;
+      state.endLetter = nextLetters.endLetter;
+      state.activeChallengerId = null;
+      state.activeGuesserId = null;
+      state.attemptStartedAt = null;
+      state.roundWinnerPlayerId = null;
+      state.roundLoserPlayerId = null;
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentPlayerId: nextPair.pair[0],
+          currentAnswer: JSON.stringify(state),
+        },
+      });
+
+      return {
+        roundNumber: state.roundNumber,
+        currentPair: state.currentPair,
+      };
+    }),
+
+  connectLettersRedrawLetters: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+      if (room.game.code !== "connect-the-letters") {
+        throw new Error("This room is not Connect The Letters");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parseConnectLettersState(room.currentAnswer, playerIds);
+      if (!state.currentPair || !state.currentPair.includes(input.playerId)) {
+        throw new Error("Only the active pair can redraw letters");
+      }
+      if (state.phase === "ROUND_COMPLETE") {
+        throw new Error("Round already complete. Move to next round.");
+      }
+
+      const nextLetters = getRandomConnectLettersRange();
+      state.startLetter = nextLetters.startLetter;
+      state.endLetter = nextLetters.endLetter;
+      state.phase = "READY";
+      state.activeChallengerId = null;
+      state.activeGuesserId = null;
+      state.attemptStartedAt = null;
+      state.roundWinnerPlayerId = null;
+      state.roundLoserPlayerId = null;
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentPlayerId: state.currentPair[0],
+          currentAnswer: JSON.stringify(state),
+        },
+      });
+
+      return {
+        startLetter: state.startLetter,
+        endLetter: state.endLetter,
       };
     }),
 
