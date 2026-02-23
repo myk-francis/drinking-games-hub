@@ -1139,6 +1139,7 @@ export default function RoomPage() {
     trpc.games.connectLettersRedrawLetters.mutationOptions({
       onSuccess: () => {
         toast.success("Letter range refreshed.");
+        setConnectLettersRedrawCooldown(3);
       },
       onError: (error) => {
         toast.error(error.message || "Could not redraw letters.");
@@ -1180,6 +1181,8 @@ export default function RoomPage() {
   const [connectLettersTimerNow, setConnectLettersTimerNow] = React.useState(
     Date.now(),
   );
+  const [connectLettersRedrawCooldown, setConnectLettersRedrawCooldown] =
+    React.useState(0);
   const [secretPickerOpenStart, setSecretPickerOpenStart] = React.useState<
     number | null
   >(0);
@@ -1727,6 +1730,20 @@ export default function RoomPage() {
     room?.id,
     selectedGame,
   ]);
+
+  React.useEffect(() => {
+    if (connectLettersRedrawCooldown <= 0) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setConnectLettersRedrawCooldown((prev) => Math.max(prev - 1, 0));
+    }, 1000);
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [connectLettersRedrawCooldown]);
 
   // Convert seconds to MM:SS
   function formatTime(seconds: number) {
@@ -3790,12 +3807,15 @@ export default function RoomPage() {
                         disabled={
                           !isInCurrentPair ||
                           connectLettersState.phase === "ROUND_COMPLETE" ||
+                          connectLettersRedrawCooldown > 0 ||
                           connectLettersRedrawLetters.isPending
                         }
                         variant="outline"
                         className="border-cyan-300/40 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/25"
                       >
-                        Redraw Letters
+                        {connectLettersRedrawCooldown > 0
+                          ? `Redraw Letters (${connectLettersRedrawCooldown}s)`
+                          : "Redraw Letters"}
                       </Button>
                     </div>
                   </div>
