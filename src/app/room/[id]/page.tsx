@@ -1697,10 +1697,14 @@ export default function RoomPage() {
       connectLettersAutoStopRef.current = null;
       return;
     }
+    const isInCurrentPair =
+      Boolean(actualPlayer) &&
+      Boolean(connectLettersState.currentPair?.includes(actualPlayer));
     if (
       connectLettersState.phase !== "TIMER_RUNNING" ||
       !room?.id ||
-      !actualPlayer
+      !actualPlayer ||
+      !isInCurrentPair
     ) {
       connectLettersAutoStopRef.current = null;
       return;
@@ -1725,6 +1729,7 @@ export default function RoomPage() {
     actualPlayer,
     connectLettersSecondsLeft,
     connectLettersState.attemptStartedAt,
+    connectLettersState.currentPair,
     connectLettersState.phase,
     connectLettersStopTimer,
     room?.id,
