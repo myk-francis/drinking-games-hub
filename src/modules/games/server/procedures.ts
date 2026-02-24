@@ -106,6 +106,7 @@ type ConnectLettersState = {
   playerOrder: string[];
   currentPair: [string, string] | null;
   usedPairKeys: string[];
+  usedLetterKeys: string[];
   roundNumber: number;
   phase: ConnectLettersPhase;
   startLetter: string;
@@ -503,13 +504,47 @@ function getAllConnectLettersPairs(playerIds: string[]): [string, string][] {
   return pairs;
 }
 
-function getRandomConnectLettersRange(): { startLetter: string; endLetter: string } {
-  const startIndex = Math.floor(Math.random() * 21);
-  const endIndex =
-    startIndex + 5 + Math.floor(Math.random() * (26 - (startIndex + 5)));
+function getConnectLettersLetterKey(startLetter: string, endLetter: string): string {
+  return `${startLetter}${endLetter}`;
+}
+
+function getAllConnectLettersRanges(): { startLetter: string; endLetter: string }[] {
+  const ranges: { startLetter: string; endLetter: string }[] = [];
+  for (let startIndex = 0; startIndex < 26; startIndex += 1) {
+    for (let endIndex = 0; endIndex < 26; endIndex += 1) {
+      ranges.push({
+        startLetter: String.fromCharCode(65 + startIndex),
+        endLetter: String.fromCharCode(65 + endIndex),
+      });
+    }
+  }
+  return ranges;
+}
+
+function pickNextConnectLettersRange(
+  usedLetterKeys: string[],
+): {
+  range: { startLetter: string; endLetter: string };
+  nextUsedLetterKeys: string[];
+} {
+  const allRanges = getAllConnectLettersRanges();
+  const used = new Set(usedLetterKeys);
+  const availableRanges = allRanges.filter(
+    ({ startLetter, endLetter }) =>
+      !used.has(getConnectLettersLetterKey(startLetter, endLetter)),
+  );
+  const candidateRanges = availableRanges.length > 0 ? availableRanges : allRanges;
+  const chosenRange =
+    candidateRanges[Math.floor(Math.random() * candidateRanges.length)];
+  const chosenKey = getConnectLettersLetterKey(
+    chosenRange.startLetter,
+    chosenRange.endLetter,
+  );
+
   return {
-    startLetter: String.fromCharCode(65 + startIndex),
-    endLetter: String.fromCharCode(65 + endIndex),
+    range: chosenRange,
+    nextUsedLetterKeys:
+      availableRanges.length > 0 ? [...usedLetterKeys, chosenKey] : [chosenKey],
   };
 }
 
@@ -542,17 +577,18 @@ function pickNextConnectLettersPair(
 function getDefaultConnectLettersState(playerIds: string[]): ConnectLettersState {
   const normalizedOrder = [...playerIds];
   const initialPair = pickNextConnectLettersPair(normalizedOrder, []);
-  const initialLetters = getRandomConnectLettersRange();
+  const initialLetters = pickNextConnectLettersRange([]);
 
   return {
     status: initialPair ? "PLAYING" : "ENDED",
     playerOrder: normalizedOrder,
     currentPair: initialPair ? initialPair.pair : null,
     usedPairKeys: initialPair ? initialPair.nextUsedPairKeys : [],
+    usedLetterKeys: initialLetters.nextUsedLetterKeys,
     roundNumber: initialPair ? 1 : 0,
     phase: initialPair ? "READY" : "ROUND_COMPLETE",
-    startLetter: initialLetters.startLetter,
-    endLetter: initialLetters.endLetter,
+    startLetter: initialLetters.range.startLetter,
+    endLetter: initialLetters.range.endLetter,
     timerSeconds: CONNECT_LETTERS_TIMER_SECONDS,
     activeChallengerId: null,
     activeGuesserId: null,
@@ -608,12 +644,24 @@ function parseConnectLettersState(
       typeof parsed.endLetter === "string" && /^[A-Z]$/.test(parsed.endLetter)
         ? parsed.endLetter
         : null;
+    const normalizedUsedLetterKeys = Array.isArray(parsed.usedLetterKeys)
+      ? parsed.usedLetterKeys.filter(
+          (item): item is string => typeof item === "string" && item.length > 0,
+        )
+      : [];
+
     const letters =
-      parsedStartLetter &&
-      parsedEndLetter &&
-      parsedStartLetter.charCodeAt(0) + 5 <= parsedEndLetter.charCodeAt(0)
+      parsedStartLetter && parsedEndLetter
         ? { startLetter: parsedStartLetter, endLetter: parsedEndLetter }
-        : getRandomConnectLettersRange();
+        : pickNextConnectLettersRange(normalizedUsedLetterKeys).range;
+
+    const currentLetterKey = getConnectLettersLetterKey(
+      letters.startLetter,
+      letters.endLetter,
+    );
+    const nextUsedLetterKeys = normalizedUsedLetterKeys.includes(currentLetterKey)
+      ? normalizedUsedLetterKeys
+      : [...normalizedUsedLetterKeys, currentLetterKey];
 
     const normalizedUsedPairKeys = Array.isArray(parsed.usedPairKeys)
       ? parsed.usedPairKeys.filter(
@@ -646,6 +694,7 @@ function parseConnectLettersState(
       playerOrder: normalizedOrder,
       currentPair: nextPairSource,
       usedPairKeys: normalizedUsedPairKeys,
+      usedLetterKeys: nextUsedLetterKeys,
       roundNumber:
         typeof parsed.roundNumber === "number" &&
         Number.isFinite(parsed.roundNumber) &&
@@ -4587,15 +4636,16 @@ export const gamesRouter = createTRPCRouter({
       if (!nextPair) {
         throw new Error("No player pair available");
       }
-      const nextLetters = getRandomConnectLettersRange();
+      const nextLetters = pickNextConnectLettersRange(state.usedLetterKeys);
 
       state.status = "PLAYING";
       state.currentPair = nextPair.pair;
       state.usedPairKeys = nextPair.nextUsedPairKeys;
+      state.usedLetterKeys = nextLetters.nextUsedLetterKeys;
       state.roundNumber = state.roundNumber + 1;
       state.phase = "READY";
-      state.startLetter = nextLetters.startLetter;
-      state.endLetter = nextLetters.endLetter;
+      state.startLetter = nextLetters.range.startLetter;
+      state.endLetter = nextLetters.range.endLetter;
       state.activeChallengerId = null;
       state.activeGuesserId = null;
       state.attemptStartedAt = null;
@@ -4655,9 +4705,10 @@ export const gamesRouter = createTRPCRouter({
         throw new Error("Round already complete. Move to next round.");
       }
 
-      const nextLetters = getRandomConnectLettersRange();
-      state.startLetter = nextLetters.startLetter;
-      state.endLetter = nextLetters.endLetter;
+      const nextLetters = pickNextConnectLettersRange(state.usedLetterKeys);
+      state.usedLetterKeys = nextLetters.nextUsedLetterKeys;
+      state.startLetter = nextLetters.range.startLetter;
+      state.endLetter = nextLetters.range.endLetter;
       state.phase = "READY";
       state.activeChallengerId = null;
       state.activeGuesserId = null;

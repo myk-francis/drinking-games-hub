@@ -3795,8 +3795,8 @@ export default function RoomPage() {
                   and ends with{" "}
                   <span className="font-semibold">
                     {connectLettersState.endLetter}
-                  </span>{" "}
-                  with at least 4 letters between.
+                  </span>
+                  . Your word must be longer than 4 letters.
                 </p>
               </div>
 
