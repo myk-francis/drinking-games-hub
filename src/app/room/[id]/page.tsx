@@ -1,5 +1,14 @@
 "use client";
-import { Home, UserPlus2, QrCodeIcon, ChevronDown, VolumeX } from "lucide-react";
+import {
+  Home,
+  UserPlus2,
+  QrCodeIcon,
+  ChevronDown,
+  VolumeX,
+  Star,
+  Trophy,
+  ArrowLeft,
+} from "lucide-react";
 import { useParams } from "next/navigation";
 import { useTRPC } from "@/trpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -23,7 +32,6 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 
-import { Star } from "lucide-react";
 import { DRINKING_QUOTES } from "@/lib/quotes";
 
 type CodenamesTeam = "RED" | "BLUE";
@@ -334,6 +342,98 @@ function EndGameFeedback({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+type TopPlayerEntry = {
+  id: string;
+  name: string;
+  points: number;
+  drinks: number;
+  ratio: number;
+};
+
+function TopPlayersView({
+  topPlayers,
+  selectedGame,
+  onBack,
+}: {
+  topPlayers: TopPlayerEntry[];
+  selectedGame: string;
+  onBack: () => void;
+}) {
+  const pointsLabel =
+    selectedGame === "most-likely" || selectedGame === "paranoia"
+      ? "Votes"
+      : "Points";
+
+  return (
+    <div className="w-full max-w-3xl mx-auto">
+      <div
+        className="rounded-2xl border border-white/20 bg-white/10 p-4 sm:p-6 backdrop-blur-sm"
+        style={{ animation: "scale-in 0.35s ease-out both" }}
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
+              <Trophy className="h-6 w-6 text-yellow-300" />
+              Top 10 Players
+            </h2>
+            <p className="text-sm text-white/75 mt-1">
+              Ranked by points-to-drinks efficiency for this game.
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            className="w-full sm:w-auto"
+            onClick={onBack}
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Game Ended
+          </Button>
+        </div>
+
+        <div className="mt-5 space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+          {topPlayers.length === 0 ? (
+            <div className="rounded-xl border border-white/15 bg-white/5 p-4 text-white/80 text-sm">
+              No player stats are available yet.
+            </div>
+          ) : (
+            topPlayers.map((player, index) => (
+              <div
+                key={player.id}
+                className="rounded-xl border border-white/20 bg-black/20 p-3 sm:p-4"
+                style={{
+                  animation: `slide-up 0.4s ease-out ${index * 0.07}s both`,
+                }}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex items-center gap-3">
+                    <div className="h-9 w-9 shrink-0 rounded-full bg-yellow-500/20 border border-yellow-300/40 text-yellow-200 flex items-center justify-center text-sm font-bold">
+                      #{index + 1}
+                    </div>
+                    <p className="font-semibold text-base sm:text-lg truncate">
+                      {player.name}
+                    </p>
+                  </div>
+                  <div className="text-right text-xs sm:text-sm text-cyan-200 font-semibold">
+                    Ratio: {player.ratio.toFixed(2)}
+                  </div>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:text-sm">
+                  <div className="rounded-lg bg-emerald-500/15 border border-emerald-300/20 px-3 py-2 text-emerald-200">
+                    {pointsLabel}: {player.points}
+                  </div>
+                  <div className="rounded-lg bg-orange-500/15 border border-orange-300/20 px-3 py-2 text-orange-200">
+                    Drinks: {player.drinks}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1198,6 +1298,7 @@ export default function RoomPage() {
   const [openAddPlayerModal, setOpenAddPlayerModal] = React.useState(false);
   const [showAddPlayerModal, setShowAddPlayerModal] = React.useState(false);
   const [openDialog, setOpenDialog] = React.useState(false);
+  const [showTopPlayersView, setShowTopPlayersView] = React.useState(false);
   const [winningTeams, setWinningTeams] = React.useState<string[]>([]);
   const [forfited, setForfited] = React.useState<boolean>(false);
 
@@ -1341,6 +1442,35 @@ export default function RoomPage() {
   const playerAddedComment = React.useMemo(() => {
     return (comments?.length || 0) >= players.length;
   }, [comments, players]);
+
+  const topPlayers = React.useMemo<TopPlayerEntry[]>(() => {
+    return [...players]
+      .map((player) => {
+        const points = Math.max(0, player.points ?? 0);
+        const drinks = Math.max(0, player.drinks ?? 0);
+        const ratio = points / Math.max(1, drinks);
+        return {
+          id: player.id,
+          name: player.name,
+          points,
+          drinks,
+          ratio,
+        };
+      })
+      .sort((a, b) => {
+        if (b.ratio !== a.ratio) return b.ratio - a.ratio;
+        if (b.points !== a.points) return b.points - a.points;
+        if (a.drinks !== b.drinks) return a.drinks - b.drinks;
+        return a.name.localeCompare(b.name);
+      })
+      .slice(0, 10);
+  }, [players]);
+
+  React.useEffect(() => {
+    if (!room?.gameEnded) {
+      setShowTopPlayersView(false);
+    }
+  }, [room?.gameEnded]);
 
   const nextCharadeCard = useMutation(
     trpc.games.nextCharadeCard.mutationOptions({
@@ -2032,91 +2162,107 @@ export default function RoomPage() {
             handleActualSelectPlayer={handleActualSelectPlayer}
           />
         )}
-        <div>
-          <h1 className="text-4xl font-bold mb-4">Game Over</h1>
-          <h1 className="text-2xl font-bold mb-4 ">Game: {game?.name ?? ""}</h1>
-          <div className="">
-            <h1 className="text-xl font-bold mb-4 text-wrap">
-              Game Status: {totalPoints} Drinks : {quote}
-            </h1>
-          </div>
-          {selectedGame === "triviyay" && (
-            <>
-              <div className="flex flex-row items-center justify-around flex-wrap bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center border border-white/20 my-4">
-                {room?.playingTeams.map((team) => (
-                  <div key={team}>
-                    <div className="font-bold text-lg text-white mb-1">
-                      Team: {team} ({TeamPlayerStats[team]?.Count || 0})
+        {showTopPlayersView ? (
+          <TopPlayersView
+            topPlayers={topPlayers}
+            selectedGame={selectedGame}
+            onBack={() => setShowTopPlayersView(false)}
+          />
+        ) : (
+          <div>
+            <h1 className="text-4xl font-bold mb-4">Game Over</h1>
+            <h1 className="text-2xl font-bold mb-4 ">Game: {game?.name ?? ""}</h1>
+            <div className="">
+              <h1 className="text-xl font-bold mb-4 text-wrap">
+                Game Status: {totalPoints} Drinks : {quote}
+              </h1>
+            </div>
+            {selectedGame === "triviyay" && (
+              <>
+                <div className="flex flex-row items-center justify-around flex-wrap bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center border border-white/20 my-4">
+                  {room?.playingTeams.map((team) => (
+                    <div key={team}>
+                      <div className="font-bold text-lg text-white mb-1">
+                        Team: {team} ({TeamPlayerStats[team]?.Count || 0})
+                      </div>
+                      <div className="text-2xl font-bold text-emerald-400 mb-1">
+                        {TeamPlayerStats[team]?.TotalPoints} pts
+                      </div>
+                      <div className="text-sm text-orange-300">
+                        {TeamPlayerStats[team]?.TotalDrinks} drinks
+                      </div>
                     </div>
-                    <div className="text-2xl font-bold text-emerald-400 mb-1">
-                      {TeamPlayerStats[team]?.TotalPoints} pts
-                    </div>
-                    <div className="text-sm text-orange-300">
-                      {TeamPlayerStats[team]?.TotalDrinks} drinks
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {players.map((player) => (
-              <PlayerScore
-                key={player.id}
-                points={player.points}
-                drinks={player.drinks}
-                player={player.name}
-              />
-            ))}
-          </div>
-          <div className="">
-            <Link href="/" className="mt-6 inline-block self-center mr-2">
-              <Button>Go back home</Button>
-            </Link>
-            {!playerAddedComment && actualPlayer && (
-              <EndGameFeedback
-                handleCreateComment={handleCreateComment}
-                roomId={room?.id || ""}
-                setComment={setComment}
-                comment={comment}
-                setRating={setPlayerRating}
-                rating={playerRating}
-                openDialog={openDialog}
-                setOpenDialog={setOpenDialog}
-              />
+                  ))}
+                </div>
+              </>
             )}
-            {actualPlayer === "" && !playerAddedComment && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {players.map((player) => (
+                <PlayerScore
+                  key={player.id}
+                  points={player.points}
+                  drinks={player.drinks}
+                  player={player.name}
+                />
+              ))}
+            </div>
+            <div className="mt-6 flex flex-wrap gap-2">
               <Button
-                onClick={() => {
-                  setShowAddPlayerModal(true);
-                }}
+                variant="secondary"
+                className="w-full sm:w-auto"
+                onClick={() => setShowTopPlayersView(true)}
               >
-                Leave a Comment
+                <Trophy className="h-4 w-4 mr-2" />
+                View Top 10 Players
               </Button>
-            )}
-          </div>
-          <div className="mt-4">
-            <p className="text-white/70 italic">
-              Date: {room?.createdAt.toDateString()}
-            </p>
-          </div>
+              <Link href="/" className="w-full sm:w-auto">
+                <Button className="w-full">Go back home</Button>
+              </Link>
+              {!playerAddedComment && actualPlayer && (
+                <EndGameFeedback
+                  handleCreateComment={handleCreateComment}
+                  roomId={room?.id || ""}
+                  setComment={setComment}
+                  comment={comment}
+                  setRating={setPlayerRating}
+                  rating={playerRating}
+                  openDialog={openDialog}
+                  setOpenDialog={setOpenDialog}
+                />
+              )}
+              {actualPlayer === "" && !playerAddedComment && (
+                <Button
+                  onClick={() => {
+                    setShowAddPlayerModal(true);
+                  }}
+                >
+                  Leave a Comment
+                </Button>
+              )}
+            </div>
+            <div className="mt-4">
+              <p className="text-white/70 italic">
+                Date: {room?.createdAt.toDateString()}
+              </p>
+            </div>
 
-          <div className="mt-10">
-            <GameComments
-              comments={
-                comments?.map((c) => {
-                  return {
-                    id: c.id,
-                    comment: c.content,
-                    rating: c.raiting,
-                    createdAt: c.createdAt,
-                    playerName: c.playerName,
-                  };
-                }) || []
-              }
-            />
+            <div className="mt-10">
+              <GameComments
+                comments={
+                  comments?.map((c) => {
+                    return {
+                      id: c.id,
+                      comment: c.content,
+                      rating: c.raiting,
+                      createdAt: c.createdAt,
+                      playerName: c.playerName,
+                    };
+                  }) || []
+                }
+              />
+            </div>
           </div>
-        </div>
+        )}
       </div>
     );
   }
