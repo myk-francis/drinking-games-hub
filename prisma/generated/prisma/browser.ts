@@ -62,3 +62,8 @@ export type Transaction = Prisma.TransactionModel
  * 
  */
 export type Comment = Prisma.CommentModel
+/**
+ * Model Reaction
+ * 
+ */
+export type Reaction = Prisma.ReactionModel
