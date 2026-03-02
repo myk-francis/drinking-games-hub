@@ -1,8 +1,8 @@
-// middleware.js
+// proxy.ts
 import { NextResponse } from "next/server";
 
 //@ts-expect-error any types
-export function middleware(req) {
+export function proxy(req) {
   // Get the JWT token from cookies
   const session = req.cookies.get("sessionId");
 
