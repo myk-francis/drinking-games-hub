@@ -113,6 +113,20 @@ type ConnectLettersRoomState = {
   roundWinnerPlayerId: string | null;
   roundLoserPlayerId: string | null;
 };
+type GhostTearsPhase = "PICKING" | "AWAITING_JUDGMENT";
+type GhostTearsRoomState = {
+  status: "PLAYING" | "ENDED";
+  playerOrder: string[];
+  currentPlayerId: string | null;
+  previousPlayerId: string | null;
+  phase: GhostTearsPhase;
+  letterSequence: string[];
+  challengerPlayerId: string | null;
+  challengedPlayerId: string | null;
+  lastLoserPlayerId: string | null;
+  roundNumber: number;
+  alphabet: string[];
+};
 
 interface TeamStats {
   [team: string]: {
@@ -858,6 +872,79 @@ function parseConnectLettersState(
   }
 }
 
+function parseGhostTearsState(
+  raw: string | null | undefined,
+): GhostTearsRoomState {
+  const fallback: GhostTearsRoomState = {
+    status: "PLAYING",
+    playerOrder: [],
+    currentPlayerId: null,
+    previousPlayerId: null,
+    phase: "PICKING",
+    letterSequence: [],
+    challengerPlayerId: null,
+    challengedPlayerId: null,
+    lastLoserPlayerId: null,
+    roundNumber: 1,
+    alphabet: "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split(""),
+  };
+
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<GhostTearsRoomState>;
+    const parsedAlphabet = Array.isArray(parsed.alphabet)
+      ? parsed.alphabet.filter(
+          (letter): letter is string =>
+            typeof letter === "string" && /^[A-Z]$/.test(letter),
+        )
+      : fallback.alphabet;
+
+    return {
+      status: parsed.status === "ENDED" ? "ENDED" : "PLAYING",
+      playerOrder: Array.isArray(parsed.playerOrder)
+        ? parsed.playerOrder.filter(
+            (playerId): playerId is string => typeof playerId === "string",
+          )
+        : [],
+      currentPlayerId:
+        typeof parsed.currentPlayerId === "string" ? parsed.currentPlayerId : null,
+      previousPlayerId:
+        typeof parsed.previousPlayerId === "string"
+          ? parsed.previousPlayerId
+          : null,
+      phase: parsed.phase === "AWAITING_JUDGMENT" ? "AWAITING_JUDGMENT" : "PICKING",
+      letterSequence: Array.isArray(parsed.letterSequence)
+        ? parsed.letterSequence.filter(
+            (letter): letter is string =>
+              typeof letter === "string" && /^[A-Z]$/.test(letter),
+          )
+        : [],
+      challengerPlayerId:
+        typeof parsed.challengerPlayerId === "string"
+          ? parsed.challengerPlayerId
+          : null,
+      challengedPlayerId:
+        typeof parsed.challengedPlayerId === "string"
+          ? parsed.challengedPlayerId
+          : null,
+      lastLoserPlayerId:
+        typeof parsed.lastLoserPlayerId === "string"
+          ? parsed.lastLoserPlayerId
+          : null,
+      roundNumber:
+        typeof parsed.roundNumber === "number" &&
+        Number.isFinite(parsed.roundNumber) &&
+        parsed.roundNumber > 0
+          ? parsed.roundNumber
+          : 1,
+      alphabet: parsedAlphabet.length > 0 ? parsedAlphabet : fallback.alphabet,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 export default function RoomPage() {
   const [quote, setQuote] = React.useState<string>("");
   const params = useParams();
@@ -1370,6 +1457,74 @@ export default function RoomPage() {
       },
     }),
   );
+  const ghostTearsPickLetter = useMutation(
+    trpc.games.ghostTearsPickLetter.mutationOptions({
+      onSuccess: (data) => {
+        const nextName =
+          players.find((player) => player.id === data.currentPlayerId)?.name ||
+          "next player";
+        toast.success(`Letter added. ${nextName} picks next.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not pick a letter.");
+      },
+    }),
+  );
+  const ghostTearsChallenge = useMutation(
+    trpc.games.ghostTearsChallenge.mutationOptions({
+      onSuccess: (data) => {
+        const challengedName =
+          players.find((player) => player.id === data.challengedPlayerId)?.name ||
+          "previous player";
+        toast.success(`Challenge started. ${challengedName} must defend the word.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not start challenge.");
+      },
+    }),
+  );
+  const ghostTearsJudge = useMutation(
+    trpc.games.ghostTearsJudge.mutationOptions({
+      onSuccess: (data) => {
+        const loserName =
+          players.find((player) => player.id === data.loserPlayerId)?.name ||
+          "player";
+        toast.success(`${loserName} drinks +1. Everyone else gets +1 point.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not submit judgment.");
+      },
+    }),
+  );
+  const ghostTearsForfeit = useMutation(
+    trpc.games.ghostTearsForfeit.mutationOptions({
+      onSuccess: (data) => {
+        const loserName =
+          players.find((player) => player.id === data.loserPlayerId)?.name ||
+          "player";
+        const nextName =
+          players.find((player) => player.id === data.nextCurrentPlayerId)?.name ||
+          "next player";
+        toast.success(`${loserName} forfeited. ${nextName} plays next.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not forfeit.");
+      },
+    }),
+  );
+  const ghostTearsRestart = useMutation(
+    trpc.games.ghostTearsRestart.mutationOptions({
+      onSuccess: (data) => {
+        const currentName =
+          players.find((player) => player.id === data.currentPlayerId)?.name ||
+          "player";
+        toast.success(`Ghost Tears restarted. ${currentName} starts.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not restart game.");
+      },
+    }),
+  );
 
   const vote = useMutation(
     trpc.games.votePlayer.mutationOptions({
@@ -1510,6 +1665,9 @@ export default function RoomPage() {
   }, [room?.currentAnswer]);
   const connectLettersState = React.useMemo(() => {
     return parseConnectLettersState(room?.currentAnswer);
+  }, [room?.currentAnswer]);
+  const ghostTearsState = React.useMemo(() => {
+    return parseGhostTearsState(room?.currentAnswer);
   }, [room?.currentAnswer]);
 
   const codenamesUnassignedPlayers = React.useMemo(() => {
@@ -4121,6 +4279,206 @@ export default function RoomPage() {
                         })}
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        case "ghost-tears": {
+          const currentPlayerName =
+            players.find((player) => player.id === ghostTearsState.currentPlayerId)
+              ?.name || "Unknown";
+          const previousPlayerName =
+            players.find((player) => player.id === ghostTearsState.previousPlayerId)
+              ?.name || "None";
+          const challengerName =
+            players.find((player) => player.id === ghostTearsState.challengerPlayerId)
+              ?.name || "Unknown";
+          const challengedName =
+            players.find((player) => player.id === ghostTearsState.challengedPlayerId)
+              ?.name || "Unknown";
+          const lastLoserName =
+            players.find((player) => player.id === ghostTearsState.lastLoserPlayerId)
+              ?.name || "None";
+          const currentWord = ghostTearsState.letterSequence.join("");
+          const isCurrentPlayer = actualPlayer === ghostTearsState.currentPlayerId;
+          const canJudge =
+            ghostTearsState.phase === "AWAITING_JUDGMENT" &&
+            actualPlayer === ghostTearsState.challengerPlayerId;
+
+          if (players.length < 2) {
+            return (
+              <div className="rounded-xl border border-white/20 bg-white/10 p-6 text-center">
+                <p className="text-amber-200">
+                  Ghost Tears needs at least 2 players.
+                </p>
+              </div>
+            );
+          }
+
+          return (
+            <div className="w-full">
+              <div className="mb-6 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary">
+                    Round: {ghostTearsState.roundNumber}
+                  </Badge>
+                  <Badge variant="outline">
+                    Phase: {ghostTearsState.phase.replaceAll("_", " ")}
+                  </Badge>
+                </div>
+                <p className="mt-3 text-sm text-white/90">
+                  Current player:{" "}
+                  <span className="font-semibold text-cyan-200">
+                    {currentPlayerName}
+                  </span>
+                </p>
+                <p className="text-sm text-white/80">
+                  Previous player:{" "}
+                  <span className="font-semibold">{previousPlayerName}</span>
+                </p>
+                <p className="text-sm text-white/80">
+                  Current letters:{" "}
+                  <span className="font-mono text-lg tracking-[0.25em] text-fuchsia-200">
+                    {currentWord || "-"}
+                  </span>
+                </p>
+                <p className="text-sm text-white/80">
+                  Last loser: <span className="font-semibold">{lastLoserName}</span>
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                  <h3 className="mb-3 text-lg font-semibold">Choose Next Letter</h3>
+                  <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10">
+                    {ghostTearsState.alphabet.map((letter) => (
+                      <Button
+                        key={letter}
+                        type="button"
+                        size="sm"
+                        onClick={() =>
+                          ghostTearsPickLetter.mutate({
+                            roomId: room?.id || "",
+                            playerId: actualPlayer || "",
+                            letter,
+                          })
+                        }
+                        disabled={
+                          !isCurrentPlayer ||
+                          ghostTearsState.phase !== "PICKING" ||
+                          ghostTearsPickLetter.isPending
+                        }
+                        className="h-9 bg-cyan-600 hover:bg-cyan-700"
+                      >
+                        {letter}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {ghostTearsState.phase === "PICKING" && (
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <h3 className="text-lg font-semibold">Current Player Actions</h3>
+                    <p className="mt-2 text-sm text-white/85">
+                      Pick a letter, challenge the previous player, or forfeit this
+                      round.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-3">
+                      <Button
+                        onClick={() =>
+                          ghostTearsChallenge.mutate({
+                            roomId: room?.id || "",
+                            playerId: actualPlayer || "",
+                          })
+                        }
+                        disabled={
+                          !isCurrentPlayer ||
+                          !ghostTearsState.previousPlayerId ||
+                          ghostTearsChallenge.isPending
+                        }
+                        variant="secondary"
+                      >
+                        Challenge Previous
+                      </Button>
+                      <Button
+                        onClick={() =>
+                          ghostTearsForfeit.mutate({
+                            roomId: room?.id || "",
+                            playerId: actualPlayer || "",
+                          })
+                        }
+                        disabled={!isCurrentPlayer || ghostTearsForfeit.isPending}
+                        variant="destructive"
+                      >
+                        Forfeit Round
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {ghostTearsState.phase === "AWAITING_JUDGMENT" && (
+                  <div className="rounded-xl border border-amber-300/40 bg-amber-500/10 p-4">
+                    <h3 className="text-lg font-semibold">Challenge Judgment</h3>
+                    <p className="mt-2 text-sm text-amber-100">
+                      {challengedName} must complete the word. {challengerName} decides:
+                    </p>
+                    <p className="mt-1 text-sm text-amber-100/90">
+                      Correct: {challengerName} drinks +1, all others +1 point.
+                    </p>
+                    <p className="text-sm text-amber-100/90">
+                      Wrong: {challengedName} drinks +1, all others +1 point.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-3">
+                      <Button
+                        onClick={() =>
+                          ghostTearsJudge.mutate({
+                            roomId: room?.id || "",
+                            playerId: actualPlayer || "",
+                            verdict: "CORRECT",
+                          })
+                        }
+                        disabled={!canJudge || ghostTearsJudge.isPending}
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                      >
+                        Correct
+                      </Button>
+                      <Button
+                        onClick={() =>
+                          ghostTearsJudge.mutate({
+                            roomId: room?.id || "",
+                            playerId: actualPlayer || "",
+                            verdict: "WRONG",
+                          })
+                        }
+                        disabled={!canJudge || ghostTearsJudge.isPending}
+                        variant="destructive"
+                      >
+                        Wrong
+                      </Button>
+                    </div>
+                    {!canJudge && (
+                      <p className="mt-2 text-sm text-amber-100/85">
+                        Waiting for judge: {challengerName}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                  <Button
+                    onClick={() =>
+                      ghostTearsRestart.mutate({
+                        roomId: room?.id || "",
+                        playerId: actualPlayer || "",
+                      })
+                    }
+                    disabled={!actualPlayer || ghostTearsRestart.isPending}
+                    className="bg-indigo-600 hover:bg-indigo-700"
+                  >
+                    Restart Game
+                  </Button>
                 </div>
               </div>
             </div>

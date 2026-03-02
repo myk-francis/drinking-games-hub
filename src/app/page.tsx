@@ -26,6 +26,7 @@ import {
   Brain,
   Hash,
   Type,
+  Ghost,
 } from "lucide-react";
 import React from "react";
 import { useTRPC } from "@/trpc/client";
@@ -221,6 +222,8 @@ export default function HomePage() {
       return <Hash className="w-6 h-6" />;
     } else if (gamecode === "connect-the-letters") {
       return <Type className="w-6 h-6" />;
+    } else if (gamecode === "ghost-tears") {
+      return <Ghost className="w-6 h-6" />;
     } else {
       return <Gamepad2 className="w-6 h-6" />;
     }
@@ -267,6 +270,8 @@ export default function HomePage() {
       return "from-emerald-600 to-cyan-700";
     } else if (gamecode === "connect-the-letters") {
       return "from-fuchsia-600 to-cyan-700";
+    } else if (gamecode === "ghost-tears") {
+      return "from-indigo-700 to-cyan-700";
     } else {
       return "from-teal-500 to-cyan-500";
     }
@@ -721,6 +726,8 @@ export default function HomePage() {
                       (selectedGame === "guess-the-number" &&
                         players.length < 2) ||
                       (selectedGame === "connect-the-letters" &&
+                        players.length < 2) ||
+                      (selectedGame === "ghost-tears" &&
                         players.length < 2) ||
                       (selectedGame === "triviyay" && teams.length > 2)
                     }

@@ -37,6 +37,7 @@ const MEMORY_CHAIN_CARD_COUNT = 12;
 const GUESS_THE_NUMBER_MIN = 0;
 const GUESS_THE_NUMBER_MAX = 100;
 const CONNECT_LETTERS_TIMER_SECONDS = 10;
+const GHOST_TEARS_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 const REACTION_COOLDOWN_MS = 10 * 60 * 1000;
 
 type CodenamesTeam = (typeof CODENAMES_TEAM_VALUES)[number];
@@ -118,6 +119,22 @@ type ConnectLettersState = {
   attemptStartedAt: string | null;
   roundWinnerPlayerId: string | null;
   roundLoserPlayerId: string | null;
+};
+
+type GhostTearsPhase = "PICKING" | "AWAITING_JUDGMENT";
+
+type GhostTearsState = {
+  status: "PLAYING" | "ENDED";
+  playerOrder: string[];
+  currentPlayerId: string | null;
+  previousPlayerId: string | null;
+  phase: GhostTearsPhase;
+  letterSequence: string[];
+  challengerPlayerId: string | null;
+  challengedPlayerId: string | null;
+  lastLoserPlayerId: string | null;
+  roundNumber: number;
+  alphabet: string[];
 };
 
 function shuffleArray<T>(items: T[]): T[] {
@@ -741,6 +758,189 @@ function getConnectLettersOpponent(
   return null;
 }
 
+function pickRandomNextPlayerId(
+  playerIds: string[],
+  excludedPlayerId: string | null,
+): string | null {
+  const candidates = playerIds.filter((id) => id !== excludedPlayerId);
+  if (candidates.length === 0) {
+    return playerIds[0] ?? null;
+  }
+  return candidates[Math.floor(Math.random() * candidates.length)] ?? null;
+}
+
+function getDefaultGhostTearsState(
+  playerIds: string[],
+  startingCurrentPlayerId: string | null,
+): GhostTearsState {
+  const normalizedOrder = [...playerIds];
+  const initialCurrentPlayerId =
+    startingCurrentPlayerId && normalizedOrder.includes(startingCurrentPlayerId)
+      ? startingCurrentPlayerId
+      : normalizedOrder[0] ?? null;
+
+  return {
+    status: normalizedOrder.length < 2 ? "ENDED" : "PLAYING",
+    playerOrder: normalizedOrder,
+    currentPlayerId: initialCurrentPlayerId,
+    previousPlayerId: null,
+    phase: "PICKING",
+    letterSequence: [],
+    challengerPlayerId: null,
+    challengedPlayerId: null,
+    lastLoserPlayerId: null,
+    roundNumber: 1,
+    alphabet: [...GHOST_TEARS_ALPHABET],
+  };
+}
+
+function parseGhostTearsState(
+  raw: string | null,
+  playerIds: string[],
+  currentPlayerId: string | null,
+): GhostTearsState {
+  const fallback = getDefaultGhostTearsState(playerIds, currentPlayerId);
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<GhostTearsState>;
+    const normalizedOrder = [
+      ...(Array.isArray(parsed.playerOrder)
+        ? parsed.playerOrder.filter((id): id is string => playerIds.includes(id))
+        : []),
+      ...playerIds.filter(
+        (id) =>
+          !(Array.isArray(parsed.playerOrder) && parsed.playerOrder.includes(id)),
+      ),
+    ];
+
+    const parsedCurrentPlayerId =
+      typeof parsed.currentPlayerId === "string" &&
+      playerIds.includes(parsed.currentPlayerId)
+        ? parsed.currentPlayerId
+        : fallback.currentPlayerId;
+    const parsedPreviousPlayerId =
+      typeof parsed.previousPlayerId === "string" &&
+      playerIds.includes(parsed.previousPlayerId)
+        ? parsed.previousPlayerId
+        : null;
+
+    const parsedPhase: GhostTearsPhase =
+      parsed.phase === "AWAITING_JUDGMENT" ? "AWAITING_JUDGMENT" : "PICKING";
+    const parsedChallengerPlayerId =
+      typeof parsed.challengerPlayerId === "string" &&
+      playerIds.includes(parsed.challengerPlayerId)
+        ? parsed.challengerPlayerId
+        : null;
+    const parsedChallengedPlayerId =
+      typeof parsed.challengedPlayerId === "string" &&
+      playerIds.includes(parsed.challengedPlayerId)
+        ? parsed.challengedPlayerId
+        : null;
+
+    const phase: GhostTearsPhase =
+      parsedPhase === "AWAITING_JUDGMENT" &&
+      parsedChallengerPlayerId &&
+      parsedChallengedPlayerId &&
+      parsedChallengerPlayerId !== parsedChallengedPlayerId
+        ? "AWAITING_JUDGMENT"
+        : "PICKING";
+
+    return {
+      status: normalizedOrder.length < 2 ? "ENDED" : "PLAYING",
+      playerOrder: normalizedOrder,
+      currentPlayerId: parsedCurrentPlayerId,
+      previousPlayerId: parsedPreviousPlayerId,
+      phase,
+      letterSequence: Array.isArray(parsed.letterSequence)
+        ? parsed.letterSequence.filter(
+            (letter): letter is string =>
+              typeof letter === "string" &&
+              letter.length === 1 &&
+              GHOST_TEARS_ALPHABET.includes(letter),
+          )
+        : [],
+      challengerPlayerId: phase === "AWAITING_JUDGMENT" ? parsedChallengerPlayerId : null,
+      challengedPlayerId: phase === "AWAITING_JUDGMENT" ? parsedChallengedPlayerId : null,
+      lastLoserPlayerId:
+        typeof parsed.lastLoserPlayerId === "string" &&
+        playerIds.includes(parsed.lastLoserPlayerId)
+          ? parsed.lastLoserPlayerId
+          : null,
+      roundNumber:
+        typeof parsed.roundNumber === "number" &&
+        Number.isFinite(parsed.roundNumber) &&
+        parsed.roundNumber >= 1
+          ? parsed.roundNumber
+          : 1,
+      alphabet: [...GHOST_TEARS_ALPHABET],
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+async function applyGhostTearsRoundOutcome(
+  tx: { player: typeof prisma.player },
+  roomId: string,
+  playerIds: string[],
+  loserPlayerId: string,
+) {
+  await tx.player.updateMany({
+    where: {
+      roomId,
+      id: {
+        in: playerIds,
+      },
+      points: null,
+    },
+    data: {
+      points: 0,
+    },
+  });
+
+  await tx.player.updateMany({
+    where: {
+      roomId,
+      id: {
+        in: playerIds,
+      },
+      drinks: null,
+    },
+    data: {
+      drinks: 0,
+    },
+  });
+
+  await tx.player.update({
+    where: {
+      id: loserPlayerId,
+    },
+    data: {
+      drinks: {
+        increment: 1,
+      },
+    },
+  });
+
+  const winners = playerIds.filter((id) => id !== loserPlayerId);
+  if (winners.length > 0) {
+    await tx.player.updateMany({
+      where: {
+        roomId,
+        id: {
+          in: winners,
+        },
+      },
+      data: {
+        points: {
+          increment: 1,
+        },
+      },
+    });
+  }
+}
+
 async function normalizeCodenamesTeamStats(
   tx: { player: typeof prisma.player },
   roomId: string,
@@ -1220,6 +1420,12 @@ export const gamesRouter = createTRPCRouter({
         ) {
           throw new Error("Connect The Letters requires at least 2 players.");
         }
+        if (
+          input.selectedGame === "ghost-tears" &&
+          (input.players?.length || 0) < 2
+        ) {
+          throw new Error("Ghost Tears requires at least 2 players.");
+        }
 
         if (input.selectedGame === "triviyay") {
           if (!input.teamsInfo || input.teamsInfo.length < 1) {
@@ -1412,6 +1618,12 @@ export const gamesRouter = createTRPCRouter({
             const playerIds = createdRoom.players.map((player) => player.id);
             roomCurrentAnswer = JSON.stringify(
               getDefaultConnectLettersState(playerIds),
+            );
+          }
+          if (input.selectedGame === "ghost-tears") {
+            const playerIds = createdRoom.players.map((player) => player.id);
+            roomCurrentAnswer = JSON.stringify(
+              getDefaultGhostTearsState(playerIds, randomCurrentPlayerId),
             );
           }
 
@@ -5055,6 +5267,384 @@ export const gamesRouter = createTRPCRouter({
       return {
         startLetter: state.startLetter,
         endLetter: state.endLetter,
+      };
+    }),
+
+  ghostTearsPickLetter: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        letter: z.string().min(1).max(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+      if (room.game.code !== "ghost-tears") {
+        throw new Error("This room is not Ghost Tears");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+      if (room.players.length < 2) {
+        throw new Error("At least 2 players are required");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parseGhostTearsState(
+        room.currentAnswer,
+        playerIds,
+        room.currentPlayerId,
+      );
+      if (state.status !== "PLAYING") {
+        throw new Error("Game is not in playing state");
+      }
+      if (state.phase !== "PICKING") {
+        throw new Error("Resolve the current challenge first");
+      }
+      if (state.currentPlayerId !== input.playerId) {
+        throw new Error("It is not your turn");
+      }
+
+      const normalizedLetter = input.letter.toUpperCase();
+      if (!GHOST_TEARS_ALPHABET.includes(normalizedLetter)) {
+        throw new Error("Invalid letter");
+      }
+
+      const nextPlayerId = pickRandomNextPlayerId(playerIds, input.playerId);
+      if (!nextPlayerId) {
+        throw new Error("Could not choose the next player");
+      }
+
+      state.letterSequence = [...state.letterSequence, normalizedLetter];
+      state.previousPlayerId = input.playerId;
+      state.currentPlayerId = nextPlayerId;
+      state.challengerPlayerId = null;
+      state.challengedPlayerId = null;
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentPlayerId: nextPlayerId,
+          currentAnswer: JSON.stringify(state),
+        },
+      });
+
+      return {
+        sequence: state.letterSequence,
+        currentPlayerId: nextPlayerId,
+        previousPlayerId: state.previousPlayerId,
+      };
+    }),
+
+  ghostTearsChallenge: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+      if (room.game.code !== "ghost-tears") {
+        throw new Error("This room is not Ghost Tears");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+      if (room.players.length < 2) {
+        throw new Error("At least 2 players are required");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parseGhostTearsState(
+        room.currentAnswer,
+        playerIds,
+        room.currentPlayerId,
+      );
+      if (state.status !== "PLAYING") {
+        throw new Error("Game is not in playing state");
+      }
+      if (state.phase !== "PICKING") {
+        throw new Error("Challenge is already in progress");
+      }
+      if (state.currentPlayerId !== input.playerId) {
+        throw new Error("Only current player can challenge");
+      }
+      if (!state.previousPlayerId) {
+        throw new Error("There is no previous player to challenge yet");
+      }
+      if (state.previousPlayerId === input.playerId) {
+        throw new Error("You cannot challenge yourself");
+      }
+
+      state.phase = "AWAITING_JUDGMENT";
+      state.challengerPlayerId = input.playerId;
+      state.challengedPlayerId = state.previousPlayerId;
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentPlayerId: input.playerId,
+          currentAnswer: JSON.stringify(state),
+        },
+      });
+
+      return {
+        challengerPlayerId: state.challengerPlayerId,
+        challengedPlayerId: state.challengedPlayerId,
+      };
+    }),
+
+  ghostTearsJudge: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        verdict: z.enum(["CORRECT", "WRONG"]),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+      if (room.game.code !== "ghost-tears") {
+        throw new Error("This room is not Ghost Tears");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+      if (room.players.length < 2) {
+        throw new Error("At least 2 players are required");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parseGhostTearsState(
+        room.currentAnswer,
+        playerIds,
+        room.currentPlayerId,
+      );
+      if (state.phase !== "AWAITING_JUDGMENT") {
+        throw new Error("No challenge is waiting for judgment");
+      }
+      if (state.challengerPlayerId !== input.playerId) {
+        throw new Error("Only the challenger can judge");
+      }
+      if (!state.challengerPlayerId || !state.challengedPlayerId) {
+        throw new Error("Challenge state is invalid");
+      }
+
+      const loserPlayerId =
+        input.verdict === "CORRECT"
+          ? state.challengerPlayerId
+          : state.challengedPlayerId;
+
+      state.lastLoserPlayerId = loserPlayerId;
+      state.roundNumber = state.roundNumber + 1;
+      state.phase = "PICKING";
+      state.letterSequence = [];
+      state.previousPlayerId = null;
+      state.challengerPlayerId = null;
+      state.challengedPlayerId = null;
+      state.currentPlayerId = input.playerId;
+
+      await prisma.$transaction(async (tx) => {
+        await applyGhostTearsRoundOutcome(
+          tx,
+          input.roomId,
+          playerIds,
+          loserPlayerId,
+        );
+
+        await tx.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentPlayerId: state.currentPlayerId,
+            currentAnswer: JSON.stringify(state),
+          },
+        });
+      });
+
+      return {
+        loserPlayerId,
+        verdict: input.verdict,
+        currentPlayerId: state.currentPlayerId,
+      };
+    }),
+
+  ghostTearsForfeit: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+      if (room.game.code !== "ghost-tears") {
+        throw new Error("This room is not Ghost Tears");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+      if (room.players.length < 2) {
+        throw new Error("At least 2 players are required");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parseGhostTearsState(
+        room.currentAnswer,
+        playerIds,
+        room.currentPlayerId,
+      );
+      if (state.phase !== "PICKING") {
+        throw new Error("Finish judging the active challenge first");
+      }
+      if (state.currentPlayerId !== input.playerId) {
+        throw new Error("Only the current player can forfeit");
+      }
+
+      const nextCurrentPlayerId = pickRandomNextPlayerId(playerIds, input.playerId);
+      if (!nextCurrentPlayerId) {
+        throw new Error("Could not choose the next player");
+      }
+
+      state.lastLoserPlayerId = input.playerId;
+      state.roundNumber = state.roundNumber + 1;
+      state.phase = "PICKING";
+      state.letterSequence = [];
+      state.previousPlayerId = null;
+      state.challengerPlayerId = null;
+      state.challengedPlayerId = null;
+      state.currentPlayerId = nextCurrentPlayerId;
+
+      await prisma.$transaction(async (tx) => {
+        await applyGhostTearsRoundOutcome(
+          tx,
+          input.roomId,
+          playerIds,
+          input.playerId,
+        );
+
+        await tx.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentPlayerId: nextCurrentPlayerId,
+            currentAnswer: JSON.stringify(state),
+          },
+        });
+      });
+
+      return {
+        loserPlayerId: input.playerId,
+        nextCurrentPlayerId,
+      };
+    }),
+
+  ghostTearsRestart: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+      if (room.game.code !== "ghost-tears") {
+        throw new Error("This room is not Ghost Tears");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+      if (!room.players.some((player) => player.id === input.playerId)) {
+        throw new Error("Player not in room");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const nextCurrentPlayerId = pickRandomNextPlayerId(
+        playerIds,
+        room.currentPlayerId,
+      );
+      const nextState = getDefaultGhostTearsState(playerIds, nextCurrentPlayerId);
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentPlayerId: nextState.currentPlayerId,
+          currentAnswer: JSON.stringify(nextState),
+        },
+      });
+
+      return {
+        currentPlayerId: nextState.currentPlayerId,
       };
     }),
 
