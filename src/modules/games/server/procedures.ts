@@ -873,9 +873,9 @@ export const gamesRouter = createTRPCRouter({
       >();
 
       for (const player of players) {
-        const key = player.name.trim().toLowerCase();
-        const current = totalsByName.get(key) ?? {
-          id: `name:${key}`,
+        const normalizedName = player.name.trim().toLowerCase();
+        const current = totalsByName.get(normalizedName) ?? {
+          id: `name:${normalizedName}`,
           name: player.name,
           points: 0,
           drinks: 0,
@@ -886,7 +886,7 @@ export const gamesRouter = createTRPCRouter({
         current.drinks += Math.max(0, player.drinks ?? 0);
         current.ratio = current.points / Math.max(1, current.drinks);
 
-        totalsByName.set(key, current);
+        totalsByName.set(normalizedName, current);
       }
 
       return Array.from(totalsByName.values())

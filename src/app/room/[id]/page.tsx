@@ -1577,32 +1577,8 @@ export default function RoomPage() {
   }, [comments, players]);
 
   const topPlayers = React.useMemo<TopPlayerEntry[]>(() => {
-    if (gameWideTopPlayers.length > 0) {
-      return gameWideTopPlayers as TopPlayerEntry[];
-    }
-
-    return [...players]
-      .map((player) => {
-        const points = Math.max(0, player.points ?? 0);
-        const drinks = Math.max(0, player.drinks ?? 0);
-        const ratio = points / Math.max(1, drinks);
-        return {
-          id: player.id,
-          name: player.name,
-          points,
-          drinks,
-          ratio,
-        };
-      })
-      .filter((player) => player.points > 0 || player.drinks > 0)
-      .sort((a, b) => {
-        if (b.ratio !== a.ratio) return b.ratio - a.ratio;
-        if (b.points !== a.points) return b.points - a.points;
-        if (a.drinks !== b.drinks) return a.drinks - b.drinks;
-        return a.name.localeCompare(b.name);
-      })
-      .slice(0, 10);
-  }, [gameWideTopPlayers, players]);
+    return gameWideTopPlayers as TopPlayerEntry[];
+  }, [gameWideTopPlayers]);
 
   const typedRoomReactions = React.useMemo<RoomReaction[]>(() => {
     return roomReactions as RoomReaction[];
