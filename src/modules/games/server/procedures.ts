@@ -39,6 +39,70 @@ const GUESS_THE_NUMBER_MAX = 100;
 const CONNECT_LETTERS_TIMER_SECONDS = 10;
 const GHOST_TEARS_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 const REACTION_COOLDOWN_MS = 10 * 60 * 1000;
+const JOKER_LOOP_CARDS_PER_PLAYER = 6;
+const JOKER_LOOP_JOKER_KEY = "__JOKER__";
+const JOKER_LOOP_CARD_TEMPLATES: JokerLoopCardTemplate[] = [
+  { word: "Sun", icon: "☀️" },
+  { word: "Moon", icon: "🌙" },
+  { word: "Star", icon: "⭐" },
+  { word: "Cloud", icon: "☁️" },
+  { word: "Rain", icon: "🌧️" },
+  { word: "Snow", icon: "❄️" },
+  { word: "Fire", icon: "🔥" },
+  { word: "Water", icon: "💧" },
+  { word: "Leaf", icon: "🍃" },
+  { word: "Tree", icon: "🌳" },
+  { word: "Rose", icon: "🌹" },
+  { word: "Apple", icon: "🍎" },
+  { word: "Orange", icon: "🍊" },
+  { word: "Lemon", icon: "🍋" },
+  { word: "Grape", icon: "🍇" },
+  { word: "Cherry", icon: "🍒" },
+  { word: "Cake", icon: "🍰" },
+  { word: "Candy", icon: "🍬" },
+  { word: "Coffee", icon: "☕" },
+  { word: "Pizza", icon: "🍕" },
+  { word: "Burger", icon: "🍔" },
+  { word: "Taco", icon: "🌮" },
+  { word: "Ball", icon: "⚽" },
+  { word: "Dice", icon: "🎲" },
+  { word: "Music", icon: "🎵" },
+  { word: "Drum", icon: "🥁" },
+  { word: "Guitar", icon: "🎸" },
+  { word: "Book", icon: "📘" },
+  { word: "Pen", icon: "🖊️" },
+  { word: "Clock", icon: "⏰" },
+  { word: "Phone", icon: "📱" },
+  { word: "Camera", icon: "📷" },
+  { word: "Car", icon: "🚗" },
+  { word: "Train", icon: "🚆" },
+  { word: "Plane", icon: "✈️" },
+  { word: "Boat", icon: "⛵" },
+  { word: "House", icon: "🏠" },
+  { word: "Castle", icon: "🏰" },
+  { word: "Key", icon: "🔑" },
+  { word: "Lock", icon: "🔒" },
+  { word: "Crown", icon: "👑" },
+  { word: "Ring", icon: "💍" },
+  { word: "Gem", icon: "💎" },
+  { word: "Rocket", icon: "🚀" },
+  { word: "Robot", icon: "🤖" },
+  { word: "Alien", icon: "👽" },
+  { word: "Ghost", icon: "👻" },
+  { word: "Cat", icon: "🐱" },
+  { word: "Dog", icon: "🐶" },
+  { word: "Lion", icon: "🦁" },
+  { word: "Tiger", icon: "🐯" },
+  { word: "Panda", icon: "🐼" },
+  { word: "Fox", icon: "🦊" },
+  { word: "Owl", icon: "🦉" },
+  { word: "Bee", icon: "🐝" },
+  { word: "Fish", icon: "🐟" },
+  { word: "Whale", icon: "🐋" },
+  { word: "Octopus", icon: "🐙" },
+  { word: "Anchor", icon: "⚓" },
+  { word: "Map", icon: "🗺️" },
+];
 
 type CodenamesTeam = (typeof CODENAMES_TEAM_VALUES)[number];
 type CodenamesAssignment = (typeof CODENAMES_ASSIGNMENT_VALUES)[number];
@@ -135,6 +199,34 @@ type GhostTearsState = {
   lastLoserPlayerId: string | null;
   roundNumber: number;
   alphabet: string[];
+};
+
+type JokerLoopCardTemplate = {
+  word: string;
+  icon: string;
+};
+
+type JokerLoopCard = JokerLoopCardTemplate & {
+  id: string;
+  pairKey: string | null;
+  isJoker: boolean;
+};
+
+type JokerLoopPhase = "REORDERING" | "PICKING" | "ROUND_RESOLUTION" | "ENDED";
+
+type JokerLoopState = {
+  status: "PLAYING" | "ENDED";
+  phase: JokerLoopPhase;
+  roundNumber: number;
+  playerOrder: string[];
+  roundParticipantIds: string[];
+  activeGiverPlayerId: string | null;
+  activePickerPlayerId: string | null;
+  drawnThisRoundPlayerIds: string[];
+  readyByPlayerId: Record<string, boolean>;
+  handsByPlayerId: Record<string, JokerLoopCard[]>;
+  jokerHolderPlayerId: string | null;
+  lastRoundClearedPlayerIds: string[];
 };
 
 function shuffleArray<T>(items: T[]): T[] {
@@ -880,6 +972,289 @@ function parseGhostTearsState(
   }
 }
 
+function getNextPlayerWithCards(
+  state: JokerLoopState,
+  fromPlayerId: string,
+): string | null {
+  const startIndex = state.playerOrder.indexOf(fromPlayerId);
+  if (startIndex === -1) {
+    return null;
+  }
+
+  for (let step = 1; step <= state.playerOrder.length; step += 1) {
+    const nextIndex = (startIndex + step) % state.playerOrder.length;
+    const nextPlayerId = state.playerOrder[nextIndex];
+    const nextHand = state.handsByPlayerId[nextPlayerId] ?? [];
+    if (nextHand.length > 0) {
+      return nextPlayerId;
+    }
+  }
+
+  return null;
+}
+
+function findJokerHolder(handsByPlayerId: Record<string, JokerLoopCard[]>): string | null {
+  for (const [playerId, hand] of Object.entries(handsByPlayerId)) {
+    if (hand.some((card) => card.isJoker)) {
+      return playerId;
+    }
+  }
+  return null;
+}
+
+function removePairsFromHand(hand: JokerLoopCard[]): JokerLoopCard[] {
+  const counts = new Map<string, number>();
+  for (const card of hand) {
+    if (card.isJoker || !card.pairKey) continue;
+    counts.set(card.pairKey, (counts.get(card.pairKey) ?? 0) + 1);
+  }
+
+  const removalsByKey = new Map<string, number>();
+  for (const [pairKey, count] of counts.entries()) {
+    removalsByKey.set(pairKey, Math.floor(count / 2) * 2);
+  }
+
+  const next: JokerLoopCard[] = [];
+  for (const card of hand) {
+    if (card.isJoker || !card.pairKey) {
+      next.push(card);
+      continue;
+    }
+
+    const remaining = removalsByKey.get(card.pairKey) ?? 0;
+    if (remaining > 0) {
+      removalsByKey.set(card.pairKey, remaining - 1);
+      continue;
+    }
+    next.push(card);
+  }
+
+  return next;
+}
+
+function buildJokerLoopState(playerIds: string[]): JokerLoopState {
+  const pairCount = Math.floor((playerIds.length * JOKER_LOOP_CARDS_PER_PLAYER) / 2);
+  if (pairCount > JOKER_LOOP_CARD_TEMPLATES.length) {
+    throw new Error("Joker Loop card template pool is too small.");
+  }
+
+  const templates = shuffleArray(JOKER_LOOP_CARD_TEMPLATES).slice(0, pairCount);
+  const deck: JokerLoopCard[] = [];
+  for (const template of templates) {
+    const pairKey = `${template.word}|${template.icon}`;
+    deck.push({
+      id: `${pairKey}:A:${Math.random().toString(36).slice(2, 9)}`,
+      word: template.word,
+      icon: template.icon,
+      pairKey,
+      isJoker: false,
+    });
+    deck.push({
+      id: `${pairKey}:B:${Math.random().toString(36).slice(2, 9)}`,
+      word: template.word,
+      icon: template.icon,
+      pairKey,
+      isJoker: false,
+    });
+  }
+  deck.push({
+    id: `${JOKER_LOOP_JOKER_KEY}:${Math.random().toString(36).slice(2, 9)}`,
+    word: "Joker",
+    icon: "🃏",
+    pairKey: null,
+    isJoker: true,
+  });
+
+  const shuffledDeck = shuffleArray(deck);
+  const handsByPlayerId: Record<string, JokerLoopCard[]> = {};
+  for (const playerId of playerIds) {
+    handsByPlayerId[playerId] = [];
+  }
+
+  for (let index = 0; index < shuffledDeck.length; index += 1) {
+    const playerId = playerIds[index % playerIds.length];
+    handsByPlayerId[playerId].push(shuffledDeck[index]);
+  }
+
+  for (const playerId of playerIds) {
+    handsByPlayerId[playerId] = shuffleArray(handsByPlayerId[playerId]);
+  }
+
+  const activeGiverPlayerId =
+    playerIds.find((playerId) => (handsByPlayerId[playerId] ?? []).length > 0) ?? null;
+  const activePickerPlayerId = activeGiverPlayerId
+    ? getNextPlayerWithCards(
+        {
+          status: "PLAYING",
+          phase: "REORDERING",
+          roundNumber: 1,
+          playerOrder: playerIds,
+          roundParticipantIds: playerIds.filter(
+            (playerId) => (handsByPlayerId[playerId] ?? []).length > 0,
+          ),
+          activeGiverPlayerId,
+          activePickerPlayerId: null,
+          drawnThisRoundPlayerIds: [],
+          readyByPlayerId: {},
+          handsByPlayerId,
+          jokerHolderPlayerId: null,
+          lastRoundClearedPlayerIds: [],
+        },
+        activeGiverPlayerId,
+      )
+    : null;
+
+  return {
+    status: "PLAYING",
+    phase: "REORDERING",
+    roundNumber: 1,
+    playerOrder: [...playerIds],
+    roundParticipantIds: playerIds.filter(
+      (playerId) => (handsByPlayerId[playerId] ?? []).length > 0,
+    ),
+    activeGiverPlayerId,
+    activePickerPlayerId,
+    drawnThisRoundPlayerIds: [],
+    readyByPlayerId: Object.fromEntries(playerIds.map((playerId) => [playerId, false])),
+    handsByPlayerId,
+    jokerHolderPlayerId: findJokerHolder(handsByPlayerId),
+    lastRoundClearedPlayerIds: [],
+  };
+}
+
+function parseJokerLoopState(raw: string | null, playerIds: string[]): JokerLoopState {
+  const fallback = buildJokerLoopState(playerIds);
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<JokerLoopState>;
+    const normalizedOrder = [
+      ...(Array.isArray(parsed.playerOrder)
+        ? parsed.playerOrder.filter((playerId): playerId is string =>
+            playerIds.includes(playerId),
+          )
+        : []),
+      ...playerIds.filter(
+        (playerId) =>
+          !(
+            Array.isArray(parsed.playerOrder) &&
+            parsed.playerOrder.includes(playerId)
+          ),
+      ),
+    ];
+
+    const handsByPlayerId: Record<string, JokerLoopCard[]> = {};
+    for (const playerId of normalizedOrder) {
+      const rawHand =
+        parsed.handsByPlayerId &&
+        typeof parsed.handsByPlayerId === "object" &&
+        Array.isArray((parsed.handsByPlayerId as Record<string, unknown>)[playerId])
+          ? ((parsed.handsByPlayerId as Record<string, unknown>)[
+              playerId
+            ] as unknown[])
+          : [];
+      handsByPlayerId[playerId] = rawHand
+        .map((entry) => {
+          if (!entry || typeof entry !== "object") return null;
+          const card = entry as Partial<JokerLoopCard>;
+          if (
+            typeof card.id !== "string" ||
+            typeof card.word !== "string" ||
+            typeof card.icon !== "string" ||
+            typeof card.isJoker !== "boolean"
+          ) {
+            return null;
+          }
+          return {
+            id: card.id,
+            word: card.word,
+            icon: card.icon,
+            pairKey: typeof card.pairKey === "string" ? card.pairKey : null,
+            isJoker: card.isJoker,
+          } satisfies JokerLoopCard;
+        })
+        .filter((card): card is JokerLoopCard => card !== null);
+    }
+
+    const activeGiverPlayerId =
+      typeof parsed.activeGiverPlayerId === "string" &&
+      normalizedOrder.includes(parsed.activeGiverPlayerId)
+        ? parsed.activeGiverPlayerId
+        : fallback.activeGiverPlayerId;
+    const activePickerPlayerId =
+      typeof parsed.activePickerPlayerId === "string" &&
+      normalizedOrder.includes(parsed.activePickerPlayerId)
+        ? parsed.activePickerPlayerId
+        : activeGiverPlayerId
+          ? getNextPlayerWithCards(
+              {
+                ...fallback,
+                playerOrder: normalizedOrder,
+                handsByPlayerId,
+              },
+              activeGiverPlayerId,
+            )
+          : null;
+
+    const roundParticipantIds = Array.isArray(parsed.roundParticipantIds)
+      ? parsed.roundParticipantIds.filter((playerId): playerId is string =>
+          normalizedOrder.includes(playerId),
+        )
+      : normalizedOrder.filter(
+          (playerId) => (handsByPlayerId[playerId] ?? []).length > 0,
+        );
+
+    const readyByPlayerId: Record<string, boolean> = {};
+    for (const playerId of normalizedOrder) {
+      const value =
+        parsed.readyByPlayerId &&
+        typeof parsed.readyByPlayerId === "object" &&
+        typeof (parsed.readyByPlayerId as Record<string, unknown>)[playerId] ===
+          "boolean"
+          ? ((parsed.readyByPlayerId as Record<string, unknown>)[
+              playerId
+            ] as boolean)
+          : false;
+      readyByPlayerId[playerId] = value;
+    }
+
+    return {
+      status: parsed.status === "ENDED" ? "ENDED" : "PLAYING",
+      phase:
+        parsed.phase === "PICKING" ||
+        parsed.phase === "ROUND_RESOLUTION" ||
+        parsed.phase === "ENDED"
+          ? parsed.phase
+          : "REORDERING",
+      roundNumber:
+        typeof parsed.roundNumber === "number" &&
+        Number.isFinite(parsed.roundNumber) &&
+        parsed.roundNumber >= 1
+          ? parsed.roundNumber
+          : 1,
+      playerOrder: normalizedOrder,
+      roundParticipantIds,
+      activeGiverPlayerId,
+      activePickerPlayerId,
+      drawnThisRoundPlayerIds: Array.isArray(parsed.drawnThisRoundPlayerIds)
+        ? parsed.drawnThisRoundPlayerIds.filter((playerId): playerId is string =>
+            normalizedOrder.includes(playerId),
+          )
+        : [],
+      readyByPlayerId,
+      handsByPlayerId,
+      jokerHolderPlayerId: findJokerHolder(handsByPlayerId),
+      lastRoundClearedPlayerIds: Array.isArray(parsed.lastRoundClearedPlayerIds)
+        ? parsed.lastRoundClearedPlayerIds.filter((playerId): playerId is string =>
+            normalizedOrder.includes(playerId),
+          )
+        : [],
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 async function applyGhostTearsRoundOutcome(
   tx: { player: typeof prisma.player },
   roomId: string,
@@ -1426,6 +1801,12 @@ export const gamesRouter = createTRPCRouter({
         ) {
           throw new Error("Ghost Tears requires at least 2 players.");
         }
+        if (
+          input.selectedGame === "joker-loop" &&
+          (input.players?.length || 0) < 2
+        ) {
+          throw new Error("Joker Loop requires at least 2 players.");
+        }
 
         if (input.selectedGame === "triviyay") {
           if (!input.teamsInfo || input.teamsInfo.length < 1) {
@@ -1556,6 +1937,7 @@ export const gamesRouter = createTRPCRouter({
 
           let currentQuestionId = null;
           let roomCurrentAnswer: string | null = null;
+          let jokerLoopCurrentPlayerId: string | null = null;
 
           if (input.selectedGame === "truth-or-drink") {
             currentQuestionId =
@@ -1626,12 +2008,21 @@ export const gamesRouter = createTRPCRouter({
               getDefaultGhostTearsState(playerIds, randomCurrentPlayerId),
             );
           }
+          if (input.selectedGame === "joker-loop") {
+            const playerIds = createdRoom.players.map((player) => player.id);
+            const jokerLoopState = buildJokerLoopState(playerIds);
+            roomCurrentAnswer = JSON.stringify(jokerLoopState);
+            jokerLoopCurrentPlayerId = jokerLoopState.activeGiverPlayerId;
+          }
 
           const createdRoomId = createdRoom.id;
           await prisma.room.update({
             where: { id: createdRoomId },
             data: {
-              currentPlayerId: randomCurrentPlayerId,
+              currentPlayerId:
+                input.selectedGame === "joker-loop"
+                  ? jokerLoopCurrentPlayerId
+                  : randomCurrentPlayerId,
               previousPlayersIds: [],
               currentQuestionId: currentQuestionId,
               previousQuestionsId: [],
@@ -5645,6 +6036,461 @@ export const gamesRouter = createTRPCRouter({
 
       return {
         currentPlayerId: nextState.currentPlayerId,
+      };
+    }),
+
+  jokerLoopReorderCard: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        cardId: z.string().min(1),
+        direction: z.enum(["UP", "DOWN"]),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "joker-loop") {
+        throw new Error("This room is not Joker Loop");
+      }
+      if (room.gameEnded) throw new Error("Game already ended");
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parseJokerLoopState(room.currentAnswer, playerIds);
+      if (state.status !== "PLAYING") {
+        throw new Error("Joker Loop has ended. Restart to play again.");
+      }
+      if (state.phase !== "REORDERING") {
+        throw new Error("Reordering is only allowed before Ready.");
+      }
+      if (state.activeGiverPlayerId !== input.playerId) {
+        throw new Error("Only the active giver can reorder cards.");
+      }
+
+      const hand = [...(state.handsByPlayerId[input.playerId] ?? [])];
+      const index = hand.findIndex((card) => card.id === input.cardId);
+      if (index === -1) throw new Error("Card not found in your hand.");
+
+      const targetIndex = input.direction === "UP" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= hand.length) {
+        return {
+          handCount: hand.length,
+        };
+      }
+
+      [hand[index], hand[targetIndex]] = [hand[targetIndex], hand[index]];
+      state.handsByPlayerId[input.playerId] = hand;
+      state.readyByPlayerId[input.playerId] = false;
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentAnswer: JSON.stringify(state),
+          currentPlayerId: state.activeGiverPlayerId,
+        },
+      });
+
+      return {
+        handCount: hand.length,
+      };
+    }),
+
+  jokerLoopReady: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "joker-loop") {
+        throw new Error("This room is not Joker Loop");
+      }
+      if (room.gameEnded) throw new Error("Game already ended");
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parseJokerLoopState(room.currentAnswer, playerIds);
+      if (state.status !== "PLAYING") {
+        throw new Error("Joker Loop has ended. Restart to play again.");
+      }
+      if (state.phase !== "REORDERING") {
+        throw new Error("You can only mark ready during reordering.");
+      }
+      if (state.activeGiverPlayerId !== input.playerId) {
+        throw new Error("Only the active giver can mark ready.");
+      }
+      if (!state.activePickerPlayerId) {
+        throw new Error("No picker available for this turn.");
+      }
+
+      state.readyByPlayerId[input.playerId] = true;
+      state.phase = "PICKING";
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentAnswer: JSON.stringify(state),
+          currentPlayerId: state.activePickerPlayerId,
+        },
+      });
+
+      return {
+        activePickerPlayerId: state.activePickerPlayerId,
+      };
+    }),
+
+  jokerLoopPickCard: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        pickedIndex: z.number().int().min(0),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "joker-loop") {
+        throw new Error("This room is not Joker Loop");
+      }
+      if (room.gameEnded) throw new Error("Game already ended");
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parseJokerLoopState(room.currentAnswer, playerIds);
+      if (state.status !== "PLAYING") {
+        throw new Error("Joker Loop has ended. Restart to play again.");
+      }
+      if (state.phase !== "PICKING") {
+        throw new Error("The giver must click Ready before a pick.");
+      }
+      if (state.activePickerPlayerId !== input.playerId) {
+        throw new Error("Only the active picker can draw a card.");
+      }
+      if (!state.activeGiverPlayerId) {
+        throw new Error("No active giver.");
+      }
+      if (!state.readyByPlayerId[state.activeGiverPlayerId]) {
+        throw new Error("The giver must mark ready first.");
+      }
+
+      const giverId = state.activeGiverPlayerId;
+      const pickerId = input.playerId;
+      const giverHand = [...(state.handsByPlayerId[giverId] ?? [])];
+      const pickerHand = [...(state.handsByPlayerId[pickerId] ?? [])];
+
+      if (giverHand.length === 0) {
+        throw new Error("The giver has no cards.");
+      }
+      if (input.pickedIndex >= giverHand.length) {
+        throw new Error("Invalid card pick.");
+      }
+
+      const [pickedCard] = giverHand.splice(input.pickedIndex, 1);
+      pickerHand.push(pickedCard);
+      state.handsByPlayerId[giverId] = giverHand;
+      state.handsByPlayerId[pickerId] = pickerHand;
+      state.readyByPlayerId[giverId] = false;
+      if (!state.drawnThisRoundPlayerIds.includes(giverId)) {
+        state.drawnThisRoundPlayerIds.push(giverId);
+      }
+      state.jokerHolderPlayerId = findJokerHolder(state.handsByPlayerId);
+
+      const isRoundComplete =
+        state.roundParticipantIds.length > 0 &&
+        state.drawnThisRoundPlayerIds.length >= state.roundParticipantIds.length;
+
+      if (isRoundComplete) {
+        state.phase = "ROUND_RESOLUTION";
+        state.activeGiverPlayerId = null;
+        state.activePickerPlayerId = null;
+      } else {
+        const nextGiver = pickerId;
+        const nextPicker = getNextPlayerWithCards(state, nextGiver);
+        if (!nextPicker || nextPicker === nextGiver) {
+          state.phase = "ROUND_RESOLUTION";
+          state.activeGiverPlayerId = null;
+          state.activePickerPlayerId = null;
+        } else {
+          state.phase = "REORDERING";
+          state.activeGiverPlayerId = nextGiver;
+          state.activePickerPlayerId = nextPicker;
+        }
+      }
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentAnswer: JSON.stringify(state),
+          currentPlayerId: state.activeGiverPlayerId,
+        },
+      });
+
+      return {
+        phase: state.phase,
+        nextGiverPlayerId: state.activeGiverPlayerId,
+        nextPickerPlayerId: state.activePickerPlayerId,
+      };
+    }),
+
+  jokerLoopNextRound: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "joker-loop") {
+        throw new Error("This room is not Joker Loop");
+      }
+      if (room.gameEnded) throw new Error("Game already ended");
+      if (!room.players.some((player) => player.id === input.playerId)) {
+        throw new Error("Player not in room");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parseJokerLoopState(room.currentAnswer, playerIds);
+      if (state.status !== "PLAYING") {
+        throw new Error("Joker Loop has ended. Restart to play again.");
+      }
+      if (state.phase !== "ROUND_RESOLUTION") {
+        throw new Error("Finish all picks before moving to next round.");
+      }
+
+      const beforeCounts = Object.fromEntries(
+        playerIds.map((playerId) => [
+          playerId,
+          (state.handsByPlayerId[playerId] ?? []).length,
+        ]),
+      );
+
+      const nextHandsByPlayerId: Record<string, JokerLoopCard[]> = {};
+      for (const playerId of playerIds) {
+        nextHandsByPlayerId[playerId] = removePairsFromHand(
+          state.handsByPlayerId[playerId] ?? [],
+        );
+      }
+
+      const clearedPlayerIds = playerIds.filter(
+        (playerId) =>
+          (beforeCounts[playerId] ?? 0) > 0 &&
+          (nextHandsByPlayerId[playerId] ?? []).length === 0,
+      );
+
+      await prisma.$transaction(async (tx) => {
+        await tx.player.updateMany({
+          where: {
+            roomId: input.roomId,
+            id: {
+              in: playerIds,
+            },
+            points: null,
+          },
+          data: {
+            points: 0,
+          },
+        });
+
+        await tx.player.updateMany({
+          where: {
+            roomId: input.roomId,
+            id: {
+              in: playerIds,
+            },
+            drinks: null,
+          },
+          data: {
+            drinks: 0,
+          },
+        });
+
+        if (clearedPlayerIds.length > 0) {
+          await tx.player.updateMany({
+            where: {
+              roomId: input.roomId,
+              id: {
+                in: clearedPlayerIds,
+              },
+            },
+            data: {
+              points: {
+                increment: 1,
+              },
+            },
+          });
+        }
+
+        state.handsByPlayerId = nextHandsByPlayerId;
+        state.lastRoundClearedPlayerIds = clearedPlayerIds;
+        state.jokerHolderPlayerId = findJokerHolder(state.handsByPlayerId);
+
+        const totalCards = Object.values(state.handsByPlayerId).reduce(
+          (sum, hand) => sum + hand.length,
+          0,
+        );
+        const jokerHolder = state.jokerHolderPlayerId;
+        const jokerHolderHand = jokerHolder ? state.handsByPlayerId[jokerHolder] ?? [] : [];
+        const isEndState =
+          totalCards === 1 && jokerHolderHand.length === 1 && jokerHolderHand[0].isJoker;
+
+        if (isEndState && jokerHolder) {
+          state.status = "ENDED";
+          state.phase = "ENDED";
+          state.activeGiverPlayerId = null;
+          state.activePickerPlayerId = null;
+          state.drawnThisRoundPlayerIds = [];
+          state.roundParticipantIds = [];
+          await tx.player.update({
+            where: {
+              id: jokerHolder,
+            },
+            data: {
+              drinks: {
+                increment: 1,
+              },
+            },
+          });
+        } else {
+          state.roundNumber = state.roundNumber + 1;
+          state.roundParticipantIds = state.playerOrder.filter(
+            (playerId) => (state.handsByPlayerId[playerId] ?? []).length > 0,
+          );
+          state.drawnThisRoundPlayerIds = [];
+          state.readyByPlayerId = Object.fromEntries(
+            state.playerOrder.map((playerId) => [playerId, false]),
+          );
+          state.activeGiverPlayerId = state.roundParticipantIds[0] ?? null;
+          state.activePickerPlayerId = state.activeGiverPlayerId
+            ? getNextPlayerWithCards(state, state.activeGiverPlayerId)
+            : null;
+          if (
+            !state.activeGiverPlayerId ||
+            !state.activePickerPlayerId ||
+            state.activeGiverPlayerId === state.activePickerPlayerId
+          ) {
+            state.status = "ENDED";
+            state.phase = "ENDED";
+            state.activeGiverPlayerId = null;
+            state.activePickerPlayerId = null;
+          } else {
+            state.phase = "REORDERING";
+          }
+        }
+
+        await tx.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentAnswer: JSON.stringify(state),
+            currentPlayerId: state.activeGiverPlayerId,
+          },
+        });
+      });
+
+      return {
+        status: state.status,
+        phase: state.phase,
+        roundNumber: state.roundNumber,
+        clearedPlayerIds,
+        jokerHolderPlayerId: state.jokerHolderPlayerId,
+      };
+    }),
+
+  jokerLoopRestart: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "joker-loop") {
+        throw new Error("This room is not Joker Loop");
+      }
+      if (!room.players.some((player) => player.id === input.playerId)) {
+        throw new Error("Player not in room");
+      }
+      if (room.players.length < 2) {
+        throw new Error("At least 2 players are required");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = buildJokerLoopState(playerIds);
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          gameEnded: false,
+          gameEndedAt: null,
+          currentPlayerId: state.activeGiverPlayerId,
+          currentAnswer: JSON.stringify(state),
+        },
+      });
+
+      return {
+        roundNumber: state.roundNumber,
+        activeGiverPlayerId: state.activeGiverPlayerId,
       };
     }),
 

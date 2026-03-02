@@ -127,6 +127,28 @@ type GhostTearsRoomState = {
   roundNumber: number;
   alphabet: string[];
 };
+type JokerLoopCard = {
+  id: string;
+  word: string;
+  icon: string;
+  pairKey: string | null;
+  isJoker: boolean;
+};
+type JokerLoopPhase = "REORDERING" | "PICKING" | "ROUND_RESOLUTION" | "ENDED";
+type JokerLoopRoomState = {
+  status: "PLAYING" | "ENDED";
+  phase: JokerLoopPhase;
+  roundNumber: number;
+  playerOrder: string[];
+  roundParticipantIds: string[];
+  activeGiverPlayerId: string | null;
+  activePickerPlayerId: string | null;
+  drawnThisRoundPlayerIds: string[];
+  readyByPlayerId: Record<string, boolean>;
+  handsByPlayerId: Record<string, JokerLoopCard[]>;
+  jokerHolderPlayerId: string | null;
+  lastRoundClearedPlayerIds: string[];
+};
 
 interface TeamStats {
   [team: string]: {
@@ -945,6 +967,121 @@ function parseGhostTearsState(
   }
 }
 
+function parseJokerLoopState(raw: string | null | undefined): JokerLoopRoomState {
+  const fallback: JokerLoopRoomState = {
+    status: "PLAYING",
+    phase: "REORDERING",
+    roundNumber: 1,
+    playerOrder: [],
+    roundParticipantIds: [],
+    activeGiverPlayerId: null,
+    activePickerPlayerId: null,
+    drawnThisRoundPlayerIds: [],
+    readyByPlayerId: {},
+    handsByPlayerId: {},
+    jokerHolderPlayerId: null,
+    lastRoundClearedPlayerIds: [],
+  };
+
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<JokerLoopRoomState>;
+    const playerOrder = Array.isArray(parsed.playerOrder)
+      ? parsed.playerOrder.filter(
+          (playerId): playerId is string => typeof playerId === "string",
+        )
+      : [];
+
+    const handsByPlayerId: Record<string, JokerLoopCard[]> = {};
+    if (parsed.handsByPlayerId && typeof parsed.handsByPlayerId === "object") {
+      for (const [playerId, rawHand] of Object.entries(parsed.handsByPlayerId)) {
+        if (!Array.isArray(rawHand)) {
+          handsByPlayerId[playerId] = [];
+          continue;
+        }
+        handsByPlayerId[playerId] = rawHand
+          .map((entry) => {
+            if (!entry || typeof entry !== "object") return null;
+            const card = entry as Partial<JokerLoopCard>;
+            if (
+              typeof card.id !== "string" ||
+              typeof card.word !== "string" ||
+              typeof card.icon !== "string" ||
+              typeof card.isJoker !== "boolean"
+            ) {
+              return null;
+            }
+            return {
+              id: card.id,
+              word: card.word,
+              icon: card.icon,
+              pairKey: typeof card.pairKey === "string" ? card.pairKey : null,
+              isJoker: card.isJoker,
+            } satisfies JokerLoopCard;
+          })
+          .filter((card): card is JokerLoopCard => card !== null);
+      }
+    }
+
+    return {
+      status: parsed.status === "ENDED" ? "ENDED" : "PLAYING",
+      phase:
+        parsed.phase === "PICKING" ||
+        parsed.phase === "ROUND_RESOLUTION" ||
+        parsed.phase === "ENDED"
+          ? parsed.phase
+          : "REORDERING",
+      roundNumber:
+        typeof parsed.roundNumber === "number" &&
+        Number.isFinite(parsed.roundNumber) &&
+        parsed.roundNumber >= 1
+          ? parsed.roundNumber
+          : 1,
+      playerOrder,
+      roundParticipantIds: Array.isArray(parsed.roundParticipantIds)
+        ? parsed.roundParticipantIds.filter(
+            (playerId): playerId is string => typeof playerId === "string",
+          )
+        : [],
+      activeGiverPlayerId:
+        typeof parsed.activeGiverPlayerId === "string"
+          ? parsed.activeGiverPlayerId
+          : null,
+      activePickerPlayerId:
+        typeof parsed.activePickerPlayerId === "string"
+          ? parsed.activePickerPlayerId
+          : null,
+      drawnThisRoundPlayerIds: Array.isArray(parsed.drawnThisRoundPlayerIds)
+        ? parsed.drawnThisRoundPlayerIds.filter(
+            (playerId): playerId is string => typeof playerId === "string",
+          )
+        : [],
+      readyByPlayerId:
+        parsed.readyByPlayerId && typeof parsed.readyByPlayerId === "object"
+          ? Object.fromEntries(
+              Object.entries(parsed.readyByPlayerId).map(([playerId, value]) => [
+                playerId,
+                Boolean(value),
+              ]),
+            )
+          : {},
+      handsByPlayerId,
+      jokerHolderPlayerId:
+        typeof parsed.jokerHolderPlayerId === "string"
+          ? parsed.jokerHolderPlayerId
+          : null,
+      lastRoundClearedPlayerIds: Array.isArray(parsed.lastRoundClearedPlayerIds)
+        ? parsed.lastRoundClearedPlayerIds.filter(
+            (playerId): playerId is string => typeof playerId === "string",
+          )
+        : [],
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 export default function RoomPage() {
   const [quote, setQuote] = React.useState<string>("");
   const params = useParams();
@@ -1525,6 +1662,57 @@ export default function RoomPage() {
       },
     }),
   );
+  const jokerLoopReorderCard = useMutation(
+    trpc.games.jokerLoopReorderCard.mutationOptions({
+      onError: (error) => {
+        toast.error(error.message || "Could not reorder card.");
+      },
+    }),
+  );
+  const jokerLoopReady = useMutation(
+    trpc.games.jokerLoopReady.mutationOptions({
+      onSuccess: () => {
+        toast.success("Ready confirmed. Next player can draw.");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not mark ready.");
+      },
+    }),
+  );
+  const jokerLoopPickCard = useMutation(
+    trpc.games.jokerLoopPickCard.mutationOptions({
+      onSuccess: () => {
+        toast.success("Card taken.");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not take card.");
+      },
+    }),
+  );
+  const jokerLoopNextRound = useMutation(
+    trpc.games.jokerLoopNextRound.mutationOptions({
+      onSuccess: (data) => {
+        if (data.clearedPlayerIds.length > 0) {
+          toast.success("Pairs removed. Cleared players earned +1 point.");
+        } else {
+          toast.success("Pairs removed. Next round started.");
+        }
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not move to next round.");
+      },
+    }),
+  );
+  const jokerLoopRestart = useMutation(
+    trpc.games.jokerLoopRestart.mutationOptions({
+      onSuccess: () => {
+        toast.success("Joker Loop restarted with a new shuffle.");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not restart Joker Loop.");
+      },
+    }),
+  );
 
   const vote = useMutation(
     trpc.games.votePlayer.mutationOptions({
@@ -1576,6 +1764,8 @@ export default function RoomPage() {
   const [guessPickerOpenStart, setGuessPickerOpenStart] = React.useState<
     number | null
   >(0);
+  const [jokerLoopHighlightedIndex, setJokerLoopHighlightedIndex] =
+    React.useState<number | null>(null);
   const [openAddPlayerModal, setOpenAddPlayerModal] = React.useState(false);
   const [showAddPlayerModal, setShowAddPlayerModal] = React.useState(false);
   const [openDialog, setOpenDialog] = React.useState(false);
@@ -1668,6 +1858,9 @@ export default function RoomPage() {
   }, [room?.currentAnswer]);
   const ghostTearsState = React.useMemo(() => {
     return parseGhostTearsState(room?.currentAnswer);
+  }, [room?.currentAnswer]);
+  const jokerLoopState = React.useMemo(() => {
+    return parseJokerLoopState(room?.currentAnswer);
   }, [room?.currentAnswer]);
 
   const codenamesUnassignedPlayers = React.useMemo(() => {
@@ -2305,6 +2498,17 @@ export default function RoomPage() {
       clearTimeout(timeout);
     };
   }, [connectLettersRedrawCooldown]);
+
+  React.useEffect(() => {
+    if (selectedGame !== "joker-loop") return;
+    setJokerLoopHighlightedIndex(null);
+  }, [
+    jokerLoopState.activeGiverPlayerId,
+    jokerLoopState.activePickerPlayerId,
+    jokerLoopState.phase,
+    jokerLoopState.roundNumber,
+    selectedGame,
+  ]);
 
   // Convert seconds to MM:SS
   function formatTime(seconds: number) {
@@ -4280,6 +4484,242 @@ export default function RoomPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          );
+        }
+
+        case "joker-loop": {
+          const giverId = jokerLoopState.activeGiverPlayerId;
+          const pickerId = jokerLoopState.activePickerPlayerId;
+          const giverName =
+            players.find((player) => player.id === giverId)?.name || "Unknown";
+          const pickerName =
+            players.find((player) => player.id === pickerId)?.name || "Unknown";
+          const jokerHolderName =
+            players.find((player) => player.id === jokerLoopState.jokerHolderPlayerId)
+              ?.name || "Unknown";
+          const isGiver = actualPlayer === giverId;
+          const isPicker = actualPlayer === pickerId;
+          const giverHand = giverId ? jokerLoopState.handsByPlayerId[giverId] ?? [] : [];
+          const myHand = actualPlayer
+            ? jokerLoopState.handsByPlayerId[actualPlayer] ?? []
+            : [];
+          const activeGiverReady = giverId
+            ? Boolean(jokerLoopState.readyByPlayerId[giverId])
+            : false;
+          const drawProgress = `${jokerLoopState.drawnThisRoundPlayerIds.length}/${jokerLoopState.roundParticipantIds.length}`;
+          const hiddenCardCount = giverHand.length;
+
+          return (
+            <div className="w-full space-y-4">
+              <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary">Round: {jokerLoopState.roundNumber}</Badge>
+                  <Badge variant="outline">
+                    Phase: {jokerLoopState.phase.replaceAll("_", " ")}
+                  </Badge>
+                  <Badge variant="outline">Draws done: {drawProgress}</Badge>
+                  <Badge variant="outline">Joker holder: {jokerHolderName}</Badge>
+                </div>
+                {giverId && pickerId && (
+                  <p className="mt-3 text-sm text-white/90">
+                    Giver: <span className="font-semibold">{giverName}</span> to Picker:{" "}
+                    <span className="font-semibold">{pickerName}</span>
+                  </p>
+                )}
+                {jokerLoopState.status === "ENDED" && (
+                  <p className="mt-2 text-sm text-amber-200">
+                    Game ended. {jokerHolderName} is left with the Joker and drinks +1.
+                  </p>
+                )}
+                {jokerLoopState.lastRoundClearedPlayerIds.length > 0 && (
+                  <p className="mt-2 text-sm text-emerald-200">
+                    Last round cleared:{" "}
+                    {jokerLoopState.lastRoundClearedPlayerIds
+                      .map(
+                        (playerId) =>
+                          players.find((player) => player.id === playerId)?.name ||
+                          "Unknown",
+                      )
+                      .join(", ")}
+                  </p>
+                )}
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                  <h3 className="mb-3 text-lg font-semibold">Your Hand</h3>
+                  {!actualPlayer && (
+                    <p className="text-sm text-amber-200">Select your player first.</p>
+                  )}
+                  {actualPlayer && myHand.length === 0 && (
+                    <p className="text-sm text-white/80">You are out for now (no cards).</p>
+                  )}
+                  <div className="space-y-2">
+                    {myHand.map((card, index) => {
+                      const highlighted = isGiver && jokerLoopHighlightedIndex === index;
+                      return (
+                        <div
+                          key={card.id}
+                          className={`flex items-center justify-between rounded-lg border px-3 py-2 ${
+                            highlighted
+                              ? "border-cyan-300 bg-cyan-500/20"
+                              : "border-white/20 bg-black/20"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl">{card.icon}</span>
+                            <span className="font-semibold">{card.word}</span>
+                          </div>
+                          {isGiver && jokerLoopState.phase === "REORDERING" && (
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => {
+                                  setJokerLoopHighlightedIndex(index);
+                                  jokerLoopReorderCard.mutate({
+                                    roomId: room?.id || "",
+                                    playerId: actualPlayer,
+                                    cardId: card.id,
+                                    direction: "UP",
+                                  });
+                                }}
+                                disabled={index === 0 || jokerLoopReorderCard.isPending}
+                              >
+                                Up
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => {
+                                  setJokerLoopHighlightedIndex(index);
+                                  jokerLoopReorderCard.mutate({
+                                    roomId: room?.id || "",
+                                    playerId: actualPlayer,
+                                    cardId: card.id,
+                                    direction: "DOWN",
+                                  });
+                                }}
+                                disabled={
+                                  index === myHand.length - 1 ||
+                                  jokerLoopReorderCard.isPending
+                                }
+                              >
+                                Down
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {isGiver && jokerLoopState.phase === "REORDERING" && (
+                    <div className="mt-3">
+                      <Button
+                        onClick={() =>
+                          jokerLoopReady.mutate({
+                            roomId: room?.id || "",
+                            playerId: actualPlayer,
+                          })
+                        }
+                        disabled={jokerLoopReady.isPending}
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                      >
+                        Ready
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                  <h3 className="mb-3 text-lg font-semibold">Pick From {giverName}</h3>
+                  {jokerLoopState.phase === "PICKING" ? (
+                    <>
+                      <p className="mb-3 text-sm text-white/85">
+                        Picker sees hidden cards only. Giver sees real cards.
+                      </p>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        {Array.from({ length: hiddenCardCount }, (_, index) => {
+                          const highlighted = jokerLoopHighlightedIndex === index;
+                          return (
+                            <button
+                              key={`hidden-${index}`}
+                              type="button"
+                              onClick={() => {
+                                setJokerLoopHighlightedIndex(index);
+                                jokerLoopPickCard.mutate({
+                                  roomId: room?.id || "",
+                                  playerId: actualPlayer || "",
+                                  pickedIndex: index,
+                                });
+                              }}
+                              disabled={
+                                !isPicker ||
+                                !activeGiverReady ||
+                                jokerLoopPickCard.isPending
+                              }
+                              className={`rounded-lg border px-3 py-4 text-sm font-semibold transition ${
+                                highlighted
+                                  ? "border-cyan-300 bg-cyan-500/20"
+                                  : "border-white/20 bg-slate-900/70 hover:bg-slate-800"
+                              } disabled:cursor-not-allowed disabled:opacity-60`}
+                            >
+                              Hidden Card {index + 1}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {!isPicker && (
+                        <p className="mt-3 text-sm text-white/70">
+                          Waiting for picker: {pickerName}
+                        </p>
+                      )}
+                      {isPicker && !activeGiverReady && (
+                        <p className="mt-3 text-sm text-amber-200">
+                          Waiting for {giverName} to click Ready.
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-white/80">
+                      Hidden pick cards appear here when phase is PICKING.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  onClick={() =>
+                    jokerLoopNextRound.mutate({
+                      roomId: room?.id || "",
+                      playerId: actualPlayer || "",
+                    })
+                  }
+                  disabled={
+                    !actualPlayer ||
+                    jokerLoopState.phase !== "ROUND_RESOLUTION" ||
+                    jokerLoopNextRound.isPending
+                  }
+                  className="bg-yellow-600 hover:bg-yellow-700"
+                >
+                  Next Round (Remove Pairs)
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    jokerLoopRestart.mutate({
+                      roomId: room?.id || "",
+                      playerId: actualPlayer || "",
+                    })
+                  }
+                  disabled={!actualPlayer || jokerLoopRestart.isPending}
+                >
+                  Restart With New Shuffle
+                </Button>
               </div>
             </div>
           );
