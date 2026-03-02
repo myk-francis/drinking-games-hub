@@ -37,6 +37,7 @@ const MEMORY_CHAIN_CARD_COUNT = 12;
 const GUESS_THE_NUMBER_MIN = 0;
 const GUESS_THE_NUMBER_MAX = 100;
 const CONNECT_LETTERS_TIMER_SECONDS = 10;
+const REACTION_COOLDOWN_MS = 10 * 60 * 1000;
 
 type CodenamesTeam = (typeof CODENAMES_TEAM_VALUES)[number];
 type CodenamesAssignment = (typeof CODENAMES_ASSIGNMENT_VALUES)[number];
@@ -838,6 +839,66 @@ export const gamesRouter = createTRPCRouter({
 
     return games;
   }),
+  getTopPlayersByGame: baseProcedure
+    .input(
+      z.object({
+        gameCode: z.string().min(1, { message: "Game code is required" }),
+      }),
+    )
+    .query(async ({ input }) => {
+      const players = await prisma.player.findMany({
+        where: {
+          room: {
+            game: {
+              code: input.gameCode,
+            },
+          },
+        },
+        select: {
+          name: true,
+          points: true,
+          drinks: true,
+        },
+      });
+
+      const totalsByName = new Map<
+        string,
+        {
+          id: string;
+          name: string;
+          points: number;
+          drinks: number;
+          ratio: number;
+        }
+      >();
+
+      for (const player of players) {
+        const key = player.name.trim().toLowerCase();
+        const current = totalsByName.get(key) ?? {
+          id: `name:${key}`,
+          name: player.name,
+          points: 0,
+          drinks: 0,
+          ratio: 0,
+        };
+
+        current.points += Math.max(0, player.points ?? 0);
+        current.drinks += Math.max(0, player.drinks ?? 0);
+        current.ratio = current.points / Math.max(1, current.drinks);
+
+        totalsByName.set(key, current);
+      }
+
+      return Array.from(totalsByName.values())
+        .filter((entry) => entry.points > 0 || entry.drinks > 0)
+        .sort((a, b) => {
+          if (b.ratio !== a.ratio) return b.ratio - a.ratio;
+          if (b.points !== a.points) return b.points - a.points;
+          if (a.drinks !== b.drinks) return a.drinks - b.drinks;
+          return a.name.localeCompare(b.name);
+        })
+        .slice(0, 10);
+    }),
   getRounds: baseProcedure.query(async () => {
     const rounds = await prisma.parms.findMany({
       where: {
@@ -965,6 +1026,119 @@ export const gamesRouter = createTRPCRouter({
         : null;
 
       return { ...room, currentQuestion };
+    }),
+  getRoomReactions: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1, { message: "Room ID is required" }),
+      }),
+    )
+    .query(async ({ input }) => {
+      const reactions = await prisma.reaction.findMany({
+        where: {
+          roomId: input.roomId,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 120,
+        include: {
+          senderPlayer: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          targetPlayer: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      return reactions.reverse();
+    }),
+  sendReaction: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1, { message: "Room ID is required" }),
+        senderPlayerId: z.string().min(1, { message: "Sender is required" }),
+        targetPlayerId: z.string().optional(),
+        emoji: z
+          .string()
+          .trim()
+          .min(1, { message: "Emoji is required" })
+          .max(8, { message: "Invalid emoji" }),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: {
+          id: input.roomId,
+        },
+        select: {
+          id: true,
+          gameEnded: true,
+          players: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+      if (room.gameEnded) {
+        throw new Error("Reactions are only available while a game is active.");
+      }
+
+      const playerIds = new Set(room.players.map((player) => player.id));
+      if (!playerIds.has(input.senderPlayerId)) {
+        throw new Error("Sender is not in this room.");
+      }
+      if (input.targetPlayerId && !playerIds.has(input.targetPlayerId)) {
+        throw new Error("Target player is not in this room.");
+      }
+
+      const lastReaction = await prisma.reaction.findFirst({
+        where: {
+          roomId: input.roomId,
+          senderPlayerId: input.senderPlayerId,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        select: {
+          createdAt: true,
+        },
+      });
+
+      if (lastReaction) {
+        const elapsedMs = Date.now() - lastReaction.createdAt.getTime();
+        if (elapsedMs < REACTION_COOLDOWN_MS) {
+          const remainingSeconds = Math.ceil(
+            (REACTION_COOLDOWN_MS - elapsedMs) / 1000,
+          );
+          throw new Error(
+            `You can send your next reaction in ${remainingSeconds}s.`,
+          );
+        }
+      }
+
+      const created = await prisma.reaction.create({
+        data: {
+          roomId: input.roomId,
+          senderPlayerId: input.senderPlayerId,
+          targetPlayerId: input.targetPlayerId ?? null,
+          emoji: input.emoji,
+        },
+      });
+
+      return created;
     }),
   createRoom: baseProcedure
     .input(
@@ -3158,6 +3332,149 @@ export const gamesRouter = createTRPCRouter({
       }
     }),
 
+  imposterResolveRound: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        currentPlayerId: z.string().min(1),
+        currentQuestionId: z.string().min(1),
+        wasFound: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const room = await prisma.room.findFirst({
+          where: {
+            id: input.roomId,
+          },
+          include: {
+            players: true,
+            game: {
+              include: {
+                questions: true,
+              },
+            },
+          },
+        });
+
+        if (!room) {
+          throw new Error("Room not found");
+        }
+        if (room.game.code !== "imposter") {
+          throw new Error("This room is not Imposter");
+        }
+        if (room.currentPlayerId !== input.currentPlayerId) {
+          throw new Error("Only the current imposter can resolve this round");
+        }
+        if (room.players.length < 2) {
+          throw new Error("Imposter requires at least 2 players");
+        }
+
+        const allPlayerIds = room.players.map((player) => player.id);
+        const otherPlayerIds = allPlayerIds.filter(
+          (playerId) => playerId !== input.currentPlayerId,
+        );
+        const nextPlayerId =
+          otherPlayerIds[Math.floor(Math.random() * otherPlayerIds.length)];
+
+        let nextQuestionId: number | null = null;
+        let previousQuestionsIds = room.previousQuestionsId || [];
+        const parsedCurrentQuestionId = Number.parseInt(input.currentQuestionId, 10);
+        const excludedQuestionIds = Number.isFinite(parsedCurrentQuestionId)
+          ? [...previousQuestionsIds, parsedCurrentQuestionId]
+          : [...previousQuestionsIds];
+
+        const allQuestionIds = room.game.questions.map((question) => question.id);
+        const remainingQuestionIds = allQuestionIds.filter(
+          (questionId) => !excludedQuestionIds.includes(questionId),
+        );
+
+        if (remainingQuestionIds.length > 0) {
+          nextQuestionId =
+            remainingQuestionIds[
+              Math.floor(Math.random() * remainingQuestionIds.length)
+            ];
+          if (Number.isFinite(parsedCurrentQuestionId)) {
+            previousQuestionsIds = [...previousQuestionsIds, parsedCurrentQuestionId];
+          }
+        } else {
+          nextQuestionId =
+            room.game.questions[
+              Math.floor(Math.random() * room.game.questions.length)
+            ]?.id || null;
+          previousQuestionsIds = [];
+        }
+
+        await prisma.$transaction(async (tx) => {
+          if (input.wasFound) {
+            await tx.player.update({
+              where: { id: input.currentPlayerId },
+              data: {
+                drinks: {
+                  increment: 1,
+                },
+              },
+            });
+
+            await tx.player.updateMany({
+              where: {
+                roomId: input.roomId,
+                id: {
+                  in: otherPlayerIds,
+                },
+              },
+              data: {
+                points: {
+                  increment: 1,
+                },
+              },
+            });
+          } else {
+            await tx.player.update({
+              where: { id: input.currentPlayerId },
+              data: {
+                points: {
+                  increment: 1,
+                },
+              },
+            });
+
+            await tx.player.updateMany({
+              where: {
+                roomId: input.roomId,
+                id: {
+                  in: otherPlayerIds,
+                },
+              },
+              data: {
+                drinks: {
+                  increment: 1,
+                },
+              },
+            });
+          }
+
+          await tx.room.update({
+            where: { id: input.roomId },
+            data: {
+              currentPlayerId: nextPlayerId,
+              currentQuestionId: nextQuestionId,
+              previousQuestionsId: previousQuestionsIds,
+            },
+          });
+        });
+
+        return {
+          nextPlayerId,
+          nextQuestionId,
+          wasFound: input.wasFound,
+        };
+      } catch (error) {
+        console.error("Failed to resolve imposter round:", error);
+        throw new Error("Failed to resolve imposter round");
+      }
+    }),
+
   addNewPlayer: baseProcedure
     .input(
       z.object({
@@ -4300,7 +4617,18 @@ export const gamesRouter = createTRPCRouter({
           },
         });
 
-        if (feedback !== "CORRECT") {
+        if (feedback === "CORRECT") {
+          await tx.player.update({
+            where: {
+              id: input.playerId,
+            },
+            data: {
+              points: {
+                increment: 1,
+              },
+            },
+          });
+        } else {
           await tx.player.update({
             where: {
               id: input.playerId,

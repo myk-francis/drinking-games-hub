@@ -59,7 +59,8 @@ export const ModelName = {
   Session: 'Session',
   Parms: 'Parms',
   Transaction: 'Transaction',
-  Comment: 'Comment'
+  Comment: 'Comment',
+  Reaction: 'Reaction'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -213,6 +214,18 @@ export const CommentScalarFieldEnum = {
 } as const
 
 export type CommentScalarFieldEnum = (typeof CommentScalarFieldEnum)[keyof typeof CommentScalarFieldEnum]
+
+
+export const ReactionScalarFieldEnum = {
+  id: 'id',
+  roomId: 'roomId',
+  senderPlayerId: 'senderPlayerId',
+  targetPlayerId: 'targetPlayerId',
+  emoji: 'emoji',
+  createdAt: 'createdAt'
+} as const
+
+export type ReactionScalarFieldEnum = (typeof ReactionScalarFieldEnum)[keyof typeof ReactionScalarFieldEnum]
 
 
 export const SortOrder = {

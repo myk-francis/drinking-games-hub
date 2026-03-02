@@ -13,6 +13,7 @@ import { useParams } from "next/navigation";
 import { useTRPC } from "@/trpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import React from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import UserConfirmModal from "./modal";
 import { toast } from "sonner";
 import { Loading } from "@/components/ui/loading";
@@ -20,6 +21,14 @@ import ErrorPage from "@/app/error";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import AddPlayerModal from "./addPlayerModal";
 import { QRCodeCanvas } from "qrcode.react";
 import {
@@ -143,6 +152,23 @@ interface GameCommentsProps {
   comments: GameComment[] | [] | null;
 }
 
+type RoomReaction = {
+  id: string;
+  roomId: string;
+  senderPlayerId: string;
+  targetPlayerId: string | null;
+  emoji: string;
+  createdAt: Date;
+  senderPlayer: {
+    id: string;
+    name: string;
+  };
+  targetPlayer: {
+    id: string;
+    name: string;
+  } | null;
+};
+
 const animations = [
   {
     animation: "fade-in",
@@ -225,6 +251,34 @@ const DRINK_ALERT_STEP = 5;
 const LOSING_MEME_SOUND_PATH = "/sounds/losing-meme.mp4";
 const LOSING_MEME_FALLBACK_SOUND_PATH = "/sounds/losing-meme.wav";
 const GAME_OVER_SOUND_PATH = "/sounds/game-over-piano.mp3";
+const REACTION_COOLDOWN_MS = 10 * 60 * 1000;
+const REACTION_VISIBLE_WINDOW_MS = 10 * 1000;
+const DEFAULT_REACTION_EMOJIS = ["🔥", "😂", "👏"];
+const EMOJI_GRAPHEME_PATTERN = /\p{Extended_Pictographic}/u;
+
+const extractFirstEmoji = (value: string): string => {
+  if (!value) return "";
+
+  if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
+    const graphemeSegmenter = new Intl.Segmenter(undefined, {
+      granularity: "grapheme",
+    });
+    for (const { segment } of graphemeSegmenter.segment(value)) {
+      if (EMOJI_GRAPHEME_PATTERN.test(segment)) {
+        return segment;
+      }
+    }
+    return "";
+  }
+
+  for (const char of Array.from(value)) {
+    if (EMOJI_GRAPHEME_PATTERN.test(char)) {
+      return char;
+    }
+  }
+
+  return "";
+};
 
 const normalizeUrl = (rawUrl?: string) => {
   let value = (rawUrl ?? "").trim();
@@ -393,18 +447,40 @@ function TopPlayersView({
           </Button>
         </div>
 
-        <div className="mt-5 space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+        <motion.div
+          className="mt-5 space-y-3 max-h-[60vh] overflow-y-auto pr-1"
+          initial="hidden"
+          animate="visible"
+          variants={{
+            hidden: {},
+            visible: {
+              transition: {
+                staggerChildren: 0.07,
+                delayChildren: 0.08,
+              },
+            },
+          }}
+        >
           {topPlayers.length === 0 ? (
             <div className="rounded-xl border border-white/15 bg-white/5 p-4 text-white/80 text-sm">
               No player stats are available yet.
             </div>
           ) : (
             topPlayers.map((player, index) => (
-              <div
+              <motion.div
                 key={player.id}
                 className="rounded-xl border border-white/20 bg-black/20 p-3 sm:p-4"
-                style={{
-                  animation: `slide-up 0.4s ease-out ${index * 0.07}s both`,
+                variants={{
+                  hidden: { opacity: 0, y: 14, scale: 0.98 },
+                  visible: {
+                    opacity: 1,
+                    y: 0,
+                    scale: 1,
+                    transition: {
+                      duration: 0.34,
+                      ease: "easeOut",
+                    },
+                  },
                 }}
               >
                 <div className="flex items-center justify-between gap-3">
@@ -412,9 +488,18 @@ function TopPlayersView({
                     <div className="h-9 w-9 shrink-0 rounded-full bg-yellow-500/20 border border-yellow-300/40 text-yellow-200 flex items-center justify-center text-sm font-bold">
                       #{index + 1}
                     </div>
-                    <p className="font-semibold text-base sm:text-lg truncate">
+                    <motion.p
+                      className="font-semibold text-base sm:text-lg truncate"
+                      initial={{ x: 0 }}
+                      animate={{ x: [0, 18, -10, 0] }}
+                      transition={{
+                        duration: 0.8,
+                        ease: "easeInOut",
+                        delay: 0.18 + index * 0.05,
+                      }}
+                    >
                       {player.name}
-                    </p>
+                    </motion.p>
                   </div>
                   <div className="text-right text-xs sm:text-sm text-cyan-200 font-semibold">
                     Ratio: {player.ratio.toFixed(2)}
@@ -428,10 +513,10 @@ function TopPlayersView({
                     Drinks: {player.drinks}
                   </div>
                 </div>
-              </div>
+              </motion.div>
             ))
           )}
-        </div>
+        </motion.div>
       </div>
     </div>
   );
@@ -797,6 +882,23 @@ export default function RoomPage() {
   const { data: comments } = useQuery(
     trpc.comments.getCommentsByRoomId.queryOptions({ roomId: String(roomId) }),
   );
+  const { data: gameWideTopPlayers = [] } = useQuery(
+    trpc.games.getTopPlayersByGame.queryOptions(
+      { gameCode: room?.game?.code || "" },
+      {
+        enabled: Boolean(room?.game?.code),
+      },
+    ),
+  );
+  const { data: roomReactions = [] } = useQuery(
+    trpc.games.getRoomReactions.queryOptions(
+      { roomId: String(roomId) },
+      {
+        refetchInterval: room?.gameEnded ? false : 2000,
+        refetchIntervalInBackground: true,
+      },
+    ),
+  );
   const connectLettersTimerDuration = React.useMemo(
     () => parseConnectLettersState(room?.currentAnswer).timerSeconds,
     [room?.currentAnswer],
@@ -898,6 +1000,22 @@ export default function RoomPage() {
       onError: (error) => {
         toast.error("Something went wrong. Please try again.");
         console.error("Error question question:", error);
+        setClicked(false);
+      },
+    }),
+  );
+  const imposterResolveRound = useMutation(
+    trpc.games.imposterResolveRound.mutationOptions({
+      onSuccess: (data) => {
+        toast.success(
+          data.wasFound
+            ? "Round resolved: imposter was caught."
+            : "Round resolved: imposter stayed hidden.",
+        );
+        setClicked(false);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not resolve imposter round.");
         setClicked(false);
       },
     }),
@@ -1267,6 +1385,14 @@ export default function RoomPage() {
     }),
   );
 
+  const sendReaction = useMutation(
+    trpc.games.sendReaction.mutationOptions({
+      onError: (error) => {
+        toast.error(error.message || "Could not send reaction.");
+      },
+    }),
+  );
+
   const selectedGame = room?.game?.code || "never-have-i-ever";
 
   const game = room?.game;
@@ -1299,6 +1425,11 @@ export default function RoomPage() {
   const [showAddPlayerModal, setShowAddPlayerModal] = React.useState(false);
   const [openDialog, setOpenDialog] = React.useState(false);
   const [showTopPlayersView, setShowTopPlayersView] = React.useState(false);
+  const [reactionTargetId, setReactionTargetId] = React.useState<string>("ALL");
+  const [lastReactionSentAt, setLastReactionSentAt] = React.useState<number>(0);
+  const [reactionCooldownNow, setReactionCooldownNow] = React.useState<number>(
+    Date.now(),
+  );
   const [winningTeams, setWinningTeams] = React.useState<string[]>([]);
   const [forfited, setForfited] = React.useState<boolean>(false);
 
@@ -1435,15 +1566,21 @@ export default function RoomPage() {
   const codenamesIdentityInitializedRef = React.useRef(false);
   const losingSoundRef = React.useRef<HTMLAudioElement | null>(null);
   const gameOverSoundRef = React.useRef<HTMLAudioElement | null>(null);
+  const gameOverSoundPoolRef = React.useRef<Set<HTMLAudioElement>>(new Set());
   const hasPlayedGameOverSoundRef = React.useRef(false);
   const previousDrinksByPlayerRef = React.useRef<Record<string, number>>({});
   const connectLettersAutoStopRef = React.useRef<string | null>(null);
+  const prefersReducedMotion = useReducedMotion();
 
   const playerAddedComment = React.useMemo(() => {
     return (comments?.length || 0) >= players.length;
   }, [comments, players]);
 
   const topPlayers = React.useMemo<TopPlayerEntry[]>(() => {
+    if (gameWideTopPlayers.length > 0) {
+      return gameWideTopPlayers as TopPlayerEntry[];
+    }
+
     return [...players]
       .map((player) => {
         const points = Math.max(0, player.points ?? 0);
@@ -1457,6 +1594,7 @@ export default function RoomPage() {
           ratio,
         };
       })
+      .filter((player) => player.points > 0 || player.drinks > 0)
       .sort((a, b) => {
         if (b.ratio !== a.ratio) return b.ratio - a.ratio;
         if (b.points !== a.points) return b.points - a.points;
@@ -1464,7 +1602,137 @@ export default function RoomPage() {
         return a.name.localeCompare(b.name);
       })
       .slice(0, 10);
-  }, [players]);
+  }, [gameWideTopPlayers, players]);
+
+  const typedRoomReactions = React.useMemo<RoomReaction[]>(() => {
+    return roomReactions as RoomReaction[];
+  }, [roomReactions]);
+
+  const myMostUsedReactions = React.useMemo(() => {
+    if (!actualPlayer) return DEFAULT_REACTION_EMOJIS;
+    const emojiCount = new Map<string, number>();
+
+    for (const reaction of typedRoomReactions) {
+      if (reaction.senderPlayerId !== actualPlayer) continue;
+      emojiCount.set(reaction.emoji, (emojiCount.get(reaction.emoji) ?? 0) + 1);
+    }
+
+    const topUsed = Array.from(emojiCount.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([emoji]) => emoji)
+      .slice(0, 3);
+
+    for (const fallbackEmoji of DEFAULT_REACTION_EMOJIS) {
+      if (topUsed.length >= 3) break;
+      if (!topUsed.includes(fallbackEmoji)) {
+        topUsed.push(fallbackEmoji);
+      }
+    }
+
+    return topUsed;
+  }, [actualPlayer, typedRoomReactions]);
+
+  const latestMyReactionAt = React.useMemo(() => {
+    if (!actualPlayer) return 0;
+
+    let latest = 0;
+    for (const reaction of typedRoomReactions) {
+      if (reaction.senderPlayerId !== actualPlayer) continue;
+      const timestamp = new Date(reaction.createdAt).getTime();
+      if (timestamp > latest) latest = timestamp;
+    }
+
+    return latest;
+  }, [actualPlayer, typedRoomReactions]);
+
+  React.useEffect(() => {
+    if (latestMyReactionAt > lastReactionSentAt) {
+      setLastReactionSentAt(latestMyReactionAt);
+    }
+  }, [lastReactionSentAt, latestMyReactionAt]);
+
+  React.useEffect(() => {
+    const interval = window.setInterval(() => {
+      setReactionCooldownNow(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const reactionCooldownRemainingMs = Math.max(
+    0,
+    REACTION_COOLDOWN_MS - (reactionCooldownNow - lastReactionSentAt),
+  );
+
+  const canSendReaction =
+    Boolean(actualPlayer) &&
+    Boolean(room?.id) &&
+    !room?.gameEnded &&
+    reactionCooldownRemainingMs === 0;
+
+  const visibleReactions = React.useMemo(() => {
+    const now = Date.now();
+
+    return typedRoomReactions.filter((reaction) => {
+      const createdAt = new Date(reaction.createdAt).getTime();
+      if (now - createdAt > REACTION_VISIBLE_WINDOW_MS) return false;
+      if (reaction.targetPlayerId == null) return true;
+      if (!actualPlayer) return false;
+      return (
+        reaction.targetPlayerId === actualPlayer ||
+        reaction.senderPlayerId === actualPlayer
+      );
+    });
+  }, [actualPlayer, typedRoomReactions]);
+
+  const handleSendReaction = React.useCallback(
+    (emoji: string) => {
+      if (!room?.id || !actualPlayer) {
+        toast.error("Select your player first.");
+        return;
+      }
+      if (!canSendReaction) {
+        toast.error(
+          `You can react again in ${Math.ceil(reactionCooldownRemainingMs / 1000)}s.`,
+        );
+        return;
+      }
+
+      sendReaction.mutate(
+        {
+          roomId: room.id,
+          senderPlayerId: actualPlayer,
+          targetPlayerId:
+            reactionTargetId === "ALL" ? undefined : reactionTargetId,
+          emoji,
+        },
+        {
+          onSuccess: () => {
+            setLastReactionSentAt(Date.now());
+          },
+        },
+      );
+    },
+    [
+      actualPlayer,
+      canSendReaction,
+      reactionCooldownRemainingMs,
+      reactionTargetId,
+      room?.id,
+      sendReaction,
+    ],
+  );
+
+  React.useEffect(() => {
+    if (reactionTargetId === "ALL") return;
+    if (!players.some((player) => player.id === reactionTargetId)) {
+      setReactionTargetId("ALL");
+      return;
+    }
+    if (reactionTargetId === actualPlayer) {
+      setReactionTargetId("ALL");
+    }
+  }, [actualPlayer, players, reactionTargetId]);
 
   React.useEffect(() => {
     if (!room?.gameEnded) {
@@ -1649,6 +1917,11 @@ export default function RoomPage() {
     // so a browser refresh can replay the game-over music once.
     if (!room?.id) return;
     hasPlayedGameOverSoundRef.current = false;
+    for (const audio of gameOverSoundPoolRef.current) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+    gameOverSoundPoolRef.current.clear();
     gameOverSoundRef.current = null;
   }, [room?.id]);
 
@@ -1657,11 +1930,13 @@ export default function RoomPage() {
       return;
     }
 
-    gameOverSoundRef.current = new Audio(GAME_OVER_SOUND_PATH);
-    gameOverSoundRef.current.preload = "auto";
-    gameOverSoundRef.current.currentTime = 0;
+    const audio = new Audio(GAME_OVER_SOUND_PATH);
+    audio.preload = "auto";
+    audio.currentTime = 0;
+    gameOverSoundRef.current = audio;
+    gameOverSoundPoolRef.current.add(audio);
     hasPlayedGameOverSoundRef.current = true;
-    void gameOverSoundRef.current
+    void audio
       .play()
       .then(() => {
         setIsGameOverSoundPlaying(true);
@@ -1675,8 +1950,16 @@ export default function RoomPage() {
   React.useEffect(() => {
     const audio = gameOverSoundRef.current;
     if (!audio) return;
-    const onEnded = () => setIsGameOverSoundPlaying(false);
-    const onPause = () => setIsGameOverSoundPlaying(false);
+
+    const onEnded = () => {
+      gameOverSoundPoolRef.current.delete(audio);
+      setIsGameOverSoundPlaying(gameOverSoundPoolRef.current.size > 0);
+    };
+    const onPause = () => {
+      gameOverSoundPoolRef.current.delete(audio);
+      setIsGameOverSoundPlaying(gameOverSoundPoolRef.current.size > 0);
+    };
+
     audio.addEventListener("ended", onEnded);
     audio.addEventListener("pause", onPause);
     return () => {
@@ -1686,9 +1969,12 @@ export default function RoomPage() {
   }, [room?.id, room?.gameEnded]);
 
   const handleStopGameOverSound = React.useCallback(() => {
-    if (!gameOverSoundRef.current) return;
-    gameOverSoundRef.current.pause();
-    gameOverSoundRef.current.currentTime = 0;
+    for (const audio of gameOverSoundPoolRef.current) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+    gameOverSoundPoolRef.current.clear();
+    gameOverSoundRef.current = null;
     setIsGameOverSoundPlaying(false);
   }, []);
 
@@ -2360,60 +2646,55 @@ export default function RoomPage() {
               </div>
               <p className="text-lg text-white/80 mb-6">
                 {actualPlayer === room?.currentPlayerId
-                  ? "Try to blend in and avoid detection! 🤫"
+                  ? "Choose the round outcome. Were you discovered?"
                   : "Who is the imposter 👀‼️"}
               </p>
-              <div className="flex gap-4 justify-center">
-                {!clicked && (
+              {actualPlayer === room?.currentPlayerId ? (
+                <div className="flex gap-4 justify-center flex-wrap">
                   <button
                     onClick={() => {
-                      updateRoom.mutate({
-                        gamecode: "imposter",
+                      if (clicked) return;
+                      imposterResolveRound.mutate({
                         roomId: room.id,
-                        points: String(
-                          room?.players?.find((p) => p.id === actualPlayer)
-                            ?.points || 0,
-                        ),
-                        drinks: String(
-                          //@ts-expect-error leave it
-                          room?.players?.find((p) => p.id === actualPlayer)
-                            ?.drinks + 1 || 0,
-                        ),
-                        currentPlayerId: actualPlayer ?? "",
+                        currentPlayerId: room.currentPlayerId ?? "",
                         currentQuestionId:
                           room.currentQuestionId == null
                             ? ""
                             : String(room.currentQuestionId),
+                        wasFound: true,
                       });
                       setClicked(true);
                     }}
-                    className="px-6 py-3 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-semibold transition-colors"
+                    className="px-6 py-3 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-semibold transition-colors disabled:opacity-50"
+                    disabled={clicked || imposterResolveRound.isPending}
                   >
-                    Took a Drink
+                    I Was Caught
                   </button>
-                )}
-                {selectedGame === "imposter" &&
-                  actualPlayer === room?.currentPlayerId &&
-                  !clicked && (
-                    <button
-                      onClick={() => {
-                        nextCardPOD.mutate({
-                          gamecode: "imposter",
-                          roomId: room.id,
-                          currentQuestionId:
-                            room.currentQuestionId == null
-                              ? ""
-                              : String(room.currentQuestionId),
-                          currentPlayerId: room.currentPlayerId ?? "",
-                        });
-                        setClicked(true);
-                      }}
-                      className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 rounded-lg text-white font-semibold transition-colors"
-                    >
-                      Next Card
-                    </button>
-                  )}
-              </div>
+                  <button
+                    onClick={() => {
+                      if (clicked) return;
+                      imposterResolveRound.mutate({
+                        roomId: room.id,
+                        currentPlayerId: room.currentPlayerId ?? "",
+                        currentQuestionId:
+                          room.currentQuestionId == null
+                            ? ""
+                            : String(room.currentQuestionId),
+                        wasFound: false,
+                      });
+                      setClicked(true);
+                    }}
+                    className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors disabled:opacity-50"
+                    disabled={clicked || imposterResolveRound.isPending}
+                  >
+                    I Stayed Hidden
+                  </button>
+                </div>
+              ) : (
+                <p className="text-sm text-white/70">
+                  Waiting for the imposter to resolve this round.
+                </p>
+              )}
             </div>
           );
 
@@ -4605,6 +4886,27 @@ export default function RoomPage() {
           )}
         </div>
 
+        {!showQRCode && (
+          <ReactionRainOverlay
+            visibleReactions={visibleReactions}
+            prefersReducedMotion={Boolean(prefersReducedMotion)}
+          />
+        )}
+
+        {!showQRCode && (
+          <ReactionRainPanel
+            players={players}
+            actualPlayer={actualPlayer}
+            quickReactions={myMostUsedReactions}
+            selectedTargetId={reactionTargetId}
+            setSelectedTargetId={setReactionTargetId}
+            onSendReaction={handleSendReaction}
+            cooldownRemainingMs={reactionCooldownRemainingMs}
+            canSendReaction={canSendReaction}
+            isPending={sendReaction.isPending}
+          />
+        )}
+
         {/* Controls */}
         <RoomControls
           onEndGame={() => endRoom.mutate({ roomId: String(roomId) })}
@@ -4623,6 +4925,207 @@ export default function RoomPage() {
     </div>
   );
 }
+
+const ReactionRainPanel = React.memo(function ReactionRainPanel({
+  players,
+  actualPlayer,
+  quickReactions,
+  selectedTargetId,
+  setSelectedTargetId,
+  onSendReaction,
+  cooldownRemainingMs,
+  canSendReaction,
+  isPending,
+}: {
+  players: {
+    id: string;
+    name: string;
+  }[];
+  actualPlayer: string;
+  quickReactions: string[];
+  selectedTargetId: string;
+  setSelectedTargetId: React.Dispatch<React.SetStateAction<string>>;
+  onSendReaction: (emoji: string) => void;
+  cooldownRemainingMs: number;
+  canSendReaction: boolean;
+  isPending: boolean;
+}) {
+  const [customEmoji, setCustomEmoji] = React.useState("");
+
+  const cooldownSeconds = Math.ceil(cooldownRemainingMs / 1000);
+  const myTargetOptions = players.filter((player) => player.id !== actualPlayer);
+  const selectedTargetLabel =
+    selectedTargetId === "ALL"
+      ? "Send to everyone"
+      : `Send to ${
+          myTargetOptions.find((player) => player.id === selectedTargetId)
+            ?.name ?? "player"
+        }`;
+  const canSendCustomEmoji = customEmoji.length > 0 && canSendReaction && !isPending;
+
+  return (
+    <div className="relative mb-6 rounded-xl border border-white/20 bg-white/10 p-4 sm:p-5 backdrop-blur-sm">
+      <div className="relative z-10">
+        <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-semibold text-white">Quick Reactions</p>
+          <p className="text-xs text-white/70">
+            {canSendReaction
+              ? "Ready to send"
+              : `Cooldown: ${cooldownSeconds}s remaining`}
+          </p>
+        </div>
+
+        <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="h-10 w-full justify-between border-white/20 bg-black/20 text-white hover:bg-black/30 hover:text-white"
+              >
+                <span className="truncate">{selectedTargetLabel}</span>
+                <ChevronDown className="h-4 w-4 opacity-80" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className="w-[var(--radix-dropdown-menu-trigger-width)]"
+            >
+              <DropdownMenuRadioGroup
+                value={selectedTargetId}
+                onValueChange={setSelectedTargetId}
+              >
+                <DropdownMenuRadioItem value="ALL">
+                  Send to everyone
+                </DropdownMenuRadioItem>
+                {myTargetOptions.map((player) => (
+                  <DropdownMenuRadioItem key={player.id} value={player.id}>
+                    Send to {player.name}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <span className="text-xs text-white/70">
+            {selectedTargetId === "ALL" ? "Public" : "Private target"}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          {quickReactions.slice(0, 3).map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={() => onSendReaction(emoji)}
+              disabled={!canSendReaction || isPending}
+              className="flex h-12 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-2xl transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label={`Send ${emoji} reaction`}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <Input
+            value={customEmoji}
+            onChange={(event) =>
+              setCustomEmoji(extractFirstEmoji(event.target.value))
+            }
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return;
+              event.preventDefault();
+              if (!canSendCustomEmoji) return;
+              onSendReaction(customEmoji);
+              setCustomEmoji("");
+            }}
+            placeholder="Type one emoji (example: 😎)"
+            className="h-10 border-white/20 bg-black/20 text-white placeholder:text-white/60"
+          />
+          <Button
+            type="button"
+            onClick={() => {
+              if (!canSendCustomEmoji) return;
+              onSendReaction(customEmoji);
+              setCustomEmoji("");
+            }}
+            disabled={!canSendCustomEmoji}
+            className="h-10"
+          >
+            Send Emoji
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+const ReactionRainOverlay = React.memo(function ReactionRainOverlay({
+  visibleReactions,
+  prefersReducedMotion,
+}: {
+  visibleReactions: RoomReaction[];
+  prefersReducedMotion: boolean;
+}) {
+  const burstParticles = React.useMemo(() => {
+    return visibleReactions.flatMap((reaction) => {
+      const count = reaction.targetPlayerId ? 10 : 16;
+      const createdAt = new Date(reaction.createdAt).getTime();
+      return Array.from({ length: count }, (_, index) => {
+        const seed = createdAt + index * 67;
+        const left = (seed * 13) % 100;
+        const drift = ((seed % 40) - 20) * 1.2;
+        const duration = prefersReducedMotion ? 1.2 : 2.3 + (seed % 1000) / 1000;
+        const delay = (seed % 250) / 1000;
+        const size = reaction.targetPlayerId ? "text-2xl" : "text-3xl";
+
+        return {
+          key: `${reaction.id}-${index}`,
+          emoji: reaction.emoji,
+          left,
+          drift,
+          duration,
+          delay,
+          size,
+        };
+      });
+    });
+  }, [prefersReducedMotion, visibleReactions]);
+
+  return (
+    <div className="pointer-events-none fixed inset-0 z-50 overflow-hidden">
+      <AnimatePresence>
+        {burstParticles.map((particle) => (
+          <motion.span
+            key={particle.key}
+            className={`absolute top-[-10vh] ${particle.size}`}
+            style={{ left: `${particle.left}%` }}
+            initial={{ opacity: 0, y: "-10%", x: 0, rotate: 0, scale: 0.85 }}
+            animate={
+              prefersReducedMotion
+                ? { opacity: [0, 1, 0], y: "110vh" }
+                : {
+                    opacity: [0, 1, 1, 0],
+                    y: "120vh",
+                    x: particle.drift,
+                    rotate: particle.drift,
+                    scale: [0.85, 1, 1.05],
+                  }
+            }
+            exit={{ opacity: 0 }}
+            transition={{
+              duration: particle.duration,
+              ease: "easeOut",
+              delay: particle.delay,
+            }}
+          >
+            {particle.emoji}
+          </motion.span>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+});
 
 const RoomHeader = React.memo(function RoomHeader({
   gameName,
@@ -4773,3 +5276,4 @@ const RoomControls = React.memo(function RoomControls({
     </div>
   );
 });
+

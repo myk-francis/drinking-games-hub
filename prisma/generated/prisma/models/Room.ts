@@ -395,6 +395,7 @@ export type RoomWhereInput = {
   game?: Prisma.XOR<Prisma.GameScalarRelationFilter, Prisma.GameWhereInput>
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   comments?: Prisma.CommentListRelationFilter
+  reactions?: Prisma.ReactionListRelationFilter
   players?: Prisma.PlayerListRelationFilter
 }
 
@@ -430,6 +431,7 @@ export type RoomOrderByWithRelationInput = {
   game?: Prisma.GameOrderByWithRelationInput
   user?: Prisma.UserOrderByWithRelationInput
   comments?: Prisma.CommentOrderByRelationAggregateInput
+  reactions?: Prisma.ReactionOrderByRelationAggregateInput
   players?: Prisma.PlayerOrderByRelationAggregateInput
 }
 
@@ -468,6 +470,7 @@ export type RoomWhereUniqueInput = Prisma.AtLeast<{
   game?: Prisma.XOR<Prisma.GameScalarRelationFilter, Prisma.GameWhereInput>
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   comments?: Prisma.CommentListRelationFilter
+  reactions?: Prisma.ReactionListRelationFilter
   players?: Prisma.PlayerListRelationFilter
 }, "id">
 
@@ -571,6 +574,7 @@ export type RoomCreateInput = {
   game: Prisma.GameCreateNestedOneWithoutRoomsInput
   user: Prisma.UserCreateNestedOneWithoutRoomsInput
   comments?: Prisma.CommentCreateNestedManyWithoutRoomInput
+  reactions?: Prisma.ReactionCreateNestedManyWithoutRoomInput
   players?: Prisma.PlayerCreateNestedManyWithoutRoomInput
 }
 
@@ -604,6 +608,7 @@ export type RoomUncheckedCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   comments?: Prisma.CommentUncheckedCreateNestedManyWithoutRoomInput
+  reactions?: Prisma.ReactionUncheckedCreateNestedManyWithoutRoomInput
   players?: Prisma.PlayerUncheckedCreateNestedManyWithoutRoomInput
 }
 
@@ -637,6 +642,7 @@ export type RoomUpdateInput = {
   game?: Prisma.GameUpdateOneRequiredWithoutRoomsNestedInput
   user?: Prisma.UserUpdateOneRequiredWithoutRoomsNestedInput
   comments?: Prisma.CommentUpdateManyWithoutRoomNestedInput
+  reactions?: Prisma.ReactionUpdateManyWithoutRoomNestedInput
   players?: Prisma.PlayerUpdateManyWithoutRoomNestedInput
 }
 
@@ -670,6 +676,7 @@ export type RoomUncheckedUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   comments?: Prisma.CommentUncheckedUpdateManyWithoutRoomNestedInput
+  reactions?: Prisma.ReactionUncheckedUpdateManyWithoutRoomNestedInput
   players?: Prisma.PlayerUncheckedUpdateManyWithoutRoomNestedInput
 }
 
@@ -1089,6 +1096,20 @@ export type RoomUpdateOneRequiredWithoutCommentsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.RoomUpdateToOneWithWhereWithoutCommentsInput, Prisma.RoomUpdateWithoutCommentsInput>, Prisma.RoomUncheckedUpdateWithoutCommentsInput>
 }
 
+export type RoomCreateNestedOneWithoutReactionsInput = {
+  create?: Prisma.XOR<Prisma.RoomCreateWithoutReactionsInput, Prisma.RoomUncheckedCreateWithoutReactionsInput>
+  connectOrCreate?: Prisma.RoomCreateOrConnectWithoutReactionsInput
+  connect?: Prisma.RoomWhereUniqueInput
+}
+
+export type RoomUpdateOneRequiredWithoutReactionsNestedInput = {
+  create?: Prisma.XOR<Prisma.RoomCreateWithoutReactionsInput, Prisma.RoomUncheckedCreateWithoutReactionsInput>
+  connectOrCreate?: Prisma.RoomCreateOrConnectWithoutReactionsInput
+  upsert?: Prisma.RoomUpsertWithoutReactionsInput
+  connect?: Prisma.RoomWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.RoomUpdateToOneWithWhereWithoutReactionsInput, Prisma.RoomUpdateWithoutReactionsInput>, Prisma.RoomUncheckedUpdateWithoutReactionsInput>
+}
+
 export type RoomCreateWithoutUserInput = {
   id?: string
   gameEnded?: boolean
@@ -1118,6 +1139,7 @@ export type RoomCreateWithoutUserInput = {
   updatedAt?: Date | string
   game: Prisma.GameCreateNestedOneWithoutRoomsInput
   comments?: Prisma.CommentCreateNestedManyWithoutRoomInput
+  reactions?: Prisma.ReactionCreateNestedManyWithoutRoomInput
   players?: Prisma.PlayerCreateNestedManyWithoutRoomInput
 }
 
@@ -1150,6 +1172,7 @@ export type RoomUncheckedCreateWithoutUserInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   comments?: Prisma.CommentUncheckedCreateNestedManyWithoutRoomInput
+  reactions?: Prisma.ReactionUncheckedCreateNestedManyWithoutRoomInput
   players?: Prisma.PlayerUncheckedCreateNestedManyWithoutRoomInput
 }
 
@@ -1242,6 +1265,7 @@ export type RoomCreateWithoutGameInput = {
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutRoomsInput
   comments?: Prisma.CommentCreateNestedManyWithoutRoomInput
+  reactions?: Prisma.ReactionCreateNestedManyWithoutRoomInput
   players?: Prisma.PlayerCreateNestedManyWithoutRoomInput
 }
 
@@ -1274,6 +1298,7 @@ export type RoomUncheckedCreateWithoutGameInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   comments?: Prisma.CommentUncheckedCreateNestedManyWithoutRoomInput
+  reactions?: Prisma.ReactionUncheckedCreateNestedManyWithoutRoomInput
   players?: Prisma.PlayerUncheckedCreateNestedManyWithoutRoomInput
 }
 
@@ -1333,6 +1358,7 @@ export type RoomCreateWithoutPlayersInput = {
   game: Prisma.GameCreateNestedOneWithoutRoomsInput
   user: Prisma.UserCreateNestedOneWithoutRoomsInput
   comments?: Prisma.CommentCreateNestedManyWithoutRoomInput
+  reactions?: Prisma.ReactionCreateNestedManyWithoutRoomInput
 }
 
 export type RoomUncheckedCreateWithoutPlayersInput = {
@@ -1365,6 +1391,7 @@ export type RoomUncheckedCreateWithoutPlayersInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   comments?: Prisma.CommentUncheckedCreateNestedManyWithoutRoomInput
+  reactions?: Prisma.ReactionUncheckedCreateNestedManyWithoutRoomInput
 }
 
 export type RoomCreateOrConnectWithoutPlayersInput = {
@@ -1413,6 +1440,7 @@ export type RoomUpdateWithoutPlayersInput = {
   game?: Prisma.GameUpdateOneRequiredWithoutRoomsNestedInput
   user?: Prisma.UserUpdateOneRequiredWithoutRoomsNestedInput
   comments?: Prisma.CommentUpdateManyWithoutRoomNestedInput
+  reactions?: Prisma.ReactionUpdateManyWithoutRoomNestedInput
 }
 
 export type RoomUncheckedUpdateWithoutPlayersInput = {
@@ -1445,6 +1473,7 @@ export type RoomUncheckedUpdateWithoutPlayersInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   comments?: Prisma.CommentUncheckedUpdateManyWithoutRoomNestedInput
+  reactions?: Prisma.ReactionUncheckedUpdateManyWithoutRoomNestedInput
 }
 
 export type RoomCreateWithoutCommentsInput = {
@@ -1476,6 +1505,7 @@ export type RoomCreateWithoutCommentsInput = {
   updatedAt?: Date | string
   game: Prisma.GameCreateNestedOneWithoutRoomsInput
   user: Prisma.UserCreateNestedOneWithoutRoomsInput
+  reactions?: Prisma.ReactionCreateNestedManyWithoutRoomInput
   players?: Prisma.PlayerCreateNestedManyWithoutRoomInput
 }
 
@@ -1508,6 +1538,7 @@ export type RoomUncheckedCreateWithoutCommentsInput = {
   gameEndedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  reactions?: Prisma.ReactionUncheckedCreateNestedManyWithoutRoomInput
   players?: Prisma.PlayerUncheckedCreateNestedManyWithoutRoomInput
 }
 
@@ -1556,6 +1587,7 @@ export type RoomUpdateWithoutCommentsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   game?: Prisma.GameUpdateOneRequiredWithoutRoomsNestedInput
   user?: Prisma.UserUpdateOneRequiredWithoutRoomsNestedInput
+  reactions?: Prisma.ReactionUpdateManyWithoutRoomNestedInput
   players?: Prisma.PlayerUpdateManyWithoutRoomNestedInput
 }
 
@@ -1588,6 +1620,155 @@ export type RoomUncheckedUpdateWithoutCommentsInput = {
   gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  reactions?: Prisma.ReactionUncheckedUpdateManyWithoutRoomNestedInput
+  players?: Prisma.PlayerUncheckedUpdateManyWithoutRoomNestedInput
+}
+
+export type RoomCreateWithoutReactionsInput = {
+  id?: string
+  gameEnded?: boolean
+  currentPlayerId?: string | null
+  playerOneId?: string | null
+  playerTwoId?: string | null
+  previousPairIds?: Prisma.RoomCreatepreviousPairIdsInput | string[]
+  allPairIds?: Prisma.RoomCreateallPairIdsInput | string[]
+  previousPlayersIds?: Prisma.RoomCreatepreviousPlayersIdsInput | string[]
+  currentQuestionId?: number | null
+  previousQuestionsId?: Prisma.RoomCreatepreviousQuestionsIdInput | number[]
+  currentCard?: number | null
+  lastCard?: number | null
+  lastPlayerId?: string | null
+  previousCards?: Prisma.RoomCreatepreviousCardsInput | number[]
+  correctPrediction?: boolean
+  rounds?: number
+  currentRound?: number | null
+  questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
+  questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
+  currentAnswer?: string | null
+  playingTeams?: Prisma.RoomCreateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomCreatepreviousPlayedTeamsInput | string[]
+  startedAt?: Date | string | null
+  gameEndedAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  game: Prisma.GameCreateNestedOneWithoutRoomsInput
+  user: Prisma.UserCreateNestedOneWithoutRoomsInput
+  comments?: Prisma.CommentCreateNestedManyWithoutRoomInput
+  players?: Prisma.PlayerCreateNestedManyWithoutRoomInput
+}
+
+export type RoomUncheckedCreateWithoutReactionsInput = {
+  id?: string
+  gameId: number
+  gameEnded?: boolean
+  userId: string
+  currentPlayerId?: string | null
+  playerOneId?: string | null
+  playerTwoId?: string | null
+  previousPairIds?: Prisma.RoomCreatepreviousPairIdsInput | string[]
+  allPairIds?: Prisma.RoomCreateallPairIdsInput | string[]
+  previousPlayersIds?: Prisma.RoomCreatepreviousPlayersIdsInput | string[]
+  currentQuestionId?: number | null
+  previousQuestionsId?: Prisma.RoomCreatepreviousQuestionsIdInput | number[]
+  currentCard?: number | null
+  lastCard?: number | null
+  lastPlayerId?: string | null
+  previousCards?: Prisma.RoomCreatepreviousCardsInput | number[]
+  correctPrediction?: boolean
+  rounds?: number
+  currentRound?: number | null
+  questionAVotes?: Prisma.RoomCreatequestionAVotesInput | string[]
+  questionBVotes?: Prisma.RoomCreatequestionBVotesInput | string[]
+  currentAnswer?: string | null
+  playingTeams?: Prisma.RoomCreateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomCreatepreviousPlayedTeamsInput | string[]
+  startedAt?: Date | string | null
+  gameEndedAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  comments?: Prisma.CommentUncheckedCreateNestedManyWithoutRoomInput
+  players?: Prisma.PlayerUncheckedCreateNestedManyWithoutRoomInput
+}
+
+export type RoomCreateOrConnectWithoutReactionsInput = {
+  where: Prisma.RoomWhereUniqueInput
+  create: Prisma.XOR<Prisma.RoomCreateWithoutReactionsInput, Prisma.RoomUncheckedCreateWithoutReactionsInput>
+}
+
+export type RoomUpsertWithoutReactionsInput = {
+  update: Prisma.XOR<Prisma.RoomUpdateWithoutReactionsInput, Prisma.RoomUncheckedUpdateWithoutReactionsInput>
+  create: Prisma.XOR<Prisma.RoomCreateWithoutReactionsInput, Prisma.RoomUncheckedCreateWithoutReactionsInput>
+  where?: Prisma.RoomWhereInput
+}
+
+export type RoomUpdateToOneWithWhereWithoutReactionsInput = {
+  where?: Prisma.RoomWhereInput
+  data: Prisma.XOR<Prisma.RoomUpdateWithoutReactionsInput, Prisma.RoomUncheckedUpdateWithoutReactionsInput>
+}
+
+export type RoomUpdateWithoutReactionsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  gameEnded?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  currentPlayerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  playerOneId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  playerTwoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  previousPairIds?: Prisma.RoomUpdatepreviousPairIdsInput | string[]
+  allPairIds?: Prisma.RoomUpdateallPairIdsInput | string[]
+  previousPlayersIds?: Prisma.RoomUpdatepreviousPlayersIdsInput | string[]
+  currentQuestionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  previousQuestionsId?: Prisma.RoomUpdatepreviousQuestionsIdInput | number[]
+  currentCard?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  lastCard?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  lastPlayerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  previousCards?: Prisma.RoomUpdatepreviousCardsInput | number[]
+  correctPrediction?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  rounds?: Prisma.IntFieldUpdateOperationsInput | number
+  currentRound?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
+  questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
+  currentAnswer?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  playingTeams?: Prisma.RoomUpdateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomUpdatepreviousPlayedTeamsInput | string[]
+  startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  game?: Prisma.GameUpdateOneRequiredWithoutRoomsNestedInput
+  user?: Prisma.UserUpdateOneRequiredWithoutRoomsNestedInput
+  comments?: Prisma.CommentUpdateManyWithoutRoomNestedInput
+  players?: Prisma.PlayerUpdateManyWithoutRoomNestedInput
+}
+
+export type RoomUncheckedUpdateWithoutReactionsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  gameId?: Prisma.IntFieldUpdateOperationsInput | number
+  gameEnded?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  currentPlayerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  playerOneId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  playerTwoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  previousPairIds?: Prisma.RoomUpdatepreviousPairIdsInput | string[]
+  allPairIds?: Prisma.RoomUpdateallPairIdsInput | string[]
+  previousPlayersIds?: Prisma.RoomUpdatepreviousPlayersIdsInput | string[]
+  currentQuestionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  previousQuestionsId?: Prisma.RoomUpdatepreviousQuestionsIdInput | number[]
+  currentCard?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  lastCard?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  lastPlayerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  previousCards?: Prisma.RoomUpdatepreviousCardsInput | number[]
+  correctPrediction?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  rounds?: Prisma.IntFieldUpdateOperationsInput | number
+  currentRound?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  questionAVotes?: Prisma.RoomUpdatequestionAVotesInput | string[]
+  questionBVotes?: Prisma.RoomUpdatequestionBVotesInput | string[]
+  currentAnswer?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  playingTeams?: Prisma.RoomUpdateplayingTeamsInput | string[]
+  previousPlayedTeams?: Prisma.RoomUpdatepreviousPlayedTeamsInput | string[]
+  startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  gameEndedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  comments?: Prisma.CommentUncheckedUpdateManyWithoutRoomNestedInput
   players?: Prisma.PlayerUncheckedUpdateManyWithoutRoomNestedInput
 }
 
@@ -1650,6 +1831,7 @@ export type RoomUpdateWithoutUserInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   game?: Prisma.GameUpdateOneRequiredWithoutRoomsNestedInput
   comments?: Prisma.CommentUpdateManyWithoutRoomNestedInput
+  reactions?: Prisma.ReactionUpdateManyWithoutRoomNestedInput
   players?: Prisma.PlayerUpdateManyWithoutRoomNestedInput
 }
 
@@ -1682,6 +1864,7 @@ export type RoomUncheckedUpdateWithoutUserInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   comments?: Prisma.CommentUncheckedUpdateManyWithoutRoomNestedInput
+  reactions?: Prisma.ReactionUncheckedUpdateManyWithoutRoomNestedInput
   players?: Prisma.PlayerUncheckedUpdateManyWithoutRoomNestedInput
 }
 
@@ -1774,6 +1957,7 @@ export type RoomUpdateWithoutGameInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutRoomsNestedInput
   comments?: Prisma.CommentUpdateManyWithoutRoomNestedInput
+  reactions?: Prisma.ReactionUpdateManyWithoutRoomNestedInput
   players?: Prisma.PlayerUpdateManyWithoutRoomNestedInput
 }
 
@@ -1806,6 +1990,7 @@ export type RoomUncheckedUpdateWithoutGameInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   comments?: Prisma.CommentUncheckedUpdateManyWithoutRoomNestedInput
+  reactions?: Prisma.ReactionUncheckedUpdateManyWithoutRoomNestedInput
   players?: Prisma.PlayerUncheckedUpdateManyWithoutRoomNestedInput
 }
 
@@ -1846,11 +2031,13 @@ export type RoomUncheckedUpdateManyWithoutGameInput = {
 
 export type RoomCountOutputType = {
   comments: number
+  reactions: number
   players: number
 }
 
 export type RoomCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   comments?: boolean | RoomCountOutputTypeCountCommentsArgs
+  reactions?: boolean | RoomCountOutputTypeCountReactionsArgs
   players?: boolean | RoomCountOutputTypeCountPlayersArgs
 }
 
@@ -1869,6 +2056,13 @@ export type RoomCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Extensi
  */
 export type RoomCountOutputTypeCountCommentsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.CommentWhereInput
+}
+
+/**
+ * RoomCountOutputType without action
+ */
+export type RoomCountOutputTypeCountReactionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.ReactionWhereInput
 }
 
 /**
@@ -1911,6 +2105,7 @@ export type RoomSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   game?: boolean | Prisma.GameDefaultArgs<ExtArgs>
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   comments?: boolean | Prisma.Room$commentsArgs<ExtArgs>
+  reactions?: boolean | Prisma.Room$reactionsArgs<ExtArgs>
   players?: boolean | Prisma.Room$playersArgs<ExtArgs>
   _count?: boolean | Prisma.RoomCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["room"]>
@@ -2017,6 +2212,7 @@ export type RoomInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   game?: boolean | Prisma.GameDefaultArgs<ExtArgs>
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   comments?: boolean | Prisma.Room$commentsArgs<ExtArgs>
+  reactions?: boolean | Prisma.Room$reactionsArgs<ExtArgs>
   players?: boolean | Prisma.Room$playersArgs<ExtArgs>
   _count?: boolean | Prisma.RoomCountOutputTypeDefaultArgs<ExtArgs>
 }
@@ -2035,6 +2231,7 @@ export type $RoomPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     game: Prisma.$GamePayload<ExtArgs>
     user: Prisma.$UserPayload<ExtArgs>
     comments: Prisma.$CommentPayload<ExtArgs>[]
+    reactions: Prisma.$ReactionPayload<ExtArgs>[]
     players: Prisma.$PlayerPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
@@ -2463,6 +2660,7 @@ export interface Prisma__RoomClient<T, Null = never, ExtArgs extends runtime.Typ
   game<T extends Prisma.GameDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.GameDefaultArgs<ExtArgs>>): Prisma.Prisma__GameClient<runtime.Types.Result.GetResult<Prisma.$GamePayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   user<T extends Prisma.UserDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.UserDefaultArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   comments<T extends Prisma.Room$commentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Room$commentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$CommentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  reactions<T extends Prisma.Room$reactionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Room$reactionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ReactionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   players<T extends Prisma.Room$playersArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Room$playersArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PlayerPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
@@ -2938,6 +3136,30 @@ export type Room$commentsArgs<ExtArgs extends runtime.Types.Extensions.InternalA
   take?: number
   skip?: number
   distinct?: Prisma.CommentScalarFieldEnum | Prisma.CommentScalarFieldEnum[]
+}
+
+/**
+ * Room.reactions
+ */
+export type Room$reactionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Reaction
+   */
+  select?: Prisma.ReactionSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Reaction
+   */
+  omit?: Prisma.ReactionOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ReactionInclude<ExtArgs> | null
+  where?: Prisma.ReactionWhereInput
+  orderBy?: Prisma.ReactionOrderByWithRelationInput | Prisma.ReactionOrderByWithRelationInput[]
+  cursor?: Prisma.ReactionWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.ReactionScalarFieldEnum | Prisma.ReactionScalarFieldEnum[]
 }
 
 /**
