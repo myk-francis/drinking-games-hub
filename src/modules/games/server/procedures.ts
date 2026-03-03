@@ -39,7 +39,7 @@ const GUESS_THE_NUMBER_MAX = 100;
 const CONNECT_LETTERS_TIMER_SECONDS = 10;
 const GHOST_TEARS_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 const REACTION_COOLDOWN_MS = 10 * 60 * 1000;
-const JOKER_LOOP_CARDS_PER_PLAYER = 6;
+const JOKER_LOOP_CARDS_PER_PLAYER = 12;
 const JOKER_LOOP_JOKER_KEY = "__JOKER__";
 const JOKER_LOOP_CARD_TEMPLATES: JokerLoopCardTemplate[] = [
   { word: "Sun", icon: "☀️" },
@@ -850,17 +850,6 @@ function getConnectLettersOpponent(
   return null;
 }
 
-function pickRandomNextPlayerId(
-  playerIds: string[],
-  excludedPlayerId: string | null,
-): string | null {
-  const candidates = playerIds.filter((id) => id !== excludedPlayerId);
-  if (candidates.length === 0) {
-    return playerIds[0] ?? null;
-  }
-  return candidates[Math.floor(Math.random() * candidates.length)] ?? null;
-}
-
 function getDefaultGhostTearsState(
   playerIds: string[],
   startingCurrentPlayerId: string | null,
@@ -970,6 +959,24 @@ function parseGhostTearsState(
   } catch {
     return fallback;
   }
+}
+
+function getNextPlayerIdInOrder(
+  players: Array<{ id: string }>,
+  currentPlayerId: string,
+): string {
+  if (players.length === 0) {
+    return currentPlayerId;
+  }
+
+  const currentPlayerIndex = players.findIndex(
+    (item) => item.id === currentPlayerId,
+  );
+  if (currentPlayerIndex < 0) {
+    return players[0]?.id ?? currentPlayerId;
+  }
+
+  return players[(currentPlayerIndex + 1) % players.length]?.id ?? currentPlayerId;
 }
 
 function getNextPlayerWithCards(
@@ -3977,8 +3984,10 @@ export const gamesRouter = createTRPCRouter({
         const otherPlayerIds = allPlayerIds.filter(
           (playerId) => playerId !== input.currentPlayerId,
         );
-        const nextPlayerId =
-          otherPlayerIds[Math.floor(Math.random() * otherPlayerIds.length)];
+        const nextPlayerId = getNextPlayerIdInOrder(
+          room.players,
+          input.currentPlayerId,
+        );
 
         let nextQuestionId: number | null = null;
         let previousQuestionsIds = room.previousQuestionsId || [];
@@ -4833,15 +4842,7 @@ export const gamesRouter = createTRPCRouter({
         throw new Error("No expected card available");
       }
 
-      const currentPlayerIndex = room.players.findIndex(
-        (item) => item.id === input.playerId,
-      );
-      const nextPlayerId =
-        room.players[
-          currentPlayerIndex >= 0
-            ? (currentPlayerIndex + 1) % room.players.length
-            : 0
-        ]?.id ?? input.playerId;
+      const nextPlayerId = getNextPlayerIdInOrder(room.players, input.playerId);
 
       if (input.questionId === expectedQuestionId) {
         const nextProgress = state.progress + 1;
@@ -4874,6 +4875,7 @@ export const gamesRouter = createTRPCRouter({
           await tx.room.update({
             where: { id: input.roomId },
             data: {
+              currentPlayerId: gameEnded ? input.playerId : nextPlayerId,
               currentAnswer: JSON.stringify(state),
               gameEnded,
               gameEndedAt: gameEnded ? new Date() : null,
@@ -4884,7 +4886,7 @@ export const gamesRouter = createTRPCRouter({
         return {
           result,
           progress: state.progress,
-          nextPlayerId: input.playerId,
+          nextPlayerId: gameEnded ? input.playerId : nextPlayerId,
         };
       }
 
@@ -5716,7 +5718,7 @@ export const gamesRouter = createTRPCRouter({
         throw new Error("Invalid letter");
       }
 
-      const nextPlayerId = pickRandomNextPlayerId(playerIds, input.playerId);
+      const nextPlayerId = getNextPlayerIdInOrder(room.players, input.playerId);
       if (!nextPlayerId) {
         throw new Error("Could not choose the next player");
       }
@@ -5949,7 +5951,10 @@ export const gamesRouter = createTRPCRouter({
         throw new Error("Only the current player can forfeit");
       }
 
-      const nextCurrentPlayerId = pickRandomNextPlayerId(playerIds, input.playerId);
+      const nextCurrentPlayerId = getNextPlayerIdInOrder(
+        room.players,
+        input.playerId,
+      );
       if (!nextCurrentPlayerId) {
         throw new Error("Could not choose the next player");
       }
@@ -6020,9 +6025,9 @@ export const gamesRouter = createTRPCRouter({
       }
 
       const playerIds = room.players.map((player) => player.id);
-      const nextCurrentPlayerId = pickRandomNextPlayerId(
-        playerIds,
-        room.currentPlayerId,
+      const nextCurrentPlayerId = getNextPlayerIdInOrder(
+        room.players,
+        room.currentPlayerId ?? "",
       );
       const nextState = getDefaultGhostTearsState(playerIds, nextCurrentPlayerId);
 
