@@ -6517,6 +6517,30 @@ export const gamesRouter = createTRPCRouter({
     }
   }),
 
+  getActivePlayersCount: baseProcedure.query(async () => {
+    try {
+      const activeWindowAgo = new Date(Date.now() - 15 * 60 * 1000);
+      const activePlayersCount = await prisma.player.count({
+        where: {
+          room: {
+            gameEnded: false,
+            startedAt: {
+              not: null,
+            },
+            updatedAt: {
+              gte: activeWindowAgo,
+            },
+          },
+        },
+      });
+
+      return { count: activePlayersCount };
+    } catch (error) {
+      console.error("Failed to fetch active players count:", error);
+      throw new Error("Failed to fetch active players count");
+    }
+  }),
+
   closeOpenRooms: baseProcedure.mutation(async () => {
     try {
       const twoHoursAgo = new Date(Date.now() - 120 * 60 * 1000);

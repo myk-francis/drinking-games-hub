@@ -77,6 +77,12 @@ export default function HomePage() {
       enabled: !!currentUser,
     }),
   );
+  const { data: activePlayers } = useQuery(
+    trpc.games.getActivePlayersCount.queryOptions(undefined, {
+      refetchInterval: 15000,
+      refetchIntervalInBackground: true,
+    }),
+  );
   const [selectedGame, setSelectedGame] = React.useState<string | null>(null);
   const [players, setPlayers] = React.useState<string[]>([]);
   const [teams, setTeams] = React.useState<string[]>([]);
@@ -479,6 +485,14 @@ export default function HomePage() {
             <p className="text-xl text-white/80">
               Choose your game, invite friends, and let the fun begin!
             </p>
+            {(activePlayers?.count ?? 0) > 1 && (
+              <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/15 border border-white/25">
+                <Users className="w-4 h-4" />
+                <span className="text-sm text-white/90">
+                  Playing now: {activePlayers?.count ?? 0}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Game Selection */}

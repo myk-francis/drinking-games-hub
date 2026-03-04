@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useTRPC } from "@/trpc/client";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import UserConfirmModal from "./modal";
@@ -1087,6 +1087,7 @@ export default function RoomPage() {
   const params = useParams();
   const roomId = params.id; // This is your dynamic route: /room/[id]
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const {
     data: room,
     isLoading,
@@ -1135,7 +1136,12 @@ export default function RoomPage() {
 
   const createComment = useMutation(
     trpc.comments.createComment.mutationOptions({
-      onSuccess: () => {
+      onSuccess: async () => {
+        await queryClient.invalidateQueries(
+          trpc.comments.getCommentsByRoomId.queryFilter({
+            roomId: String(roomId),
+          }),
+        );
         toast.success("Comment added successfully");
         setOpenDialog(false);
       },
