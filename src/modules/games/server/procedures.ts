@@ -1580,6 +1580,7 @@ export const gamesRouter = createTRPCRouter({
             select: {
               id: true,
               name: true,
+              hasChangedName: true,
               points: true,
               drinks: true,
               team: true,
@@ -4388,6 +4389,69 @@ export const gamesRouter = createTRPCRouter({
       });
 
       return assignCodenamesSpymasters(input.roomId);
+    }),
+
+  changePlayerName: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        newName: z.string().trim().min(1).max(40),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            select: {
+              id: true,
+              name: true,
+              hasChangedName: true,
+            },
+          },
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+
+      const player = room.players.find((item) => item.id === input.playerId);
+      if (!player) {
+        throw new Error("Player not found");
+      }
+      if (player.hasChangedName) {
+        throw new Error("You can only change your name once.");
+      }
+      if (player.name.toLowerCase() === input.newName.toLowerCase()) {
+        throw new Error("Please enter a different name.");
+      }
+
+      const duplicatePlayer = room.players.find(
+        (item) =>
+          item.id !== input.playerId &&
+          item.name.toLowerCase() === input.newName.toLowerCase(),
+      );
+
+      if (duplicatePlayer) {
+        throw new Error("Another player already uses this name");
+      }
+
+      await prisma.player.update({
+        where: {
+          id: input.playerId,
+        },
+        data: {
+          name: input.newName,
+          hasChangedName: true,
+        },
+      });
+
+      return {
+        playerId: input.playerId,
+        name: input.newName,
+      };
     }),
 
   codenamesAutoAssignSpymasters: baseProcedure

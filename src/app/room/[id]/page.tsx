@@ -1418,6 +1418,24 @@ export default function RoomPage() {
     }),
   );
 
+  const changePlayerName = useMutation(
+    trpc.games.changePlayerName.mutationOptions({
+      onSuccess: async () => {
+        await queryClient.invalidateQueries(
+          trpc.games.getRoomState.queryFilter({
+            roomId: String(roomId),
+          }),
+        );
+        toast.success("Player name updated");
+        setOpenChangeNameModal(false);
+        setUpdatedPlayerName("");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not change player name.");
+      },
+    }),
+  );
+
   const codenamesAutoAssignSpymasters = useMutation(
     trpc.games.codenamesAutoAssignSpymasters.mutationOptions({
       onSuccess: () => {
@@ -1773,6 +1791,8 @@ export default function RoomPage() {
   const [jokerLoopHighlightedIndex, setJokerLoopHighlightedIndex] =
     React.useState<number | null>(null);
   const [openAddPlayerModal, setOpenAddPlayerModal] = React.useState(false);
+  const [openChangeNameModal, setOpenChangeNameModal] = React.useState(false);
+  const [updatedPlayerName, setUpdatedPlayerName] = React.useState("");
   const [showAddPlayerModal, setShowAddPlayerModal] = React.useState(false);
   const [openDialog, setOpenDialog] = React.useState(false);
   const [showTopPlayersView, setShowTopPlayersView] = React.useState(false);
@@ -1783,6 +1803,13 @@ export default function RoomPage() {
   );
   const [winningTeams, setWinningTeams] = React.useState<string[]>([]);
   const [forfited, setForfited] = React.useState<boolean>(false);
+  const selectedActualPlayer = React.useMemo(
+    () => players.find((player) => player.id === actualPlayer),
+    [players, actualPlayer],
+  );
+  const canCurrentPlayerChangeName = Boolean(
+    selectedActualPlayer && !selectedActualPlayer.hasChangedName,
+  );
 
   const TeamPlayerStats = React.useMemo(() => {
     if (!room || players.length === 0) {
@@ -2181,6 +2208,54 @@ export default function RoomPage() {
     },
     [assignPlayerTeam, room?.id],
   );
+
+  const handleChangePlayerName = React.useCallback(() => {
+    if (!actualPlayer) {
+      toast.error("Select your player first.");
+      return;
+    }
+    if (selectedActualPlayer?.hasChangedName) {
+      toast.error("You can only change your name once.");
+      return;
+    }
+
+    const nextName = updatedPlayerName.trim();
+    if (!nextName) {
+      toast.error("Please enter a player name.");
+      return;
+    }
+    if (
+      selectedActualPlayer &&
+      selectedActualPlayer.name.toLowerCase() === nextName.toLowerCase()
+    ) {
+      toast.error("Please enter a different name.");
+      return;
+    }
+
+    const playerExists = players.some(
+      (player) =>
+        player.id !== actualPlayer &&
+        player.name.toLowerCase() === nextName.toLowerCase(),
+    );
+
+    if (playerExists) {
+      toast.error("Player already exists.");
+      return;
+    }
+
+    changePlayerName.mutate({
+      roomId: room?.id || "",
+      playerId: actualPlayer,
+      newName: nextName,
+    });
+  }, [
+    actualPlayer,
+    selectedActualPlayer,
+    updatedPlayerName,
+    players,
+    changePlayerName,
+    room?.id,
+  ]);
 
   const handleActualSelectPlayer = (id: string) => {
     setActualPlayer(id);
@@ -5626,6 +5701,42 @@ export default function RoomPage() {
           handleAssignExistingPlayerToTeam={handleAssignExistingPlayerToTeam}
         />
       )}
+      <Dialog open={openChangeNameModal} onOpenChange={setOpenChangeNameModal}>
+        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Change Player Name</DialogTitle>
+          </DialogHeader>
+          <form
+            className="space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleChangePlayerName();
+            }}
+          >
+            <Input
+              type="text"
+              placeholder="Enter new player name"
+              value={updatedPlayerName}
+              onChange={(event) => setUpdatedPlayerName(event.target.value)}
+              maxLength={40}
+              autoFocus
+              disabled={changePlayerName.isPending || !canCurrentPlayerChangeName}
+            />
+            {!canCurrentPlayerChangeName && (
+              <p className="text-sm text-white/80">
+                You already used your one allowed name change.
+              </p>
+            )}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={changePlayerName.isPending || !canCurrentPlayerChangeName}
+            >
+              {changePlayerName.isPending ? "Saving..." : "Save Name"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-6">
@@ -5692,13 +5803,23 @@ export default function RoomPage() {
           onEndGame={() => endRoom.mutate({ roomId: String(roomId) })}
           canAddPlayer={actualPlayer === players[0]?.id}
           onAddPlayer={() => setOpenAddPlayerModal(true)}
+          canChangeName={canCurrentPlayerChangeName}
+          onChangeName={() => {
+            if (!canCurrentPlayerChangeName) {
+              toast.error("You can only change your name once.");
+              return;
+            }
+            const currentPlayerName = selectedActualPlayer?.name || "";
+            setUpdatedPlayerName(currentPlayerName);
+            setOpenChangeNameModal(true);
+          }}
           showQRCode={showQRCode}
           onToggleQRCode={() => setShowQRCode((prev) => !prev)}
           showStopGameOverMusic={Boolean(room?.gameEnded)}
           canStopGameOverMusic={isGameOverSoundPlaying}
           onStopGameOverMusic={handleStopGameOverSound}
           actualPlayerName={
-            players.find((player) => player.id === actualPlayer)?.name || ""
+            selectedActualPlayer?.name || ""
           }
         />
       </div>
@@ -5991,6 +6112,8 @@ const RoomControls = React.memo(function RoomControls({
   onEndGame,
   canAddPlayer,
   onAddPlayer,
+  canChangeName,
+  onChangeName,
   showQRCode,
   onToggleQRCode,
   showStopGameOverMusic,
@@ -6001,6 +6124,8 @@ const RoomControls = React.memo(function RoomControls({
   onEndGame: () => void;
   canAddPlayer: boolean;
   onAddPlayer: () => void;
+  canChangeName: boolean;
+  onChangeName: () => void;
   showQRCode: boolean;
   onToggleQRCode: () => void;
   showStopGameOverMusic: boolean;
@@ -6026,6 +6151,15 @@ const RoomControls = React.memo(function RoomControls({
           >
             <UserPlus2 className="w-5 h-5" />
             Add Player
+          </button>
+        )}
+
+        {canChangeName && (
+          <button
+            onClick={onChangeName}
+            className="flex items-center justify-center w-full sm:w-40 mt-4 gap-2 px-6 py-3 bg-cyan-500 hover:bg-cyan-600 rounded-lg text-white font-semibold transition-colors"
+          >
+            Change Name
           </button>
         )}
 

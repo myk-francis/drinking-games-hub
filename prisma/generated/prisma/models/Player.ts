@@ -39,6 +39,7 @@ export type PlayerSumAggregateOutputType = {
 export type PlayerMinAggregateOutputType = {
   id: string | null
   name: string | null
+  hasChangedName: boolean | null
   points: number | null
   drinks: number | null
   roomId: string | null
@@ -50,6 +51,7 @@ export type PlayerMinAggregateOutputType = {
 export type PlayerMaxAggregateOutputType = {
   id: string | null
   name: string | null
+  hasChangedName: boolean | null
   points: number | null
   drinks: number | null
   roomId: string | null
@@ -61,6 +63,7 @@ export type PlayerMaxAggregateOutputType = {
 export type PlayerCountAggregateOutputType = {
   id: number
   name: number
+  hasChangedName: number
   points: number
   drinks: number
   roomId: number
@@ -84,6 +87,7 @@ export type PlayerSumAggregateInputType = {
 export type PlayerMinAggregateInputType = {
   id?: true
   name?: true
+  hasChangedName?: true
   points?: true
   drinks?: true
   roomId?: true
@@ -95,6 +99,7 @@ export type PlayerMinAggregateInputType = {
 export type PlayerMaxAggregateInputType = {
   id?: true
   name?: true
+  hasChangedName?: true
   points?: true
   drinks?: true
   roomId?: true
@@ -106,6 +111,7 @@ export type PlayerMaxAggregateInputType = {
 export type PlayerCountAggregateInputType = {
   id?: true
   name?: true
+  hasChangedName?: true
   points?: true
   drinks?: true
   roomId?: true
@@ -204,6 +210,7 @@ export type PlayerGroupByArgs<ExtArgs extends runtime.Types.Extensions.InternalA
 export type PlayerGroupByOutputType = {
   id: string
   name: string
+  hasChangedName: boolean
   points: number | null
   drinks: number | null
   roomId: string
@@ -238,6 +245,7 @@ export type PlayerWhereInput = {
   NOT?: Prisma.PlayerWhereInput | Prisma.PlayerWhereInput[]
   id?: Prisma.StringFilter<"Player"> | string
   name?: Prisma.StringFilter<"Player"> | string
+  hasChangedName?: Prisma.BoolFilter<"Player"> | boolean
   points?: Prisma.IntNullableFilter<"Player"> | number | null
   drinks?: Prisma.IntNullableFilter<"Player"> | number | null
   roomId?: Prisma.StringFilter<"Player"> | string
@@ -252,6 +260,7 @@ export type PlayerWhereInput = {
 export type PlayerOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   name?: Prisma.SortOrder
+  hasChangedName?: Prisma.SortOrder
   points?: Prisma.SortOrderInput | Prisma.SortOrder
   drinks?: Prisma.SortOrderInput | Prisma.SortOrder
   roomId?: Prisma.SortOrder
@@ -269,6 +278,7 @@ export type PlayerWhereUniqueInput = Prisma.AtLeast<{
   OR?: Prisma.PlayerWhereInput[]
   NOT?: Prisma.PlayerWhereInput | Prisma.PlayerWhereInput[]
   name?: Prisma.StringFilter<"Player"> | string
+  hasChangedName?: Prisma.BoolFilter<"Player"> | boolean
   points?: Prisma.IntNullableFilter<"Player"> | number | null
   drinks?: Prisma.IntNullableFilter<"Player"> | number | null
   roomId?: Prisma.StringFilter<"Player"> | string
@@ -283,6 +293,7 @@ export type PlayerWhereUniqueInput = Prisma.AtLeast<{
 export type PlayerOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   name?: Prisma.SortOrder
+  hasChangedName?: Prisma.SortOrder
   points?: Prisma.SortOrderInput | Prisma.SortOrder
   drinks?: Prisma.SortOrderInput | Prisma.SortOrder
   roomId?: Prisma.SortOrder
@@ -302,6 +313,7 @@ export type PlayerScalarWhereWithAggregatesInput = {
   NOT?: Prisma.PlayerScalarWhereWithAggregatesInput | Prisma.PlayerScalarWhereWithAggregatesInput[]
   id?: Prisma.StringWithAggregatesFilter<"Player"> | string
   name?: Prisma.StringWithAggregatesFilter<"Player"> | string
+  hasChangedName?: Prisma.BoolWithAggregatesFilter<"Player"> | boolean
   points?: Prisma.IntNullableWithAggregatesFilter<"Player"> | number | null
   drinks?: Prisma.IntNullableWithAggregatesFilter<"Player"> | number | null
   roomId?: Prisma.StringWithAggregatesFilter<"Player"> | string
@@ -313,6 +325,7 @@ export type PlayerScalarWhereWithAggregatesInput = {
 export type PlayerCreateInput = {
   id?: string
   name: string
+  hasChangedName?: boolean
   points?: number | null
   drinks?: number | null
   team?: string
@@ -326,6 +339,7 @@ export type PlayerCreateInput = {
 export type PlayerUncheckedCreateInput = {
   id?: string
   name: string
+  hasChangedName?: boolean
   points?: number | null
   drinks?: number | null
   roomId: string
@@ -339,6 +353,7 @@ export type PlayerUncheckedCreateInput = {
 export type PlayerUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  hasChangedName?: Prisma.BoolFieldUpdateOperationsInput | boolean
   points?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   drinks?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   team?: Prisma.StringFieldUpdateOperationsInput | string
@@ -352,6 +367,7 @@ export type PlayerUpdateInput = {
 export type PlayerUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  hasChangedName?: Prisma.BoolFieldUpdateOperationsInput | boolean
   points?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   drinks?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   roomId?: Prisma.StringFieldUpdateOperationsInput | string
@@ -365,6 +381,7 @@ export type PlayerUncheckedUpdateInput = {
 export type PlayerCreateManyInput = {
   id?: string
   name: string
+  hasChangedName?: boolean
   points?: number | null
   drinks?: number | null
   roomId: string
@@ -376,6 +393,7 @@ export type PlayerCreateManyInput = {
 export type PlayerUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  hasChangedName?: Prisma.BoolFieldUpdateOperationsInput | boolean
   points?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   drinks?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   team?: Prisma.StringFieldUpdateOperationsInput | string
@@ -386,6 +404,7 @@ export type PlayerUpdateManyMutationInput = {
 export type PlayerUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  hasChangedName?: Prisma.BoolFieldUpdateOperationsInput | boolean
   points?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   drinks?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   roomId?: Prisma.StringFieldUpdateOperationsInput | string
@@ -407,6 +426,7 @@ export type PlayerOrderByRelationAggregateInput = {
 export type PlayerCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   name?: Prisma.SortOrder
+  hasChangedName?: Prisma.SortOrder
   points?: Prisma.SortOrder
   drinks?: Prisma.SortOrder
   roomId?: Prisma.SortOrder
@@ -423,6 +443,7 @@ export type PlayerAvgOrderByAggregateInput = {
 export type PlayerMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   name?: Prisma.SortOrder
+  hasChangedName?: Prisma.SortOrder
   points?: Prisma.SortOrder
   drinks?: Prisma.SortOrder
   roomId?: Prisma.SortOrder
@@ -434,6 +455,7 @@ export type PlayerMaxOrderByAggregateInput = {
 export type PlayerMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   name?: Prisma.SortOrder
+  hasChangedName?: Prisma.SortOrder
   points?: Prisma.SortOrder
   drinks?: Prisma.SortOrder
   roomId?: Prisma.SortOrder
@@ -532,6 +554,7 @@ export type PlayerUpdateOneWithoutReceivedReactionsNestedInput = {
 export type PlayerCreateWithoutRoomInput = {
   id?: string
   name: string
+  hasChangedName?: boolean
   points?: number | null
   drinks?: number | null
   team?: string
@@ -544,6 +567,7 @@ export type PlayerCreateWithoutRoomInput = {
 export type PlayerUncheckedCreateWithoutRoomInput = {
   id?: string
   name: string
+  hasChangedName?: boolean
   points?: number | null
   drinks?: number | null
   team?: string
@@ -585,6 +609,7 @@ export type PlayerScalarWhereInput = {
   NOT?: Prisma.PlayerScalarWhereInput | Prisma.PlayerScalarWhereInput[]
   id?: Prisma.StringFilter<"Player"> | string
   name?: Prisma.StringFilter<"Player"> | string
+  hasChangedName?: Prisma.BoolFilter<"Player"> | boolean
   points?: Prisma.IntNullableFilter<"Player"> | number | null
   drinks?: Prisma.IntNullableFilter<"Player"> | number | null
   roomId?: Prisma.StringFilter<"Player"> | string
@@ -596,6 +621,7 @@ export type PlayerScalarWhereInput = {
 export type PlayerCreateWithoutSentReactionsInput = {
   id?: string
   name: string
+  hasChangedName?: boolean
   points?: number | null
   drinks?: number | null
   team?: string
@@ -608,6 +634,7 @@ export type PlayerCreateWithoutSentReactionsInput = {
 export type PlayerUncheckedCreateWithoutSentReactionsInput = {
   id?: string
   name: string
+  hasChangedName?: boolean
   points?: number | null
   drinks?: number | null
   roomId: string
@@ -625,6 +652,7 @@ export type PlayerCreateOrConnectWithoutSentReactionsInput = {
 export type PlayerCreateWithoutReceivedReactionsInput = {
   id?: string
   name: string
+  hasChangedName?: boolean
   points?: number | null
   drinks?: number | null
   team?: string
@@ -637,6 +665,7 @@ export type PlayerCreateWithoutReceivedReactionsInput = {
 export type PlayerUncheckedCreateWithoutReceivedReactionsInput = {
   id?: string
   name: string
+  hasChangedName?: boolean
   points?: number | null
   drinks?: number | null
   roomId: string
@@ -665,6 +694,7 @@ export type PlayerUpdateToOneWithWhereWithoutSentReactionsInput = {
 export type PlayerUpdateWithoutSentReactionsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  hasChangedName?: Prisma.BoolFieldUpdateOperationsInput | boolean
   points?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   drinks?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   team?: Prisma.StringFieldUpdateOperationsInput | string
@@ -677,6 +707,7 @@ export type PlayerUpdateWithoutSentReactionsInput = {
 export type PlayerUncheckedUpdateWithoutSentReactionsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  hasChangedName?: Prisma.BoolFieldUpdateOperationsInput | boolean
   points?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   drinks?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   roomId?: Prisma.StringFieldUpdateOperationsInput | string
@@ -700,6 +731,7 @@ export type PlayerUpdateToOneWithWhereWithoutReceivedReactionsInput = {
 export type PlayerUpdateWithoutReceivedReactionsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  hasChangedName?: Prisma.BoolFieldUpdateOperationsInput | boolean
   points?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   drinks?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   team?: Prisma.StringFieldUpdateOperationsInput | string
@@ -712,6 +744,7 @@ export type PlayerUpdateWithoutReceivedReactionsInput = {
 export type PlayerUncheckedUpdateWithoutReceivedReactionsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  hasChangedName?: Prisma.BoolFieldUpdateOperationsInput | boolean
   points?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   drinks?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   roomId?: Prisma.StringFieldUpdateOperationsInput | string
@@ -724,6 +757,7 @@ export type PlayerUncheckedUpdateWithoutReceivedReactionsInput = {
 export type PlayerCreateManyRoomInput = {
   id?: string
   name: string
+  hasChangedName?: boolean
   points?: number | null
   drinks?: number | null
   team?: string
@@ -734,6 +768,7 @@ export type PlayerCreateManyRoomInput = {
 export type PlayerUpdateWithoutRoomInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  hasChangedName?: Prisma.BoolFieldUpdateOperationsInput | boolean
   points?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   drinks?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   team?: Prisma.StringFieldUpdateOperationsInput | string
@@ -746,6 +781,7 @@ export type PlayerUpdateWithoutRoomInput = {
 export type PlayerUncheckedUpdateWithoutRoomInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  hasChangedName?: Prisma.BoolFieldUpdateOperationsInput | boolean
   points?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   drinks?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   team?: Prisma.StringFieldUpdateOperationsInput | string
@@ -758,6 +794,7 @@ export type PlayerUncheckedUpdateWithoutRoomInput = {
 export type PlayerUncheckedUpdateManyWithoutRoomInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  hasChangedName?: Prisma.BoolFieldUpdateOperationsInput | boolean
   points?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   drinks?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   team?: Prisma.StringFieldUpdateOperationsInput | string
@@ -808,6 +845,7 @@ export type PlayerCountOutputTypeCountReceivedReactionsArgs<ExtArgs extends runt
 export type PlayerSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   name?: boolean
+  hasChangedName?: boolean
   points?: boolean
   drinks?: boolean
   roomId?: boolean
@@ -823,6 +861,7 @@ export type PlayerSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs =
 export type PlayerSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   name?: boolean
+  hasChangedName?: boolean
   points?: boolean
   drinks?: boolean
   roomId?: boolean
@@ -835,6 +874,7 @@ export type PlayerSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extens
 export type PlayerSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   name?: boolean
+  hasChangedName?: boolean
   points?: boolean
   drinks?: boolean
   roomId?: boolean
@@ -847,6 +887,7 @@ export type PlayerSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extens
 export type PlayerSelectScalar = {
   id?: boolean
   name?: boolean
+  hasChangedName?: boolean
   points?: boolean
   drinks?: boolean
   roomId?: boolean
@@ -855,7 +896,7 @@ export type PlayerSelectScalar = {
   updatedAt?: boolean
 }
 
-export type PlayerOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "points" | "drinks" | "roomId" | "team" | "createdAt" | "updatedAt", ExtArgs["result"]["player"]>
+export type PlayerOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "hasChangedName" | "points" | "drinks" | "roomId" | "team" | "createdAt" | "updatedAt", ExtArgs["result"]["player"]>
 export type PlayerInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   room?: boolean | Prisma.RoomDefaultArgs<ExtArgs>
   sentReactions?: boolean | Prisma.Player$sentReactionsArgs<ExtArgs>
@@ -879,6 +920,7 @@ export type $PlayerPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     name: string
+    hasChangedName: boolean
     points: number | null
     drinks: number | null
     roomId: string
@@ -1313,6 +1355,7 @@ export interface Prisma__PlayerClient<T, Null = never, ExtArgs extends runtime.T
 export interface PlayerFieldRefs {
   readonly id: Prisma.FieldRef<"Player", 'String'>
   readonly name: Prisma.FieldRef<"Player", 'String'>
+  readonly hasChangedName: Prisma.FieldRef<"Player", 'Boolean'>
   readonly points: Prisma.FieldRef<"Player", 'Int'>
   readonly drinks: Prisma.FieldRef<"Player", 'Int'>
   readonly roomId: Prisma.FieldRef<"Player", 'String'>

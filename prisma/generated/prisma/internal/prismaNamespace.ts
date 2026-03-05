@@ -1267,6 +1267,7 @@ export type RoomScalarFieldEnum = (typeof RoomScalarFieldEnum)[keyof typeof Room
 export const PlayerScalarFieldEnum = {
   id: 'id',
   name: 'name',
+  hasChangedName: 'hasChangedName',
   points: 'points',
   drinks: 'drinks',
   roomId: 'roomId',

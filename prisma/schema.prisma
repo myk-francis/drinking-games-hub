@@ -88,6 +88,7 @@ model Room {
 model Player {
   id        String    @id @default(dbgenerated("gen_random_uuid()"))
   name      String
+  hasChangedName Boolean @default(false)
   points    Int?
   drinks    Int?
   roomId    String
