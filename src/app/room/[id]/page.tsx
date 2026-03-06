@@ -127,6 +127,13 @@ type GhostTearsRoomState = {
   roundNumber: number;
   alphabet: string[];
 };
+type WhoAmIRoomState = {
+  status: "PLAYING" | "ROUND_WON";
+  roundNumber: number;
+  assignmentsByPlayerId: Record<string, number>;
+  usedQuestionIds: number[];
+  winnerPlayerId: string | null;
+};
 type JokerLoopCard = {
   id: string;
   word: string;
@@ -967,6 +974,54 @@ function parseGhostTearsState(
   }
 }
 
+function parseWhoAmIState(raw: string | null | undefined): WhoAmIRoomState {
+  const fallback: WhoAmIRoomState = {
+    status: "PLAYING",
+    roundNumber: 1,
+    assignmentsByPlayerId: {},
+    usedQuestionIds: [],
+    winnerPlayerId: null,
+  };
+
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<WhoAmIRoomState>;
+    const assignmentsByPlayerId =
+      parsed.assignmentsByPlayerId &&
+      typeof parsed.assignmentsByPlayerId === "object"
+        ? Object.fromEntries(
+            Object.entries(parsed.assignmentsByPlayerId).filter(
+              ([playerId, questionId]) =>
+                typeof playerId === "string" && typeof questionId === "number",
+            ),
+          )
+        : {};
+
+    return {
+      status: parsed.status === "ROUND_WON" ? "ROUND_WON" : "PLAYING",
+      roundNumber:
+        typeof parsed.roundNumber === "number" &&
+        Number.isFinite(parsed.roundNumber) &&
+        parsed.roundNumber > 0
+          ? parsed.roundNumber
+          : 1,
+      assignmentsByPlayerId,
+      usedQuestionIds: Array.isArray(parsed.usedQuestionIds)
+        ? parsed.usedQuestionIds.filter(
+            (questionId): questionId is number => typeof questionId === "number",
+          )
+        : [],
+      winnerPlayerId:
+        typeof parsed.winnerPlayerId === "string"
+          ? parsed.winnerPlayerId
+          : null,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 function parseJokerLoopState(raw: string | null | undefined): JokerLoopRoomState {
   const fallback: JokerLoopRoomState = {
     status: "PLAYING",
@@ -1686,6 +1741,29 @@ export default function RoomPage() {
       },
     }),
   );
+  const whoAmIWinRound = useMutation(
+    trpc.games.whoAmIWinRound.mutationOptions({
+      onSuccess: (data) => {
+        const winnerName =
+          players.find((player) => player.id === data.winnerPlayerId)?.name ||
+          "player";
+        toast.success(`${winnerName} gets +1 point. Everyone else drinks +1.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not finish the round.");
+      },
+    }),
+  );
+  const whoAmINextRound = useMutation(
+    trpc.games.whoAmINextRound.mutationOptions({
+      onSuccess: (data) => {
+        toast.success(`Round ${data.roundNumber} is ready.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not start the next round.");
+      },
+    }),
+  );
   const jokerLoopReorderCard = useMutation(
     trpc.games.jokerLoopReorderCard.mutationOptions({
       onError: (error) => {
@@ -1892,9 +1970,30 @@ export default function RoomPage() {
   const ghostTearsState = React.useMemo(() => {
     return parseGhostTearsState(room?.currentAnswer);
   }, [room?.currentAnswer]);
+  const whoAmIState = React.useMemo(() => {
+    return parseWhoAmIState(room?.currentAnswer);
+  }, [room?.currentAnswer]);
   const jokerLoopState = React.useMemo(() => {
     return parseJokerLoopState(room?.currentAnswer);
   }, [room?.currentAnswer]);
+
+  const whoAmICards = React.useMemo(() => {
+    if (!game?.questions) return [];
+
+    const questionMap = new Map(
+      game.questions.map((question) => [question.id, question]),
+    );
+
+    return players.map((player) => {
+      const questionId = whoAmIState.assignmentsByPlayerId[player.id];
+      return {
+        playerId: player.id,
+        playerName: player.name,
+        questionId,
+        text: questionId ? questionMap.get(questionId)?.text || "Hidden" : "Hidden",
+      };
+    });
+  }, [game?.questions, players, whoAmIState.assignmentsByPlayerId]);
 
   const codenamesUnassignedPlayers = React.useMemo(() => {
     if (!players.length) return [];
@@ -5406,6 +5505,123 @@ export default function RoomPage() {
                     })}
                   </div>
                 </div>
+              </div>
+            </div>
+          );
+        }
+
+        case "who-am-i": {
+          const winnerName = whoAmIState.winnerPlayerId
+            ? players.find((player) => player.id === whoAmIState.winnerPlayerId)
+                ?.name || "Winner"
+            : "";
+          const canStartNextRound =
+            Boolean(actualPlayer) &&
+            actualPlayer === whoAmIState.winnerPlayerId &&
+            whoAmIState.status === "ROUND_WON";
+
+          return (
+            <div className="w-full">
+              <div className="mb-4 sm:mb-6 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary">Round {whoAmIState.roundNumber}</Badge>
+                  <Badge variant="outline">
+                    {whoAmIState.status === "ROUND_WON"
+                      ? `Winner: ${winnerName}`
+                      : "Guess your hidden card"}
+                  </Badge>
+                </div>
+                <p className="mt-3 text-sm sm:text-base text-white/90">
+                  You can see every other player&apos;s word, but not your own.
+                  Say your guess out loud. When someone guesses correctly, tap
+                  their win button.
+                </p>
+                {actualPlayer && (
+                  <p className="mt-2 text-sm text-cyan-200">
+                    Your card is hidden on this device. Everyone else should be
+                    able to see it on theirs.
+                  </p>
+                )}
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {whoAmICards.map((card) => {
+                  const isMe = card.playerId === actualPlayer;
+                  return (
+                    <div
+                      key={card.playerId}
+                      className={`rounded-xl border p-4 backdrop-blur-sm ${
+                        isMe
+                          ? "border-amber-300/40 bg-amber-500/10"
+                          : "border-white/20 bg-white/10"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-semibold text-white">{card.playerName}</p>
+                        {isMe && <Badge className="bg-amber-600">You</Badge>}
+                      </div>
+                      <div className="mt-4 min-h-24 rounded-lg border border-white/15 bg-black/20 p-4 text-center">
+                        <p className="text-xs uppercase tracking-[0.25em] text-white/55">
+                          {isMe ? "Hidden card" : "Visible card"}
+                        </p>
+                        <p className="mt-3 text-xl font-bold text-white">
+                          {isMe ? "???" : card.text}
+                        </p>
+                      </div>
+                      {isMe && (
+                        <Button
+                          className="mt-4 w-full bg-emerald-600 hover:bg-emerald-700"
+                          onClick={() =>
+                            whoAmIWinRound.mutate({
+                              roomId: room?.id || "",
+                              winnerPlayerId: card.playerId,
+                            })
+                          }
+                          disabled={
+                            whoAmIState.status !== "PLAYING" ||
+                            whoAmIWinRound.isPending
+                          }
+                        >
+                          I won
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-6 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                {whoAmIState.status === "ROUND_WON" ? (
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-white/90">
+                      {winnerName} won the round. They get +1 point and everyone
+                      else gets +1 drink.
+                    </p>
+                    {canStartNextRound ? (
+                      <Button
+                        onClick={() =>
+                          whoAmINextRound.mutate({
+                            roomId: room?.id || "",
+                            playerId: actualPlayer,
+                          })
+                        }
+                        disabled={whoAmINextRound.isPending}
+                        className="bg-sky-600 hover:bg-sky-700"
+                      >
+                        Next Round
+                      </Button>
+                    ) : (
+                      <p className="text-sm text-amber-200">
+                        Waiting for {winnerName} to start the next round.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-white/80">
+                    Keep guessing until someone gets it right. Use easy clues
+                    and avoid giving away the exact word.
+                  </p>
+                )}
               </div>
             </div>
           );

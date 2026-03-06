@@ -2,6 +2,7 @@ import { baseProcedure, createTRPCRouter } from "@/trpc/init";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { cookies } from "next/headers";
+import type { Prisma } from "../../../../prisma/generated/prisma/client";
 
 function generateUniqueCard(previousCards: number[]): number | null {
   const maxAttempts = 1000;
@@ -199,6 +200,14 @@ type GhostTearsState = {
   lastLoserPlayerId: string | null;
   roundNumber: number;
   alphabet: string[];
+};
+
+type WhoAmIState = {
+  status: "PLAYING" | "ROUND_WON";
+  roundNumber: number;
+  assignmentsByPlayerId: Record<string, number>;
+  usedQuestionIds: number[];
+  winnerPlayerId: string | null;
 };
 
 type JokerLoopCardTemplate = {
@@ -979,6 +988,102 @@ function getNextPlayerIdInOrder(
   return players[(currentPlayerIndex + 1) % players.length]?.id ?? currentPlayerId;
 }
 
+function buildWhoAmIAssignments(
+  playerIds: string[],
+  questionIds: number[],
+): Record<string, number> {
+  if (questionIds.length < playerIds.length) {
+    throw new Error(
+      `Who Am I requires at least ${playerIds.length} cards for this room.`,
+    );
+  }
+
+  const selectedQuestionIds = shuffleArray(questionIds).slice(0, playerIds.length);
+  return Object.fromEntries(
+    playerIds.map((playerId, index) => [playerId, selectedQuestionIds[index]]),
+  );
+}
+
+function buildWhoAmIState(
+  playerIds: string[],
+  questionIds: number[],
+  previousState?: WhoAmIState,
+): WhoAmIState {
+  const previousUsedQuestionIds = previousState?.usedQuestionIds ?? [];
+  const availableQuestionIds = questionIds.filter(
+    (questionId) => !previousUsedQuestionIds.includes(questionId),
+  );
+  const sourceQuestionIds =
+    availableQuestionIds.length >= playerIds.length
+      ? availableQuestionIds
+      : questionIds;
+  const assignmentsByPlayerId = buildWhoAmIAssignments(
+    playerIds,
+    sourceQuestionIds,
+  );
+  const assignedQuestionIds = Object.values(assignmentsByPlayerId);
+
+  return {
+    status: "PLAYING",
+    roundNumber: (previousState?.roundNumber ?? 0) + 1,
+    assignmentsByPlayerId,
+    usedQuestionIds:
+      sourceQuestionIds === questionIds
+        ? assignedQuestionIds
+        : [...previousUsedQuestionIds, ...assignedQuestionIds],
+    winnerPlayerId: null,
+  };
+}
+
+function parseWhoAmIState(
+  raw: string | null,
+  playerIds: string[],
+): WhoAmIState | null {
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<WhoAmIState>;
+    const rawAssignments =
+      parsed.assignmentsByPlayerId &&
+      typeof parsed.assignmentsByPlayerId === "object"
+        ? parsed.assignmentsByPlayerId
+        : {};
+    const assignmentsByPlayerId: Record<string, number> = {};
+
+    for (const playerId of playerIds) {
+      const questionId = (rawAssignments as Record<string, unknown>)[playerId];
+      if (typeof questionId === "number" && Number.isFinite(questionId)) {
+        assignmentsByPlayerId[playerId] = questionId;
+      }
+    }
+
+    return {
+      status: parsed.status === "ROUND_WON" ? "ROUND_WON" : "PLAYING",
+      roundNumber:
+        typeof parsed.roundNumber === "number" &&
+        Number.isFinite(parsed.roundNumber) &&
+        parsed.roundNumber >= 1
+          ? parsed.roundNumber
+          : 1,
+      assignmentsByPlayerId,
+      usedQuestionIds: Array.isArray(parsed.usedQuestionIds)
+        ? parsed.usedQuestionIds.filter(
+            (questionId): questionId is number => typeof questionId === "number",
+          )
+        : [],
+      winnerPlayerId:
+        typeof parsed.winnerPlayerId === "string" &&
+        playerIds.includes(parsed.winnerPlayerId)
+          ? parsed.winnerPlayerId
+          : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function getNextPlayerWithCards(
   state: JokerLoopState,
   fromPlayerId: string,
@@ -1405,6 +1510,184 @@ async function assignCodenamesSpymasters(roomId: string) {
   };
 }
 
+type PlayerAddedRoomContext = {
+  id: string;
+  allPairIds: string[];
+  playingTeams: string[];
+  currentAnswer: string | null;
+  currentPlayerId: string | null;
+  players: Array<{
+    id: string;
+    team: string;
+  }>;
+  game: {
+    code: string;
+    questions: Array<{
+      id: number;
+    }>;
+  };
+};
+
+type AddedPlayerContext = {
+  id: string;
+  team: string;
+};
+
+async function syncRoomStateAfterPlayerAdded(
+  tx: Prisma.TransactionClient,
+  room: PlayerAddedRoomContext,
+  newPlayer: AddedPlayerContext,
+) {
+  const nextPlayers = [...room.players, newPlayer];
+  const nextPlayerIds = nextPlayers.map((player) => player.id);
+
+  switch (room.game.code) {
+    case "verbal-charades":
+    case "taboo-lite": {
+      const allPairs = [...(room.allPairIds || [])];
+      for (const existingPlayer of room.players) {
+        allPairs.push([newPlayer.id, existingPlayer.id].join("&"));
+        allPairs.push([existingPlayer.id, newPlayer.id].join("&"));
+      }
+
+      await tx.room.update({
+        where: { id: room.id },
+        data: {
+          allPairIds: allPairs,
+        },
+      });
+      return;
+    }
+
+    case "who-am-i": {
+      const state = parseWhoAmIState(room.currentAnswer, nextPlayerIds);
+      if (!state) {
+        throw new Error("Who Am I state is missing");
+      }
+
+      const assignedQuestionIds = Object.values(state.assignmentsByPlayerId);
+      const availableQuestionIds = room.game.questions
+        .map((question) => question.id)
+        .filter((questionId) => !assignedQuestionIds.includes(questionId));
+
+      if (availableQuestionIds.length === 0) {
+        throw new Error(
+          "Who Am I needs at least one free card to add another player.",
+        );
+      }
+
+      const newQuestionId = shuffleArray(availableQuestionIds)[0];
+      state.assignmentsByPlayerId[newPlayer.id] = newQuestionId;
+      if (!state.usedQuestionIds.includes(newQuestionId)) {
+        state.usedQuestionIds = [...state.usedQuestionIds, newQuestionId];
+      }
+
+      await tx.room.update({
+        where: { id: room.id },
+        data: {
+          currentAnswer: JSON.stringify(state),
+        },
+      });
+      return;
+    }
+
+    case "guess-the-number": {
+      const state = parseGuessTheNumberState(
+        room.currentAnswer,
+        nextPlayerIds,
+        room.currentPlayerId,
+      );
+
+      await tx.room.update({
+        where: { id: room.id },
+        data: {
+          currentAnswer: JSON.stringify(state),
+        },
+      });
+      return;
+    }
+
+    case "connect-the-letters": {
+      const state = parseConnectLettersState(room.currentAnswer, nextPlayerIds);
+
+      await tx.room.update({
+        where: { id: room.id },
+        data: {
+          currentAnswer: JSON.stringify(state),
+          currentPlayerId: state.currentPair?.[0] ?? room.currentPlayerId,
+        },
+      });
+      return;
+    }
+
+    case "ghost-tears": {
+      const state = parseGhostTearsState(
+        room.currentAnswer,
+        nextPlayerIds,
+        room.currentPlayerId,
+      );
+
+      await tx.room.update({
+        where: { id: room.id },
+        data: {
+          currentAnswer: JSON.stringify(state),
+          currentPlayerId: state.currentPlayerId,
+        },
+      });
+      return;
+    }
+
+    case "joker-loop": {
+      const state = buildJokerLoopState(nextPlayerIds);
+
+      await tx.room.update({
+        where: { id: room.id },
+        data: {
+          currentAnswer: JSON.stringify(state),
+          currentPlayerId: state.activeGiverPlayerId,
+        },
+      });
+      return;
+    }
+
+    case "triviyay": {
+      if (!newPlayer.team || room.playingTeams.includes(newPlayer.team)) {
+        return;
+      }
+
+      await tx.room.update({
+        where: { id: room.id },
+        data: {
+          playingTeams: [...room.playingTeams, newPlayer.team],
+        },
+      });
+      return;
+    }
+
+    case "codenames": {
+      if (!newPlayer.team) {
+        return;
+      }
+
+      const redPlayers = nextPlayers.filter((player) => player.team === "RED");
+      const bluePlayers = nextPlayers.filter((player) => player.team === "BLUE");
+
+      await tx.room.update({
+        where: { id: room.id },
+        data: {
+          playingTeams: ["RED", "BLUE"],
+          playerOneId: redPlayers[0]?.id ?? null,
+          playerTwoId: bluePlayers[0]?.id ?? null,
+        },
+      });
+      return;
+    }
+
+    default:
+      return;
+  }
+}
+
 export const gamesRouter = createTRPCRouter({
   getMany: baseProcedure.query(async () => {
     const games = await prisma.game.findMany({
@@ -1815,6 +2098,12 @@ export const gamesRouter = createTRPCRouter({
         ) {
           throw new Error("Joker Loop requires at least 2 players.");
         }
+        if (
+          input.selectedGame === "who-am-i" &&
+          (input.players?.length || 0) < 2
+        ) {
+          throw new Error("Who Am I requires at least 2 players.");
+        }
 
         if (input.selectedGame === "triviyay") {
           if (!input.teamsInfo || input.teamsInfo.length < 1) {
@@ -2022,6 +2311,13 @@ export const gamesRouter = createTRPCRouter({
             roomCurrentAnswer = JSON.stringify(jokerLoopState);
             jokerLoopCurrentPlayerId = jokerLoopState.activeGiverPlayerId;
           }
+          if (input.selectedGame === "who-am-i") {
+            const playerIds = createdRoom.players.map((player) => player.id);
+            const questionIds = createdRoom.game.questions.map((question) => question.id);
+            roomCurrentAnswer = JSON.stringify(
+              buildWhoAmIState(playerIds, questionIds),
+            );
+          }
 
           const createdRoomId = createdRoom.id;
           await prisma.room.update({
@@ -2041,6 +2337,7 @@ export const gamesRouter = createTRPCRouter({
               questionAVotes: [],
               questionBVotes: [],
               currentAnswer: roomCurrentAnswer,
+              currentRound: input.selectedGame === "who-am-i" ? 1 : undefined,
             },
           });
 
@@ -4116,45 +4413,22 @@ export const gamesRouter = createTRPCRouter({
           throw new Error("Room not found");
         }
 
-        const newPlayer = await prisma.player.create({
-          data: {
-            name: input.newPlayer,
-            roomId: input.roomId,
-            points: 0,
-            drinks: 0,
-          },
-        });
-
-        if (
-          input.gamecode === "verbal-charades" ||
-          input.gamecode === "taboo-lite"
-        ) {
-          const allPairs = room.allPairIds || [];
-          const createdRoomPlayers = room.players;
-          if (
-            input.gamecode === "verbal-charades" ||
-            input.gamecode === "taboo-lite"
-          ) {
-            for (let i = 0; i < room.players.length; i++) {
-              const pairKey = [newPlayer.id, createdRoomPlayers[i].id].join(
-                "&",
-              );
-              const opositePairKey = [
-                createdRoomPlayers[i].id,
-                newPlayer.id,
-              ].join("&");
-              allPairs.push(pairKey);
-              allPairs.push(opositePairKey);
-            }
-          }
-
-          await prisma.room.update({
-            where: { id: input.roomId },
+        await prisma.$transaction(async (tx) => {
+          const newPlayer = await tx.player.create({
             data: {
-              allPairIds: allPairs,
+              name: input.newPlayer,
+              roomId: input.roomId,
+              points: 0,
+              drinks: 0,
+              team: "",
             },
           });
-        }
+
+          await syncRoomStateAfterPlayerAdded(tx, room, {
+            id: newPlayer.id,
+            team: newPlayer.team,
+          });
+        });
 
         return true;
       } catch (error) {
@@ -4192,14 +4466,21 @@ export const gamesRouter = createTRPCRouter({
           throw new Error("Room not found");
         }
 
-        await prisma.player.create({
-          data: {
-            name: input.newPlayer,
-            roomId: input.roomId,
-            points: 0,
-            drinks: 0,
-            team: input.team,
-          },
+        await prisma.$transaction(async (tx) => {
+          const newPlayer = await tx.player.create({
+            data: {
+              name: input.newPlayer,
+              roomId: input.roomId,
+              points: 0,
+              drinks: 0,
+              team: input.team,
+            },
+          });
+
+          await syncRoomStateAfterPlayerAdded(tx, room, {
+            id: newPlayer.id,
+            team: newPlayer.team,
+          });
         });
 
         return true;
@@ -6560,6 +6841,162 @@ export const gamesRouter = createTRPCRouter({
       return {
         roundNumber: state.roundNumber,
         activeGiverPlayerId: state.activeGiverPlayerId,
+      };
+    }),
+
+  whoAmIWinRound: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        winnerPlayerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: {
+            include: {
+              questions: true,
+            },
+          },
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "who-am-i") {
+        throw new Error("This room is not Who Am I");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+      if (!room.players.some((player) => player.id === input.winnerPlayerId)) {
+        throw new Error("Winner not found in room");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parseWhoAmIState(room.currentAnswer, playerIds);
+      if (!state) {
+        throw new Error("Who Am I state is missing");
+      }
+      if (state.status !== "PLAYING") {
+        throw new Error("Finish the current round before choosing another winner");
+      }
+      if (!state.assignmentsByPlayerId[input.winnerPlayerId]) {
+        throw new Error(
+          "This player does not have an assigned card in the current round",
+        );
+      }
+
+      state.status = "ROUND_WON";
+      state.winnerPlayerId = input.winnerPlayerId;
+
+      await prisma.$transaction(async (tx) => {
+        await tx.player.update({
+          where: {
+            id: input.winnerPlayerId,
+          },
+          data: {
+            points: {
+              increment: 1,
+            },
+          },
+        });
+
+        await tx.player.updateMany({
+          where: {
+            roomId: input.roomId,
+            id: {
+              not: input.winnerPlayerId,
+            },
+          },
+          data: {
+            drinks: {
+              increment: 1,
+            },
+          },
+        });
+
+        await tx.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentPlayerId: input.winnerPlayerId,
+            currentAnswer: JSON.stringify(state),
+          },
+        });
+      });
+
+      return {
+        winnerPlayerId: input.winnerPlayerId,
+      };
+    }),
+
+  whoAmINextRound: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: {
+            include: {
+              questions: true,
+            },
+          },
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "who-am-i") {
+        throw new Error("This room is not Who Am I");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+      if (room.players.length < 2) {
+        throw new Error("At least 2 players are required");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const questionIds = room.game.questions.map((question) => question.id);
+      const state = parseWhoAmIState(room.currentAnswer, playerIds);
+      if (!state) {
+        throw new Error("Who Am I state is missing");
+      }
+      if (state.status !== "ROUND_WON" || !state.winnerPlayerId) {
+        throw new Error("Choose a winner before moving to the next round");
+      }
+      if (state.winnerPlayerId !== input.playerId) {
+        throw new Error("Only the winning player can start the next round");
+      }
+
+      const nextState = buildWhoAmIState(playerIds, questionIds, state);
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentPlayerId: null,
+          currentRound: nextState.roundNumber,
+          currentAnswer: JSON.stringify(nextState),
+        },
+      });
+
+      return {
+        roundNumber: nextState.roundNumber,
       };
     }),
 
