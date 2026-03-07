@@ -134,6 +134,23 @@ type WhoAmIRoomState = {
   usedQuestionIds: number[];
   winnerPlayerId: string | null;
 };
+type NameTheSongVerdict = "CORRECT" | "WRONG";
+type NameTheSongRoomState = {
+  status: "READY" | "BUZZED" | "ROUND_RESULT";
+  roundNumber: number;
+  currentQuestionId: number | null;
+  usedQuestionIds: number[];
+  buzzedPlayerId: string | null;
+  attemptStartedAt: string | null;
+  verdict: NameTheSongVerdict | null;
+  pointPlayerIds: string[];
+  drinkPlayerIds: string[];
+};
+type WhoAmINote = {
+  id: string;
+  text: string;
+  createdAt: string;
+};
 type JokerLoopCard = {
   id: string;
   word: string;
@@ -230,6 +247,7 @@ const animations = [
     duration: "0.5s",
   },
 ];
+const NAME_THE_SONG_TIMER_SECONDS = 30;
 
 function GameComments({ comments }: GameCommentsProps) {
   if (!comments?.length) return null;
@@ -1022,6 +1040,85 @@ function parseWhoAmIState(raw: string | null | undefined): WhoAmIRoomState {
   }
 }
 
+function parseNameTheSongState(
+  raw: string | null | undefined,
+): NameTheSongRoomState {
+  const fallback: NameTheSongRoomState = {
+    status: "READY",
+    roundNumber: 1,
+    currentQuestionId: null,
+    usedQuestionIds: [],
+    buzzedPlayerId: null,
+    attemptStartedAt: null,
+    verdict: null,
+    pointPlayerIds: [],
+    drinkPlayerIds: [],
+  };
+
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<NameTheSongRoomState>;
+    return {
+      status:
+        parsed.status === "BUZZED" || parsed.status === "ROUND_RESULT"
+          ? parsed.status
+          : "READY",
+      roundNumber:
+        typeof parsed.roundNumber === "number" &&
+        Number.isFinite(parsed.roundNumber) &&
+        parsed.roundNumber > 0
+          ? parsed.roundNumber
+          : 1,
+      currentQuestionId:
+        typeof parsed.currentQuestionId === "number"
+          ? parsed.currentQuestionId
+          : null,
+      usedQuestionIds: Array.isArray(parsed.usedQuestionIds)
+        ? parsed.usedQuestionIds.filter(
+            (questionId): questionId is number => typeof questionId === "number",
+          )
+        : [],
+      buzzedPlayerId:
+        typeof parsed.buzzedPlayerId === "string"
+          ? parsed.buzzedPlayerId
+          : null,
+      attemptStartedAt:
+        typeof parsed.attemptStartedAt === "string"
+          ? parsed.attemptStartedAt
+          : null,
+      verdict:
+        parsed.verdict === "CORRECT" || parsed.verdict === "WRONG"
+          ? parsed.verdict
+          : null,
+      pointPlayerIds: Array.isArray(parsed.pointPlayerIds)
+        ? parsed.pointPlayerIds.filter(
+            (playerId): playerId is string => typeof playerId === "string",
+          )
+        : [],
+      drinkPlayerIds: Array.isArray(parsed.drinkPlayerIds)
+        ? parsed.drinkPlayerIds.filter(
+            (playerId): playerId is string => typeof playerId === "string",
+          )
+        : [],
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function removeVowels(value: string): string {
+  return value.replace(/[aeiou]/gi, "");
+}
+
+function parseNameTheSongPrompt(raw: string | undefined) {
+  const [rawTitle = "", rawArtist = ""] = (raw ?? "").split("|");
+  return {
+    title: rawTitle.trim(),
+    artist: rawArtist.trim(),
+  };
+}
+
 function parseJokerLoopState(raw: string | null | undefined): JokerLoopRoomState {
   const fallback: JokerLoopRoomState = {
     status: "PLAYING",
@@ -1139,6 +1236,7 @@ function parseJokerLoopState(raw: string | null | undefined): JokerLoopRoomState
 
 export default function RoomPage() {
   const [quote, setQuote] = React.useState<string>("");
+  const [whoAmINotesOpen, setWhoAmINotesOpen] = React.useState(false);
   const params = useParams();
   const roomId = params.id; // This is your dynamic route: /room/[id]
   const trpc = useTRPC();
@@ -1152,7 +1250,7 @@ export default function RoomPage() {
       { roomId: String(roomId) },
       {
         refetchInterval: (query) =>
-          query.state.data?.gameEnded ? false : 3000,
+          query.state.data?.gameEnded || whoAmINotesOpen ? false : 3000,
         refetchIntervalInBackground: true,
         refetchOnWindowFocus: false,
       },
@@ -1174,7 +1272,7 @@ export default function RoomPage() {
     trpc.games.getRoomReactions.queryOptions(
       { roomId: String(roomId) },
       {
-        refetchInterval: room?.gameEnded ? false : 2000,
+        refetchInterval: room?.gameEnded || whoAmINotesOpen ? false : 2000,
         refetchIntervalInBackground: true,
       },
     ),
@@ -1764,6 +1862,50 @@ export default function RoomPage() {
       },
     }),
   );
+  const nameTheSongBuzz = useMutation(
+    trpc.games.nameTheSongBuzz.mutationOptions({
+      onSuccess: (data) => {
+        const playerName =
+          players.find((player) => player.id === data.buzzedPlayerId)?.name ||
+          "Player";
+        toast.success(`${playerName} buzzed first. ${data.timerSeconds} seconds started.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not buzz in.");
+      },
+    }),
+  );
+  const nameTheSongJudge = useMutation(
+    trpc.games.nameTheSongJudge.mutationOptions({
+      onSuccess: (data) => {
+        if (data.verdict === "CORRECT") {
+          const winnerName =
+            players.find((player) => player.id === data.pointPlayerIds[0])?.name ||
+            "Player";
+          toast.success(`${winnerName} gets +1 point. Everyone else drinks +1.`);
+          return;
+        }
+
+        const loserName =
+          players.find((player) => player.id === data.drinkPlayerIds[0])?.name ||
+          "Player";
+        toast.success(`${loserName} drinks +1. Everyone else gets +1 point.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not resolve the round.");
+      },
+    }),
+  );
+  const nameTheSongNextRound = useMutation(
+    trpc.games.nameTheSongNextRound.mutationOptions({
+      onSuccess: (data) => {
+        toast.success(`Round ${data.roundNumber} is ready.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not move to the next song.");
+      },
+    }),
+  );
   const jokerLoopReorderCard = useMutation(
     trpc.games.jokerLoopReorderCard.mutationOptions({
       onError: (error) => {
@@ -1855,6 +1997,9 @@ export default function RoomPage() {
   const [codenamesSelectedCardId, setCodenamesSelectedCardId] = React.useState<
     number | null
   >(null);
+  const [nameTheSongTimerNow, setNameTheSongTimerNow] = React.useState(
+    Date.now(),
+  );
   const [connectLettersTimerNow, setConnectLettersTimerNow] = React.useState(
     Date.now(),
   );
@@ -1874,6 +2019,8 @@ export default function RoomPage() {
   const [showAddPlayerModal, setShowAddPlayerModal] = React.useState(false);
   const [openDialog, setOpenDialog] = React.useState(false);
   const [showTopPlayersView, setShowTopPlayersView] = React.useState(false);
+  const [whoAmINotes, setWhoAmINotes] = React.useState<WhoAmINote[]>([]);
+  const [whoAmINoteDraft, setWhoAmINoteDraft] = React.useState("");
   const [reactionTargetId, setReactionTargetId] = React.useState<string>("ALL");
   const [lastReactionSentAt, setLastReactionSentAt] = React.useState<number>(0);
   const [reactionCooldownNow, setReactionCooldownNow] = React.useState<number>(
@@ -1885,6 +2032,13 @@ export default function RoomPage() {
     () => players.find((player) => player.id === actualPlayer),
     [players, actualPlayer],
   );
+  const whoAmINotesStorageKey = React.useMemo(() => {
+    if (selectedGame !== "who-am-i" || !room?.id || !actualPlayer) {
+      return null;
+    }
+
+    return `who-am-i-notes:${room.id}:${actualPlayer}`;
+  }, [actualPlayer, room?.id, selectedGame]);
   const canCurrentPlayerChangeName = Boolean(
     selectedActualPlayer && !selectedActualPlayer.hasChangedName,
   );
@@ -1970,12 +2124,27 @@ export default function RoomPage() {
   const ghostTearsState = React.useMemo(() => {
     return parseGhostTearsState(room?.currentAnswer);
   }, [room?.currentAnswer]);
+  const nameTheSongState = React.useMemo(() => {
+    return parseNameTheSongState(room?.currentAnswer);
+  }, [room?.currentAnswer]);
   const whoAmIState = React.useMemo(() => {
     return parseWhoAmIState(room?.currentAnswer);
   }, [room?.currentAnswer]);
   const jokerLoopState = React.useMemo(() => {
     return parseJokerLoopState(room?.currentAnswer);
   }, [room?.currentAnswer]);
+
+  const nameTheSongQuestion = React.useMemo(() => {
+    if (!game?.questions || !nameTheSongState.currentQuestionId) {
+      return null;
+    }
+
+    return (
+      game.questions.find(
+        (question) => question.id === nameTheSongState.currentQuestionId,
+      ) || null
+    );
+  }, [game?.questions, nameTheSongState.currentQuestionId]);
 
   const whoAmICards = React.useMemo(() => {
     if (!game?.questions) return [];
@@ -2420,6 +2589,73 @@ export default function RoomPage() {
   }, [actualPlayer, players, room?.gameEnded, selectedGame]);
 
   React.useEffect(() => {
+    if (!whoAmINotesStorageKey || typeof window === "undefined") {
+      setWhoAmINotes([]);
+      setWhoAmINoteDraft("");
+      setWhoAmINotesOpen(false);
+      return;
+    }
+
+    const rawNotes = window.localStorage.getItem(whoAmINotesStorageKey);
+    if (!rawNotes) {
+      setWhoAmINotes([]);
+      return;
+    }
+
+    try {
+      const parsedNotes = JSON.parse(rawNotes) as WhoAmINote[];
+      setWhoAmINotes(
+        Array.isArray(parsedNotes)
+          ? parsedNotes.filter(
+              (note) =>
+                typeof note?.id === "string" &&
+                typeof note?.text === "string" &&
+                typeof note?.createdAt === "string",
+            )
+          : [],
+      );
+    } catch {
+      setWhoAmINotes([]);
+    }
+  }, [whoAmINotesStorageKey]);
+
+  React.useEffect(() => {
+    if (!whoAmINotesStorageKey || typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(
+      whoAmINotesStorageKey,
+      JSON.stringify(whoAmINotes),
+    );
+  }, [whoAmINotes, whoAmINotesStorageKey]);
+
+  const handleSaveWhoAmINote = React.useCallback(() => {
+    const trimmedNote = whoAmINoteDraft.trim();
+
+    if (!trimmedNote) {
+      toast.error("Enter a note first.");
+      return;
+    }
+
+    if (!whoAmINotesStorageKey) {
+      toast.error("Pick your player before adding notes.");
+      return;
+    }
+
+    setWhoAmINotes((prev) => [
+      {
+        id: `${Date.now()}-${prev.length}`,
+        text: trimmedNote,
+        createdAt: new Date().toISOString(),
+      },
+      ...prev,
+    ]);
+    setWhoAmINoteDraft("");
+    setWhoAmINotesOpen(false);
+  }, [whoAmINoteDraft, whoAmINotesStorageKey]);
+
+  React.useEffect(() => {
     // Reset one-time guard for each page load of a room,
     // so a browser refresh can replay the game-over music once.
     if (!room?.id) return;
@@ -2577,6 +2813,48 @@ export default function RoomPage() {
     room?.playerTwoId,
     selectedGame,
   ]);
+
+  const nameTheSongSecondsLeft = React.useMemo(() => {
+    if (selectedGame !== "name-the-song") {
+      return NAME_THE_SONG_TIMER_SECONDS;
+    }
+    if (
+      nameTheSongState.status !== "BUZZED" ||
+      !nameTheSongState.attemptStartedAt
+    ) {
+      return NAME_THE_SONG_TIMER_SECONDS;
+    }
+
+    const startedAt = new Date(nameTheSongState.attemptStartedAt).getTime();
+    if (!Number.isFinite(startedAt)) {
+      return NAME_THE_SONG_TIMER_SECONDS;
+    }
+
+    const elapsedSeconds = Math.floor((nameTheSongTimerNow - startedAt) / 1000);
+    return Math.max(NAME_THE_SONG_TIMER_SECONDS - elapsedSeconds, 0);
+  }, [
+    nameTheSongState.attemptStartedAt,
+    nameTheSongState.status,
+    nameTheSongTimerNow,
+    selectedGame,
+  ]);
+
+  React.useEffect(() => {
+    if (selectedGame !== "name-the-song") {
+      return;
+    }
+    if (nameTheSongState.status !== "BUZZED") {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setNameTheSongTimerNow(Date.now());
+    }, 250);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [nameTheSongState.status, selectedGame]);
 
   const connectLettersSecondsLeft = React.useMemo(() => {
     if (selectedGame !== "connect-the-letters") {
@@ -5510,6 +5788,244 @@ export default function RoomPage() {
           );
         }
 
+        case "name-the-song": {
+          const songPrompt = parseNameTheSongPrompt(nameTheSongQuestion?.text);
+          const buzzedPlayerName = nameTheSongState.buzzedPlayerId
+            ? players.find((player) => player.id === nameTheSongState.buzzedPlayerId)
+                ?.name || "Player"
+            : "Player";
+          const maskedSongTitle = songPrompt.title
+            ? removeVowels(songPrompt.title)
+            : "";
+          const isBuzzedPlayer = actualPlayer === nameTheSongState.buzzedPlayerId;
+          const isAnswerRevealed =
+            nameTheSongState.status === "ROUND_RESULT" ||
+            (nameTheSongState.status === "BUZZED" && nameTheSongSecondsLeft === 0);
+          const pointPlayerNames = players
+            .filter((player) => nameTheSongState.pointPlayerIds.includes(player.id))
+            .map((player) => player.name);
+          const drinkPlayerNames = players
+            .filter((player) => nameTheSongState.drinkPlayerIds.includes(player.id))
+            .map((player) => player.name);
+
+          return (
+            <div className="w-full">
+              <div className="mb-6 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary">
+                    Round {nameTheSongState.roundNumber}
+                  </Badge>
+                  <Badge variant="outline">
+                    Status: {nameTheSongState.status.replaceAll("_", " ")}
+                  </Badge>
+                  {nameTheSongState.buzzedPlayerId && (
+                    <Badge className="bg-amber-600">
+                      Buzzed: {buzzedPlayerName}
+                    </Badge>
+                  )}
+                </div>
+                <p className="mt-3 text-sm sm:text-base text-white/90">
+                  The song title appears with no vowels. First player to buzz
+                  gets 30 seconds to say the answer out loud.
+                </p>
+              </div>
+
+              <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.35fr_1fr]">
+                <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                  <p className="text-xs uppercase tracking-[0.25em] text-white/50">
+                    Song without vowels
+                  </p>
+                  <div className="mt-4 rounded-2xl border border-dashed border-cyan-300/40 bg-black/20 px-4 py-8 text-center">
+                    <p className="text-3xl font-black tracking-[0.2em] text-cyan-100 sm:text-4xl">
+                      {maskedSongTitle || "Loading"}
+                    </p>
+                  </div>
+
+                  {isAnswerRevealed && (
+                    <div className="mt-4 rounded-xl border border-emerald-300/30 bg-emerald-500/10 p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-emerald-100/70">
+                        Answer
+                      </p>
+                      <p className="mt-2 text-2xl font-bold text-emerald-100">
+                        {songPrompt.title || "Unknown song"}
+                      </p>
+                      <p className="mt-2 text-sm text-emerald-100/80">
+                        Artist: {songPrompt.artist || "Unknown artist"}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    {nameTheSongState.status === "READY" && (
+                      <>
+                        <p className="text-sm text-white/85">
+                          Whoever knows it first should buzz in.
+                        </p>
+                        <Button
+                          className="mt-4 w-full bg-fuchsia-600 hover:bg-fuchsia-700"
+                          onClick={() =>
+                            nameTheSongBuzz.mutate({
+                              roomId: room?.id || "",
+                              playerId: actualPlayer || "",
+                            })
+                          }
+                          disabled={
+                            !actualPlayer ||
+                            !nameTheSongQuestion ||
+                            nameTheSongBuzz.isPending
+                          }
+                        >
+                          I Know the Song
+                        </Button>
+                        {!actualPlayer && (
+                          <p className="mt-3 text-sm text-amber-200">
+                            Select your player first.
+                          </p>
+                        )}
+                      </>
+                    )}
+
+                    {nameTheSongState.status === "BUZZED" && (
+                      <>
+                        <p className="text-sm text-white/85">
+                          {buzzedPlayerName} is answering now.
+                        </p>
+                        <div className="mt-4 text-center">
+                          <div className="text-5xl font-black text-amber-200">
+                            {nameTheSongSecondsLeft}s
+                          </div>
+                          <p className="mt-2 text-sm text-white/70">
+                            The answer reveals automatically when the timer hits
+                            zero.
+                          </p>
+                        </div>
+
+                        {isAnswerRevealed ? (
+                          isBuzzedPlayer ? (
+                            <div className="mt-4 flex gap-3">
+                              <Button
+                                className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                                onClick={() =>
+                                  nameTheSongJudge.mutate({
+                                    roomId: room?.id || "",
+                                    playerId: actualPlayer || "",
+                                    verdict: "CORRECT",
+                                  })
+                                }
+                                disabled={nameTheSongJudge.isPending}
+                              >
+                                Correct
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                className="flex-1"
+                                onClick={() =>
+                                  nameTheSongJudge.mutate({
+                                    roomId: room?.id || "",
+                                    playerId: actualPlayer || "",
+                                    verdict: "WRONG",
+                                  })
+                                }
+                                disabled={nameTheSongJudge.isPending}
+                              >
+                                Wrong
+                              </Button>
+                            </div>
+                          ) : (
+                            <p className="mt-4 text-sm text-white/75">
+                              Waiting for {buzzedPlayerName} to confirm whether
+                              they were right.
+                            </p>
+                          )
+                        ) : (
+                          <p className="mt-4 text-sm text-white/75">
+                            {isBuzzedPlayer
+                              ? "Say the full title out loud before time runs out."
+                              : `Waiting for ${buzzedPlayerName} to answer.`}
+                          </p>
+                        )}
+                      </>
+                    )}
+
+                    {nameTheSongState.status === "ROUND_RESULT" && (
+                      <>
+                        <p className="text-sm text-white/85">
+                          {nameTheSongState.verdict === "CORRECT"
+                            ? `${buzzedPlayerName} got it right.`
+                            : `${buzzedPlayerName} got it wrong.`}
+                        </p>
+                        <div className="mt-4 space-y-3">
+                          <div className="rounded-lg border border-emerald-300/25 bg-emerald-500/10 p-3">
+                            <p className="text-xs uppercase tracking-[0.2em] text-emerald-100/70">
+                              Points +1
+                            </p>
+                            <p className="mt-1 text-sm text-emerald-100">
+                              {pointPlayerNames.join(", ") || "None"}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-amber-300/25 bg-amber-500/10 p-3">
+                            <p className="text-xs uppercase tracking-[0.2em] text-amber-100/70">
+                              Drinks +1
+                            </p>
+                            <p className="mt-1 text-sm text-amber-100">
+                              {drinkPlayerNames.join(", ") || "None"}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          className="mt-4 w-full bg-sky-600 hover:bg-sky-700"
+                          onClick={() =>
+                            nameTheSongNextRound.mutate({
+                              roomId: room?.id || "",
+                              playerId: actualPlayer || "",
+                            })
+                          }
+                          disabled={!actualPlayer || nameTheSongNextRound.isPending}
+                        >
+                          Next Song
+                        </Button>
+                      </>
+                    )}
+
+                    <Button
+                      variant="outline"
+                      className="mt-4 w-full border-white/15 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                      onClick={() =>
+                        nameTheSongNextRound.mutate({
+                          roomId: room?.id || "",
+                          playerId: actualPlayer || "",
+                        })
+                      }
+                      disabled={!actualPlayer || nameTheSongNextRound.isPending}
+                    >
+                      Skip Song
+                    </Button>
+                    {!actualPlayer && (
+                      <p className="mt-3 text-sm text-amber-200">
+                        Select your player first.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <h3 className="text-lg font-semibold">Scoring</h3>
+                    <p className="mt-2 text-sm text-white/85">
+                      On correct: the buzzing player gets +1 point and everyone
+                      else gets +1 drink.
+                    </p>
+                    <p className="mt-2 text-sm text-white/85">
+                      On wrong: the buzzing player gets +1 drink and everyone
+                      else gets +1 point.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
         case "who-am-i": {
           const winnerName = whoAmIState.winnerPlayerId
             ? players.find((player) => player.id === whoAmIState.winnerPlayerId)
@@ -5542,6 +6058,53 @@ export default function RoomPage() {
                     able to see it on theirs.
                   </p>
                 )}
+                <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-white">
+                        Private notes
+                      </p>
+                      <p className="text-sm text-white/65">
+                        Save clue ideas on this device only. Notes are read-only
+                        after saving.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={() => setWhoAmINotesOpen(true)}
+                      disabled={!actualPlayer}
+                      className="bg-amber-500 text-black hover:bg-amber-400"
+                    >
+                      Add note
+                    </Button>
+                  </div>
+
+                  {!actualPlayer ? (
+                    <p className="mt-3 text-sm text-amber-200">
+                      Pick your player first to save private notes.
+                    </p>
+                  ) : whoAmINotes.length === 0 ? (
+                    <p className="mt-3 text-sm text-white/60">
+                      No notes yet.
+                    </p>
+                  ) : (
+                    <div className="mt-4 space-y-2">
+                      {whoAmINotes.map((note, index) => (
+                        <div
+                          key={note.id}
+                          className="rounded-lg border border-white/10 bg-white/5 p-3"
+                        >
+                          <p className="text-xs uppercase tracking-[0.2em] text-white/40">
+                            Note {whoAmINotes.length - index}
+                          </p>
+                          <p className="mt-2 text-sm text-white/90">
+                            {note.text}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -5953,6 +6516,48 @@ export default function RoomPage() {
           </form>
         </DialogContent>
       </Dialog>
+      {selectedGame === "who-am-i" && (
+        <Dialog open={whoAmINotesOpen} onOpenChange={setWhoAmINotesOpen}>
+          <DialogContent className="w-[calc(100%-2rem)] border border-white/10 bg-zinc-950 text-white sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Add note</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <Textarea
+                value={whoAmINoteDraft}
+                onChange={(event) =>
+                  setWhoAmINoteDraft(event.target.value.slice(0, 100))
+                }
+                placeholder="Add a clue, suspicion, or reminder..."
+                maxLength={100}
+                rows={4}
+                className="border-white/10 bg-zinc-900 text-white placeholder:text-white/40"
+              />
+              <p className="text-right text-xs text-white/50">
+                {whoAmINoteDraft.length}/100 characters
+              </p>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setWhoAmINotesOpen(false)}
+                className="border-white/15 bg-transparent text-white hover:bg-white/10 hover:text-white"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSaveWhoAmINote}
+                disabled={!whoAmINoteDraft.trim()}
+                className="bg-amber-500 text-black hover:bg-amber-400"
+              >
+                Save note
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-6">

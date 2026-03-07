@@ -234,6 +234,8 @@ export default function HomePage() {
       return <Shuffle className="w-6 h-6" />;
     } else if (gamecode === "who-am-i") {
       return <ClipboardPaste className="w-6 h-6" />;
+    } else if (gamecode === "name-the-song") {
+      return <Mic className="w-6 h-6" />;
     } else {
       return <Gamepad2 className="w-6 h-6" />;
     }
@@ -286,6 +288,8 @@ export default function HomePage() {
       return "from-amber-600 to-rose-700";
     } else if (gamecode === "who-am-i") {
       return "from-sky-600 to-cyan-700";
+    } else if (gamecode === "name-the-song") {
+      return "from-fuchsia-600 to-pink-700";
     } else {
       return "from-teal-500 to-cyan-500";
     }
@@ -753,6 +757,8 @@ export default function HomePage() {
                         players.length < 2) ||
                       (selectedGame === "joker-loop" && players.length < 2) ||
                       (selectedGame === "who-am-i" && players.length < 2) ||
+                      (selectedGame === "name-the-song" &&
+                        players.length < 2) ||
                       (selectedGame === "triviyay" && teams.length > 2)
                     }
                     className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"

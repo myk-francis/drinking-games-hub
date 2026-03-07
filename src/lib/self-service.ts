@@ -34,6 +34,7 @@ export const MIN_PLAYERS_BY_GAME: Record<string, number> = {
   "connect-the-letters": 2,
   "ghost-tears": 2,
   "joker-loop": 2,
+  "name-the-song": 2,
 };
 
 const uniqueTrimmed = (items: string[]) =>
