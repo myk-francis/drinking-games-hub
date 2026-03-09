@@ -27,6 +27,7 @@ import {
   Hash,
   Type,
   Ghost,
+  Film,
 } from "lucide-react";
 import React from "react";
 import { useTRPC } from "@/trpc/client";
@@ -74,6 +75,11 @@ export default function HomePage() {
   );
   const { data: editions } = useQuery(
     trpc.games.getEditions.queryOptions(undefined, {
+      enabled: !!currentUser,
+    }),
+  );
+  const { data: movieCategories } = useQuery(
+    trpc.games.getMovieCategories.queryOptions(undefined, {
       enabled: !!currentUser,
     }),
   );
@@ -236,6 +242,8 @@ export default function HomePage() {
       return <ClipboardPaste className="w-6 h-6" />;
     } else if (gamecode === "name-the-song") {
       return <Mic className="w-6 h-6" />;
+    } else if (gamecode === "guess-the-movie") {
+      return <Film className="w-6 h-6" />;
     } else {
       return <Gamepad2 className="w-6 h-6" />;
     }
@@ -290,6 +298,8 @@ export default function HomePage() {
       return "from-sky-600 to-cyan-700";
     } else if (gamecode === "name-the-song") {
       return "from-fuchsia-600 to-pink-700";
+    } else if (gamecode === "guess-the-movie") {
+      return "from-amber-500 to-red-700";
     } else {
       return "from-teal-500 to-cyan-500";
     }
@@ -675,6 +685,15 @@ export default function HomePage() {
                     />
                   </div>
                 )}
+                {selectedGame === "guess-the-movie" && (
+                  <div className="mt-4">
+                    <ComboBox
+                      options={movieCategories || []}
+                      handleSelect={setSelectedRounds}
+                      value={selectedRounds}
+                    />
+                  </div>
+                )}
               </div>
 
               {permissionToCreateRoooms && (
@@ -758,6 +777,8 @@ export default function HomePage() {
                       (selectedGame === "joker-loop" && players.length < 2) ||
                       (selectedGame === "who-am-i" && players.length < 2) ||
                       (selectedGame === "name-the-song" &&
+                        players.length < 2) ||
+                      (selectedGame === "guess-the-movie" &&
                         players.length < 2) ||
                       (selectedGame === "triviyay" && teams.length > 2)
                     }
