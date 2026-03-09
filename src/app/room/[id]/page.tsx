@@ -9,6 +9,7 @@ import {
   Trophy,
   ArrowLeft,
   Film,
+  Bus,
 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useTRPC } from "@/trpc/client";
@@ -159,6 +160,35 @@ type GuessTheMovieRoomState = {
   pointPlayerIds: string[];
   drinkPlayerIds: string[];
   selectedCategory: number;
+};
+type RideTheBusSuit = "HEARTS" | "DIAMONDS" | "CLUBS" | "SPADES";
+type RideTheBusColor = "RED" | "BLACK";
+type RideTheBusStep = "COLOR" | "HIGHER_LOWER" | "INSIDE_OUTSIDE" | "SUIT";
+type RideTheBusPhase = "MAIN" | "BUS" | "ESCAPED";
+type RideTheBusCard = {
+  rank: number;
+  suit: RideTheBusSuit;
+  color: RideTheBusColor;
+};
+type RideTheBusLastResult =
+  | "CORRECT"
+  | "WRONG"
+  | "COMPLETED_MAIN"
+  | "BUS_ASSIGNED"
+  | "ESCAPED"
+  | null;
+type RideTheBusRoomState = {
+  status: "PLAYING" | "ENDED";
+  phase: RideTheBusPhase;
+  playerOrder: string[];
+  currentPlayerId: string | null;
+  activeStep: RideTheBusStep;
+  activeCards: RideTheBusCard[];
+  completedPlayerIds: string[];
+  resetsByPlayerId: Record<string, number>;
+  busRiderPlayerId: string | null;
+  escapedPlayerId: string | null;
+  lastResult: RideTheBusLastResult;
 };
 type WhoAmINote = {
   id: string;
@@ -1195,6 +1225,103 @@ function parseGuessTheMovieState(
   }
 }
 
+function parseRideTheBusState(
+  raw: string | null | undefined,
+): RideTheBusRoomState {
+  const fallback: RideTheBusRoomState = {
+    status: "PLAYING",
+    phase: "MAIN",
+    playerOrder: [],
+    currentPlayerId: null,
+    activeStep: "COLOR",
+    activeCards: [],
+    completedPlayerIds: [],
+    resetsByPlayerId: {},
+    busRiderPlayerId: null,
+    escapedPlayerId: null,
+    lastResult: null,
+  };
+
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<RideTheBusRoomState>;
+    const activeCards = Array.isArray(parsed.activeCards)
+      ? parsed.activeCards
+          .filter(
+            (card): card is RideTheBusCard =>
+              Boolean(card) &&
+              typeof card === "object" &&
+              typeof card.rank === "number" &&
+              (card.suit === "HEARTS" ||
+                card.suit === "DIAMONDS" ||
+                card.suit === "CLUBS" ||
+                card.suit === "SPADES") &&
+              (card.color === "RED" || card.color === "BLACK"),
+          )
+          .map((card) => ({
+            rank: card.rank,
+            suit: card.suit,
+            color: card.color,
+          }))
+      : [];
+
+    return {
+      status: parsed.status === "ENDED" ? "ENDED" : "PLAYING",
+      phase:
+        parsed.phase === "BUS" || parsed.phase === "ESCAPED"
+          ? parsed.phase
+          : "MAIN",
+      playerOrder: Array.isArray(parsed.playerOrder)
+        ? parsed.playerOrder.filter(
+            (playerId): playerId is string => typeof playerId === "string",
+          )
+        : [],
+      currentPlayerId:
+        typeof parsed.currentPlayerId === "string" ? parsed.currentPlayerId : null,
+      activeStep:
+        parsed.activeStep === "HIGHER_LOWER" ||
+        parsed.activeStep === "INSIDE_OUTSIDE" ||
+        parsed.activeStep === "SUIT"
+          ? parsed.activeStep
+          : "COLOR",
+      activeCards,
+      completedPlayerIds: Array.isArray(parsed.completedPlayerIds)
+        ? parsed.completedPlayerIds.filter(
+            (playerId): playerId is string => typeof playerId === "string",
+          )
+        : [],
+      resetsByPlayerId:
+        parsed.resetsByPlayerId && typeof parsed.resetsByPlayerId === "object"
+          ? Object.fromEntries(
+              Object.entries(parsed.resetsByPlayerId).map(([playerId, value]) => [
+                playerId,
+                typeof value === "number" && Number.isFinite(value) ? value : 0,
+              ]),
+            )
+          : {},
+      busRiderPlayerId:
+        typeof parsed.busRiderPlayerId === "string"
+          ? parsed.busRiderPlayerId
+          : null,
+      escapedPlayerId:
+        typeof parsed.escapedPlayerId === "string"
+          ? parsed.escapedPlayerId
+          : null,
+      lastResult:
+        parsed.lastResult === "CORRECT" ||
+        parsed.lastResult === "WRONG" ||
+        parsed.lastResult === "COMPLETED_MAIN" ||
+        parsed.lastResult === "BUS_ASSIGNED" ||
+        parsed.lastResult === "ESCAPED"
+          ? parsed.lastResult
+          : null,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 function removeVowels(value: string): string {
   return value.replace(/[aeiou]/gi, "");
 }
@@ -1213,6 +1340,27 @@ function getMovieCategoryLabel(edition: number | null | undefined): string {
   if (edition === 3) return "Animation & Family";
   if (edition === 4) return "Horror & Thriller";
   return "All Movies";
+}
+
+function getRideTheBusStepLabel(step: RideTheBusStep): string {
+  if (step === "COLOR") return "Step 1: Red or Black";
+  if (step === "HIGHER_LOWER") return "Step 2: Higher or Lower";
+  if (step === "INSIDE_OUTSIDE") return "Step 3: Inside or Outside";
+  return "Step 4: Suit";
+}
+
+function getRideTheBusCardLabel(card: RideTheBusCard): string {
+  const rankLabel =
+    card.rank === 1
+      ? "A"
+      : card.rank === 11
+        ? "J"
+        : card.rank === 12
+          ? "Q"
+          : card.rank === 13
+            ? "K"
+            : String(card.rank);
+  return `${rankLabel} of ${card.suit}`;
 }
 
 function parseJokerLoopState(raw: string | null | undefined): JokerLoopRoomState {
@@ -2046,6 +2194,42 @@ export default function RoomPage() {
       },
     }),
   );
+  const rideTheBusGuess = useMutation(
+    trpc.games.rideTheBusGuess.mutationOptions({
+      onSuccess: (data) => {
+        const playerName =
+          players.find((player) => player.id === data.currentPlayerId)?.name ||
+          players.find((player) => player.id === actualPlayer)?.name ||
+          "Player";
+        if (data.result === "WRONG") {
+          toast.error(`${playerName} guessed wrong and restarts from step 1.`);
+          return;
+        }
+        if (data.result === "COMPLETED_MAIN") {
+          toast.success(`${playerName} cleared the ladder and is safe for now.`);
+          return;
+        }
+        if (data.result === "BUS_ASSIGNED") {
+          const riderName =
+            players.find((player) => player.id === data.busRiderPlayerId)?.name ||
+            "Player";
+          toast.success(`${riderName} is riding the bus.`);
+          return;
+        }
+        if (data.result === "ESCAPED") {
+          const escapedName =
+            players.find((player) => player.id === data.escapedPlayerId)?.name ||
+            "Player";
+          toast.success(`${escapedName} escaped the bus.`);
+          return;
+        }
+        toast.success("Correct guess.");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not submit guess.");
+      },
+    }),
+  );
   const jokerLoopReorderCard = useMutation(
     trpc.games.jokerLoopReorderCard.mutationOptions({
       onError: (error) => {
@@ -2272,6 +2456,9 @@ export default function RoomPage() {
   }, [room?.currentAnswer]);
   const guessTheMovieState = React.useMemo(() => {
     return parseGuessTheMovieState(room?.currentAnswer);
+  }, [room?.currentAnswer]);
+  const rideTheBusState = React.useMemo(() => {
+    return parseRideTheBusState(room?.currentAnswer);
   }, [room?.currentAnswer]);
   const whoAmIState = React.useMemo(() => {
     return parseWhoAmIState(room?.currentAnswer);
@@ -5980,6 +6167,226 @@ export default function RoomPage() {
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        case "ride-the-bus": {
+          const busRiderName = rideTheBusState.busRiderPlayerId
+            ? players.find((player) => player.id === rideTheBusState.busRiderPlayerId)
+                ?.name || "Player"
+            : "";
+          const escapedName = rideTheBusState.escapedPlayerId
+            ? players.find((player) => player.id === rideTheBusState.escapedPlayerId)
+                ?.name || "Player"
+            : "";
+          const isMyTurn = actualPlayer === rideTheBusState.currentPlayerId;
+          const guessOptions =
+            rideTheBusState.activeStep === "COLOR"
+              ? ([
+                  { value: "RED", label: "Red" },
+                  { value: "BLACK", label: "Black" },
+                ] as const)
+              : rideTheBusState.activeStep === "HIGHER_LOWER"
+                ? ([
+                    { value: "HIGHER", label: "Higher" },
+                    { value: "LOWER", label: "Lower" },
+                  ] as const)
+                : rideTheBusState.activeStep === "INSIDE_OUTSIDE"
+                  ? ([
+                      { value: "INSIDE", label: "Inside" },
+                      { value: "OUTSIDE", label: "Outside" },
+                    ] as const)
+                  : ([
+                      { value: "HEARTS", label: "Hearts" },
+                      { value: "DIAMONDS", label: "Diamonds" },
+                      { value: "CLUBS", label: "Clubs" },
+                      { value: "SPADES", label: "Spades" },
+                    ] as const);
+          const currentTurnName = rideTheBusState.currentPlayerId
+            ? players.find((player) => player.id === rideTheBusState.currentPlayerId)
+                ?.name || "Player"
+            : "Player";
+
+          return (
+            <div className="w-full">
+              <div className="mb-6 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary">Ride the Bus</Badge>
+                  <Badge variant="outline">Phase: {rideTheBusState.phase}</Badge>
+                  <Badge className="bg-cyan-700">
+                    {getRideTheBusStepLabel(rideTheBusState.activeStep)}
+                  </Badge>
+                  {busRiderName && (
+                    <Badge className="bg-amber-600">Bus Rider: {busRiderName}</Badge>
+                  )}
+                  {escapedName && (
+                    <Badge className="bg-emerald-600">Escaped: {escapedName}</Badge>
+                  )}
+                </div>
+                <p className="mt-3 text-sm sm:text-base text-white/90">
+                  Clear the four-step ladder. Any wrong guess gives you +1 drink
+                  and sends you back to step 1. After everyone clears the ladder,
+                  the player with the most resets rides the bus.
+                </p>
+              </div>
+
+              <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.3fr_1fr]">
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <p className="text-sm text-cyan-200">
+                      Current turn: {currentTurnName}
+                    </p>
+                    <p className="mt-2 text-xl font-semibold text-white">
+                      {getRideTheBusStepLabel(rideTheBusState.activeStep)}
+                    </p>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-4">
+                      {["COLOR", "HIGHER_LOWER", "INSIDE_OUTSIDE", "SUIT"].map(
+                        (step, index) => {
+                          const isComplete = index < rideTheBusState.activeCards.length;
+                          const isActive = step === rideTheBusState.activeStep;
+                          return (
+                            <div
+                              key={step}
+                              className={`rounded-lg border p-3 text-center ${
+                                isComplete
+                                  ? "border-emerald-300/30 bg-emerald-500/10"
+                                  : isActive
+                                    ? "border-cyan-300/30 bg-cyan-500/10"
+                                    : "border-white/10 bg-black/20"
+                              }`}
+                            >
+                              <p className="text-xs uppercase tracking-[0.2em] text-white/50">
+                                Step {index + 1}
+                              </p>
+                              <p className="mt-2 text-sm text-white">
+                                {step === "COLOR"
+                                  ? "Color"
+                                  : step === "HIGHER_LOWER"
+                                    ? "High / Low"
+                                    : step === "INSIDE_OUTSIDE"
+                                      ? "Inside / Outside"
+                                      : "Suit"}
+                              </p>
+                            </div>
+                          );
+                        },
+                      )}
+                    </div>
+
+                    <div className="mt-4 rounded-xl border border-dashed border-cyan-300/30 bg-black/20 p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-white/45">
+                        Current run cards
+                      </p>
+                      {rideTheBusState.activeCards.length === 0 ? (
+                        <p className="mt-3 text-sm text-white/70">
+                          No cards yet. A wrong guess clears this row and restarts
+                          the run.
+                        </p>
+                      ) : (
+                        <div className="mt-3 grid gap-3 sm:grid-cols-4">
+                          {rideTheBusState.activeCards.map((card, index) => (
+                            <div
+                              key={`${card.rank}-${card.suit}-${index}`}
+                              className="rounded-lg border border-white/10 bg-white/5 p-3 text-center"
+                            >
+                              <p className="text-xs uppercase tracking-[0.2em] text-white/45">
+                                Card {index + 1}
+                              </p>
+                              <p className="mt-2 font-semibold text-white">
+                                {getRideTheBusCardLabel(card)}
+                              </p>
+                              <p className="mt-1 text-xs text-white/60">
+                                {card.color}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      {guessOptions.map((option) => (
+                        <Button
+                          key={option.value}
+                          className="bg-cyan-600 hover:bg-cyan-700"
+                          onClick={() =>
+                            rideTheBusGuess.mutate({
+                              roomId: room?.id || "",
+                              playerId: actualPlayer || "",
+                              guess: option.value,
+                            })
+                          }
+                          disabled={!isMyTurn || !actualPlayer || rideTheBusGuess.isPending}
+                        >
+                          {option.label}
+                        </Button>
+                      ))}
+                    </div>
+                    {!actualPlayer && (
+                      <p className="mt-3 text-sm text-amber-200">
+                        Select your player first.
+                      </p>
+                    )}
+                    {actualPlayer && !isMyTurn && (
+                      <p className="mt-3 text-sm text-white/70">
+                        Waiting for {currentTurnName} to make a guess.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <h3 className="text-lg font-semibold">Reset Board</h3>
+                    <div className="mt-3 space-y-2">
+                      {rideTheBusState.playerOrder.map((playerId) => {
+                        const player = players.find((entry) => entry.id === playerId);
+                        if (!player) return null;
+                        const completed = rideTheBusState.completedPlayerIds.includes(
+                          playerId,
+                        );
+                        const isRider = rideTheBusState.busRiderPlayerId === playerId;
+                        return (
+                          <div
+                            key={playerId}
+                            className="rounded-lg border border-white/10 bg-black/20 p-3"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-medium text-white">{player.name}</p>
+                              <div className="flex items-center gap-2">
+                                {completed && (
+                                  <Badge className="bg-emerald-600">Cleared</Badge>
+                                )}
+                                {isRider && (
+                                  <Badge className="bg-amber-600">Bus Rider</Badge>
+                                )}
+                              </div>
+                            </div>
+                            <p className="mt-2 text-sm text-white/75">
+                              Resets: {rideTheBusState.resetsByPlayerId[playerId] ?? 0}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <h3 className="text-lg font-semibold">Rules</h3>
+                    <p className="mt-2 text-sm text-white/85">
+                      Step 1 guess red or black, step 2 higher or lower than the
+                      first card, step 3 inside or outside the first two cards,
+                      and step 4 guess the exact suit.
+                    </p>
+                    <p className="mt-2 text-sm text-white/85">
+                      Any miss gives +1 drink and resets the run to the beginning.
+                      After everyone clears the ladder, the highest-reset player
+                      rides the bus until they finish a perfect run.
+                    </p>
                   </div>
                 </div>
               </div>

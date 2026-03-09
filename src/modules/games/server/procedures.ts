@@ -242,6 +242,44 @@ type GuessTheMovieState = {
   selectedCategory: number;
 };
 
+type RideTheBusSuit = "HEARTS" | "DIAMONDS" | "CLUBS" | "SPADES";
+type RideTheBusColor = "RED" | "BLACK";
+type RideTheBusStep = "COLOR" | "HIGHER_LOWER" | "INSIDE_OUTSIDE" | "SUIT";
+type RideTheBusPhase = "MAIN" | "BUS" | "ESCAPED";
+type RideTheBusGuess =
+  | RideTheBusColor
+  | "HIGHER"
+  | "LOWER"
+  | "INSIDE"
+  | "OUTSIDE"
+  | RideTheBusSuit;
+type RideTheBusCard = {
+  rank: number;
+  suit: RideTheBusSuit;
+  color: RideTheBusColor;
+};
+type RideTheBusLastResult =
+  | "CORRECT"
+  | "WRONG"
+  | "COMPLETED_MAIN"
+  | "BUS_ASSIGNED"
+  | "ESCAPED"
+  | null;
+
+type RideTheBusState = {
+  status: "PLAYING" | "ENDED";
+  phase: RideTheBusPhase;
+  playerOrder: string[];
+  currentPlayerId: string | null;
+  activeStep: RideTheBusStep;
+  activeCards: RideTheBusCard[];
+  completedPlayerIds: string[];
+  resetsByPlayerId: Record<string, number>;
+  busRiderPlayerId: string | null;
+  escapedPlayerId: string | null;
+  lastResult: RideTheBusLastResult;
+};
+
 type JokerLoopCardTemplate = {
   word: string;
   icon: string;
@@ -1340,6 +1378,207 @@ function parseGuessTheMovieState(
   }
 }
 
+const RIDE_THE_BUS_SUITS: RideTheBusSuit[] = [
+  "HEARTS",
+  "DIAMONDS",
+  "CLUBS",
+  "SPADES",
+];
+const RIDE_THE_BUS_STEPS: RideTheBusStep[] = [
+  "COLOR",
+  "HIGHER_LOWER",
+  "INSIDE_OUTSIDE",
+  "SUIT",
+];
+
+function getDefaultRideTheBusState(playerIds: string[]): RideTheBusState {
+  return {
+    status: "PLAYING",
+    phase: "MAIN",
+    playerOrder: [...playerIds],
+    currentPlayerId: playerIds[0] ?? null,
+    activeStep: "COLOR",
+    activeCards: [],
+    completedPlayerIds: [],
+    resetsByPlayerId: Object.fromEntries(
+      playerIds.map((playerId) => [playerId, 0]),
+    ),
+    busRiderPlayerId: null,
+    escapedPlayerId: null,
+    lastResult: null,
+  };
+}
+
+function parseRideTheBusCard(raw: unknown): RideTheBusCard | null {
+  if (!raw || typeof raw !== "object") return null;
+  const card = raw as Partial<RideTheBusCard>;
+  if (
+    typeof card.rank !== "number" ||
+    !Number.isInteger(card.rank) ||
+    card.rank < 1 ||
+    card.rank > 13
+  ) {
+    return null;
+  }
+  if (
+    card.suit !== "HEARTS" &&
+    card.suit !== "DIAMONDS" &&
+    card.suit !== "CLUBS" &&
+    card.suit !== "SPADES"
+  ) {
+    return null;
+  }
+
+  return {
+    rank: card.rank,
+    suit: card.suit,
+    color:
+      card.suit === "HEARTS" || card.suit === "DIAMONDS" ? "RED" : "BLACK",
+  };
+}
+
+function parseRideTheBusState(
+  raw: string | null,
+  playerIds: string[],
+): RideTheBusState {
+  const fallback = getDefaultRideTheBusState(playerIds);
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<RideTheBusState>;
+    const normalizedOrder = [
+      ...(Array.isArray(parsed.playerOrder)
+        ? parsed.playerOrder.filter((playerId): playerId is string =>
+            playerIds.includes(playerId),
+          )
+        : []),
+      ...playerIds.filter(
+        (playerId) =>
+          !(
+            Array.isArray(parsed.playerOrder) &&
+            parsed.playerOrder.includes(playerId)
+          ),
+      ),
+    ];
+
+    const resetsByPlayerId: Record<string, number> = {};
+    const rawResets =
+      parsed.resetsByPlayerId && typeof parsed.resetsByPlayerId === "object"
+        ? parsed.resetsByPlayerId
+        : {};
+    for (const playerId of normalizedOrder) {
+      const value = (rawResets as Record<string, unknown>)[playerId];
+      resetsByPlayerId[playerId] =
+        typeof value === "number" && Number.isFinite(value) && value >= 0
+          ? Math.floor(value)
+          : 0;
+    }
+
+    const currentPlayerId =
+      typeof parsed.currentPlayerId === "string" &&
+      normalizedOrder.includes(parsed.currentPlayerId)
+        ? parsed.currentPlayerId
+        : normalizedOrder[0] ?? null;
+
+    return {
+      status: parsed.status === "ENDED" ? "ENDED" : "PLAYING",
+      phase:
+        parsed.phase === "BUS" || parsed.phase === "ESCAPED"
+          ? parsed.phase
+          : "MAIN",
+      playerOrder: normalizedOrder,
+      currentPlayerId,
+      activeStep: RIDE_THE_BUS_STEPS.includes(parsed.activeStep as RideTheBusStep)
+        ? (parsed.activeStep as RideTheBusStep)
+        : "COLOR",
+      activeCards: Array.isArray(parsed.activeCards)
+        ? parsed.activeCards
+            .map((card) => parseRideTheBusCard(card))
+            .filter((card): card is RideTheBusCard => card !== null)
+        : [],
+      completedPlayerIds: Array.isArray(parsed.completedPlayerIds)
+        ? parsed.completedPlayerIds.filter((playerId): playerId is string =>
+            normalizedOrder.includes(playerId),
+          )
+        : [],
+      resetsByPlayerId,
+      busRiderPlayerId:
+        typeof parsed.busRiderPlayerId === "string" &&
+        normalizedOrder.includes(parsed.busRiderPlayerId)
+          ? parsed.busRiderPlayerId
+          : null,
+      escapedPlayerId:
+        typeof parsed.escapedPlayerId === "string" &&
+        normalizedOrder.includes(parsed.escapedPlayerId)
+          ? parsed.escapedPlayerId
+          : null,
+      lastResult:
+        parsed.lastResult === "CORRECT" ||
+        parsed.lastResult === "WRONG" ||
+        parsed.lastResult === "COMPLETED_MAIN" ||
+        parsed.lastResult === "BUS_ASSIGNED" ||
+        parsed.lastResult === "ESCAPED"
+          ? parsed.lastResult
+          : null,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function getNextRideTheBusStep(step: RideTheBusStep): RideTheBusStep | null {
+  const index = RIDE_THE_BUS_STEPS.indexOf(step);
+  if (index < 0 || index >= RIDE_THE_BUS_STEPS.length - 1) {
+    return null;
+  }
+  return RIDE_THE_BUS_STEPS[index + 1] ?? null;
+}
+
+function drawRideTheBusCard(): RideTheBusCard {
+  const suit = RIDE_THE_BUS_SUITS[Math.floor(Math.random() * RIDE_THE_BUS_SUITS.length)];
+  const rank = Math.floor(Math.random() * 13) + 1;
+  return {
+    rank,
+    suit,
+    color: suit === "HEARTS" || suit === "DIAMONDS" ? "RED" : "BLACK",
+  };
+}
+
+function getNextRideTheBusMainPlayer(
+  state: RideTheBusState,
+  fromPlayerId: string,
+): string | null {
+  if (state.playerOrder.length === 0) return null;
+  const startIndex = state.playerOrder.indexOf(fromPlayerId);
+  const normalizedStartIndex = startIndex >= 0 ? startIndex : -1;
+
+  for (let step = 1; step <= state.playerOrder.length; step += 1) {
+    const nextIndex = (normalizedStartIndex + step) % state.playerOrder.length;
+    const nextPlayerId = state.playerOrder[nextIndex];
+    if (!state.completedPlayerIds.includes(nextPlayerId)) {
+      return nextPlayerId;
+    }
+  }
+
+  return null;
+}
+
+function chooseRideTheBusRider(state: RideTheBusState): string | null {
+  if (state.playerOrder.length === 0) return null;
+
+  let chosenPlayerId = state.playerOrder[0] ?? null;
+  let highestResets = -1;
+  for (const playerId of state.playerOrder) {
+    const resets = state.resetsByPlayerId[playerId] ?? 0;
+    if (resets > highestResets) {
+      highestResets = resets;
+      chosenPlayerId = playerId;
+    }
+  }
+
+  return chosenPlayerId;
+}
+
 function getNextPlayerWithCards(
   state: JokerLoopState,
   fromPlayerId: string,
@@ -1887,6 +2126,33 @@ async function syncRoomStateAfterPlayerAdded(
       return;
     }
 
+    case "ride-the-bus": {
+      const state = parseRideTheBusState(room.currentAnswer, nextPlayerIds);
+      if (!nextPlayerIds.includes(newPlayer.id)) {
+        return;
+      }
+
+      state.playerOrder = nextPlayerIds;
+      state.resetsByPlayerId[newPlayer.id] = 0;
+      if (state.phase === "MAIN" && !state.completedPlayerIds.includes(newPlayer.id)) {
+        state.completedPlayerIds = state.completedPlayerIds.filter(
+          (playerId) => playerId !== newPlayer.id,
+        );
+      }
+      if (!state.currentPlayerId) {
+        state.currentPlayerId = nextPlayerIds[0] ?? null;
+      }
+
+      await tx.room.update({
+        where: { id: room.id },
+        data: {
+          currentAnswer: JSON.stringify(state),
+          currentPlayerId: state.currentPlayerId,
+        },
+      });
+      return;
+    }
+
     case "guess-the-number": {
       const state = parseGuessTheNumberState(
         room.currentAnswer,
@@ -2428,6 +2694,12 @@ export const gamesRouter = createTRPCRouter({
         ) {
           throw new Error("Guess The Movie requires at least 2 players.");
         }
+        if (
+          input.selectedGame === "ride-the-bus" &&
+          (input.players?.length || 0) < 2
+        ) {
+          throw new Error("Ride the Bus requires at least 2 players.");
+        }
 
         if (input.selectedGame === "triviyay") {
           if (!input.teamsInfo || input.teamsInfo.length < 1) {
@@ -2559,6 +2831,7 @@ export const gamesRouter = createTRPCRouter({
           let currentQuestionId = null;
           let roomCurrentAnswer: string | null = null;
           let jokerLoopCurrentPlayerId: string | null = null;
+          let rideTheBusCurrentPlayerId: string | null = null;
 
           if (input.selectedGame === "truth-or-drink") {
             currentQuestionId =
@@ -2667,6 +2940,12 @@ export const gamesRouter = createTRPCRouter({
               ),
             );
           }
+          if (input.selectedGame === "ride-the-bus") {
+            const playerIds = createdRoom.players.map((player) => player.id);
+            const rideTheBusState = getDefaultRideTheBusState(playerIds);
+            roomCurrentAnswer = JSON.stringify(rideTheBusState);
+            rideTheBusCurrentPlayerId = rideTheBusState.currentPlayerId;
+          }
 
           const createdRoomId = createdRoom.id;
           await prisma.room.update({
@@ -2675,6 +2954,8 @@ export const gamesRouter = createTRPCRouter({
               currentPlayerId:
                 input.selectedGame === "joker-loop"
                   ? jokerLoopCurrentPlayerId
+                  : input.selectedGame === "ride-the-bus"
+                    ? rideTheBusCurrentPlayerId
                   : randomCurrentPlayerId,
               previousPlayersIds: [],
               currentQuestionId: currentQuestionId,
@@ -7708,6 +7989,264 @@ export const gamesRouter = createTRPCRouter({
       return {
         roundNumber: nextState.roundNumber,
       };
+    }),
+
+  rideTheBusGuess: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        guess: z.enum([
+          "RED",
+          "BLACK",
+          "HIGHER",
+          "LOWER",
+          "INSIDE",
+          "OUTSIDE",
+          "HEARTS",
+          "DIAMONDS",
+          "CLUBS",
+          "SPADES",
+        ]),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "ride-the-bus") {
+        throw new Error("This room is not Ride the Bus");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+      if (!room.players.some((player) => player.id === input.playerId)) {
+        throw new Error("Player not found in room");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parseRideTheBusState(room.currentAnswer, playerIds);
+
+      if (state.status !== "PLAYING" || state.phase === "ESCAPED") {
+        throw new Error("Ride the Bus has already ended");
+      }
+      if (!state.currentPlayerId || state.currentPlayerId !== input.playerId) {
+        throw new Error("It is not your turn");
+      }
+
+      const drawnCard = drawRideTheBusCard();
+      let isCorrect = false;
+
+      if (state.activeStep === "COLOR") {
+        isCorrect = input.guess === drawnCard.color;
+      } else if (state.activeStep === "HIGHER_LOWER") {
+        const firstCard = state.activeCards[0];
+        if (!firstCard) {
+          throw new Error("Missing first card");
+        }
+        isCorrect =
+          (input.guess === "HIGHER" && drawnCard.rank > firstCard.rank) ||
+          (input.guess === "LOWER" && drawnCard.rank < firstCard.rank);
+      } else if (state.activeStep === "INSIDE_OUTSIDE") {
+        const firstCard = state.activeCards[0];
+        const secondCard = state.activeCards[1];
+        if (!firstCard || !secondCard) {
+          throw new Error("Missing comparison cards");
+        }
+        const low = Math.min(firstCard.rank, secondCard.rank);
+        const high = Math.max(firstCard.rank, secondCard.rank);
+        isCorrect =
+          (input.guess === "INSIDE" &&
+            drawnCard.rank > low &&
+            drawnCard.rank < high) ||
+          (input.guess === "OUTSIDE" &&
+            (drawnCard.rank < low || drawnCard.rank > high));
+      } else if (state.activeStep === "SUIT") {
+        isCorrect = input.guess === drawnCard.suit;
+      }
+
+      return prisma.$transaction(async (tx) => {
+        const nextState: RideTheBusState = {
+          ...state,
+          activeCards: [...state.activeCards, drawnCard],
+          lastResult: isCorrect ? "CORRECT" : "WRONG",
+          resetsByPlayerId: {
+            ...state.resetsByPlayerId,
+          },
+        };
+
+        if (!isCorrect) {
+          nextState.resetsByPlayerId[input.playerId] =
+            (nextState.resetsByPlayerId[input.playerId] ?? 0) + 1;
+          nextState.activeCards = [];
+          nextState.activeStep = "COLOR";
+
+          await tx.player.update({
+            where: {
+              id: input.playerId,
+            },
+            data: {
+              drinks: {
+                increment: 1,
+              },
+            },
+          });
+
+          await tx.room.update({
+            where: { id: input.roomId },
+            data: {
+              currentAnswer: JSON.stringify(nextState),
+              currentPlayerId: nextState.currentPlayerId,
+            },
+          });
+
+          return {
+            result: "WRONG" as const,
+            phase: nextState.phase,
+            currentPlayerId: nextState.currentPlayerId,
+            activeStep: nextState.activeStep,
+            busRiderPlayerId: nextState.busRiderPlayerId,
+            escapedPlayerId: nextState.escapedPlayerId,
+            drawnCard,
+          };
+        }
+
+        const nextStep = getNextRideTheBusStep(state.activeStep);
+        if (nextStep) {
+          nextState.activeStep = nextStep;
+
+          await tx.room.update({
+            where: { id: input.roomId },
+            data: {
+              currentAnswer: JSON.stringify(nextState),
+              currentPlayerId: nextState.currentPlayerId,
+            },
+          });
+
+          return {
+            result: "CORRECT" as const,
+            phase: nextState.phase,
+            currentPlayerId: nextState.currentPlayerId,
+            activeStep: nextState.activeStep,
+            busRiderPlayerId: nextState.busRiderPlayerId,
+            escapedPlayerId: nextState.escapedPlayerId,
+            drawnCard,
+          };
+        }
+
+        if (state.phase === "BUS") {
+          nextState.phase = "ESCAPED";
+          nextState.status = "ENDED";
+          nextState.escapedPlayerId = input.playerId;
+          nextState.lastResult = "ESCAPED";
+
+          await tx.player.update({
+            where: {
+              id: input.playerId,
+            },
+            data: {
+              points: {
+                increment: 1,
+              },
+            },
+          });
+
+          await tx.room.update({
+            where: { id: input.roomId },
+            data: {
+              gameEnded: true,
+              gameEndedAt: new Date(),
+              currentAnswer: JSON.stringify(nextState),
+              currentPlayerId: input.playerId,
+            },
+          });
+
+          return {
+            result: "ESCAPED" as const,
+            phase: nextState.phase,
+            currentPlayerId: nextState.currentPlayerId,
+            activeStep: nextState.activeStep,
+            busRiderPlayerId: nextState.busRiderPlayerId,
+            escapedPlayerId: nextState.escapedPlayerId,
+            drawnCard,
+          };
+        }
+
+        nextState.completedPlayerIds = Array.from(
+          new Set([...nextState.completedPlayerIds, input.playerId]),
+        );
+        nextState.activeCards = [];
+        nextState.activeStep = "COLOR";
+
+        await tx.player.update({
+          where: {
+            id: input.playerId,
+          },
+          data: {
+            points: {
+              increment: 1,
+            },
+          },
+        });
+
+        const nextMainPlayer = getNextRideTheBusMainPlayer(nextState, input.playerId);
+        if (nextMainPlayer) {
+          nextState.currentPlayerId = nextMainPlayer;
+          nextState.lastResult = "COMPLETED_MAIN";
+
+          await tx.room.update({
+            where: { id: input.roomId },
+            data: {
+              currentAnswer: JSON.stringify(nextState),
+              currentPlayerId: nextMainPlayer,
+            },
+          });
+
+          return {
+            result: "COMPLETED_MAIN" as const,
+            phase: nextState.phase,
+            currentPlayerId: nextState.currentPlayerId,
+            activeStep: nextState.activeStep,
+            busRiderPlayerId: nextState.busRiderPlayerId,
+            escapedPlayerId: nextState.escapedPlayerId,
+            drawnCard,
+          };
+        }
+
+        const busRiderPlayerId = chooseRideTheBusRider(nextState);
+        nextState.phase = "BUS";
+        nextState.busRiderPlayerId = busRiderPlayerId;
+        nextState.currentPlayerId = busRiderPlayerId;
+        nextState.lastResult = "BUS_ASSIGNED";
+
+        await tx.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentAnswer: JSON.stringify(nextState),
+            currentPlayerId: busRiderPlayerId,
+          },
+        });
+
+        return {
+          result: "BUS_ASSIGNED" as const,
+          phase: nextState.phase,
+          currentPlayerId: nextState.currentPlayerId,
+          activeStep: nextState.activeStep,
+          busRiderPlayerId: nextState.busRiderPlayerId,
+          escapedPlayerId: nextState.escapedPlayerId,
+          drawnCard,
+        };
+      });
     }),
 
   whoAmIWinRound: baseProcedure

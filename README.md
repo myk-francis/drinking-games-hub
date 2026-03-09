@@ -41,12 +41,13 @@ The current app UI and server logic support these game modes:
 - Who Am I
 - Name The Song
 - Guess The Movie
+- Ride the Bus
 
 ## Game Types In The Project
 
 - Prompt deck games: `Never Have I Ever`, `Truth or Drink`, `Most Likely`, `Paranoia`, `Would You Rather`, `Truth or Lie`
 - Word and speaking games: `Rhyme Time`, `Verbal Charades`, `Taboo Lite`, `Story Building`, `Connect the Letters`, `Ghost Tears`
-- Card and deck games: `Pick a Card`, `Kings Cup`, `Joker Loop`
+- Card and deck games: `Pick a Card`, `Kings Cup`, `Joker Loop`, `Ride the Bus`
 - Hidden-role and identity games: `Imposter`, `Codenames`, `Who Am I`
 - Score and challenge games: `TriviYay`, `Higher or Lower`, `Guess The Number`, `Memory Chain`, `Name The Song`, `Guess The Movie`
 - Custom house-party modes: `Catherine's Special`

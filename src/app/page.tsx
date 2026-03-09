@@ -28,6 +28,7 @@ import {
   Type,
   Ghost,
   Film,
+  Bus,
 } from "lucide-react";
 import React from "react";
 import { useTRPC } from "@/trpc/client";
@@ -244,6 +245,8 @@ export default function HomePage() {
       return <Mic className="w-6 h-6" />;
     } else if (gamecode === "guess-the-movie") {
       return <Film className="w-6 h-6" />;
+    } else if (gamecode === "ride-the-bus") {
+      return <Bus className="w-6 h-6" />;
     } else {
       return <Gamepad2 className="w-6 h-6" />;
     }
@@ -300,6 +303,8 @@ export default function HomePage() {
       return "from-fuchsia-600 to-pink-700";
     } else if (gamecode === "guess-the-movie") {
       return "from-amber-500 to-red-700";
+    } else if (gamecode === "ride-the-bus") {
+      return "from-cyan-600 to-blue-800";
     } else {
       return "from-teal-500 to-cyan-500";
     }
@@ -779,6 +784,8 @@ export default function HomePage() {
                       (selectedGame === "name-the-song" &&
                         players.length < 2) ||
                       (selectedGame === "guess-the-movie" &&
+                        players.length < 2) ||
+                      (selectedGame === "ride-the-bus" &&
                         players.length < 2) ||
                       (selectedGame === "triviyay" && teams.length > 2)
                     }
