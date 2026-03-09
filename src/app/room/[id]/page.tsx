@@ -8,6 +8,8 @@ import {
   Star,
   Trophy,
   ArrowLeft,
+  Film,
+  Bus,
 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useTRPC } from "@/trpc/client";
@@ -146,6 +148,48 @@ type NameTheSongRoomState = {
   pointPlayerIds: string[];
   drinkPlayerIds: string[];
 };
+type GuessTheMovieVerdict = "CORRECT" | "WRONG";
+type GuessTheMovieRoomState = {
+  status: "READY" | "BUZZED" | "ROUND_RESULT";
+  roundNumber: number;
+  currentQuestionId: number | null;
+  usedQuestionIds: number[];
+  buzzedPlayerId: string | null;
+  attemptStartedAt: string | null;
+  verdict: GuessTheMovieVerdict | null;
+  pointPlayerIds: string[];
+  drinkPlayerIds: string[];
+  selectedCategory: number;
+};
+type RideTheBusSuit = "HEARTS" | "DIAMONDS" | "CLUBS" | "SPADES";
+type RideTheBusColor = "RED" | "BLACK";
+type RideTheBusStep = "COLOR" | "HIGHER_LOWER" | "INSIDE_OUTSIDE" | "SUIT";
+type RideTheBusPhase = "MAIN" | "BUS" | "ESCAPED";
+type RideTheBusCard = {
+  rank: number;
+  suit: RideTheBusSuit;
+  color: RideTheBusColor;
+};
+type RideTheBusLastResult =
+  | "CORRECT"
+  | "WRONG"
+  | "COMPLETED_MAIN"
+  | "BUS_ASSIGNED"
+  | "ESCAPED"
+  | null;
+type RideTheBusRoomState = {
+  status: "PLAYING" | "ENDED";
+  phase: RideTheBusPhase;
+  playerOrder: string[];
+  currentPlayerId: string | null;
+  activeStep: RideTheBusStep;
+  activeCards: RideTheBusCard[];
+  completedPlayerIds: string[];
+  resetsByPlayerId: Record<string, number>;
+  busRiderPlayerId: string | null;
+  escapedPlayerId: string | null;
+  lastResult: RideTheBusLastResult;
+};
 type WhoAmINote = {
   id: string;
   text: string;
@@ -248,6 +292,7 @@ const animations = [
   },
 ];
 const NAME_THE_SONG_TIMER_SECONDS = 30;
+const GUESS_THE_MOVIE_TIMER_SECONDS = 30;
 
 function GameComments({ comments }: GameCommentsProps) {
   if (!comments?.length) return null;
@@ -1107,6 +1152,176 @@ function parseNameTheSongState(
   }
 }
 
+function parseGuessTheMovieState(
+  raw: string | null | undefined,
+): GuessTheMovieRoomState {
+  const fallback: GuessTheMovieRoomState = {
+    status: "READY",
+    roundNumber: 1,
+    currentQuestionId: null,
+    usedQuestionIds: [],
+    buzzedPlayerId: null,
+    attemptStartedAt: null,
+    verdict: null,
+    pointPlayerIds: [],
+    drinkPlayerIds: [],
+    selectedCategory: 0,
+  };
+
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<GuessTheMovieRoomState>;
+    return {
+      status:
+        parsed.status === "BUZZED" || parsed.status === "ROUND_RESULT"
+          ? parsed.status
+          : "READY",
+      roundNumber:
+        typeof parsed.roundNumber === "number" &&
+        Number.isFinite(parsed.roundNumber) &&
+        parsed.roundNumber > 0
+          ? parsed.roundNumber
+          : 1,
+      currentQuestionId:
+        typeof parsed.currentQuestionId === "number"
+          ? parsed.currentQuestionId
+          : null,
+      usedQuestionIds: Array.isArray(parsed.usedQuestionIds)
+        ? parsed.usedQuestionIds.filter(
+            (questionId): questionId is number => typeof questionId === "number",
+          )
+        : [],
+      buzzedPlayerId:
+        typeof parsed.buzzedPlayerId === "string"
+          ? parsed.buzzedPlayerId
+          : null,
+      attemptStartedAt:
+        typeof parsed.attemptStartedAt === "string"
+          ? parsed.attemptStartedAt
+          : null,
+      verdict:
+        parsed.verdict === "CORRECT" || parsed.verdict === "WRONG"
+          ? parsed.verdict
+          : null,
+      pointPlayerIds: Array.isArray(parsed.pointPlayerIds)
+        ? parsed.pointPlayerIds.filter(
+            (playerId): playerId is string => typeof playerId === "string",
+          )
+        : [],
+      drinkPlayerIds: Array.isArray(parsed.drinkPlayerIds)
+        ? parsed.drinkPlayerIds.filter(
+            (playerId): playerId is string => typeof playerId === "string",
+          )
+        : [],
+      selectedCategory:
+        typeof parsed.selectedCategory === "number" &&
+        Number.isFinite(parsed.selectedCategory)
+          ? parsed.selectedCategory
+          : 0,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function parseRideTheBusState(
+  raw: string | null | undefined,
+): RideTheBusRoomState {
+  const fallback: RideTheBusRoomState = {
+    status: "PLAYING",
+    phase: "MAIN",
+    playerOrder: [],
+    currentPlayerId: null,
+    activeStep: "COLOR",
+    activeCards: [],
+    completedPlayerIds: [],
+    resetsByPlayerId: {},
+    busRiderPlayerId: null,
+    escapedPlayerId: null,
+    lastResult: null,
+  };
+
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<RideTheBusRoomState>;
+    const activeCards = Array.isArray(parsed.activeCards)
+      ? parsed.activeCards
+          .filter(
+            (card): card is RideTheBusCard =>
+              Boolean(card) &&
+              typeof card === "object" &&
+              typeof card.rank === "number" &&
+              (card.suit === "HEARTS" ||
+                card.suit === "DIAMONDS" ||
+                card.suit === "CLUBS" ||
+                card.suit === "SPADES") &&
+              (card.color === "RED" || card.color === "BLACK"),
+          )
+          .map((card) => ({
+            rank: card.rank,
+            suit: card.suit,
+            color: card.color,
+          }))
+      : [];
+
+    return {
+      status: parsed.status === "ENDED" ? "ENDED" : "PLAYING",
+      phase:
+        parsed.phase === "BUS" || parsed.phase === "ESCAPED"
+          ? parsed.phase
+          : "MAIN",
+      playerOrder: Array.isArray(parsed.playerOrder)
+        ? parsed.playerOrder.filter(
+            (playerId): playerId is string => typeof playerId === "string",
+          )
+        : [],
+      currentPlayerId:
+        typeof parsed.currentPlayerId === "string" ? parsed.currentPlayerId : null,
+      activeStep:
+        parsed.activeStep === "HIGHER_LOWER" ||
+        parsed.activeStep === "INSIDE_OUTSIDE" ||
+        parsed.activeStep === "SUIT"
+          ? parsed.activeStep
+          : "COLOR",
+      activeCards,
+      completedPlayerIds: Array.isArray(parsed.completedPlayerIds)
+        ? parsed.completedPlayerIds.filter(
+            (playerId): playerId is string => typeof playerId === "string",
+          )
+        : [],
+      resetsByPlayerId:
+        parsed.resetsByPlayerId && typeof parsed.resetsByPlayerId === "object"
+          ? Object.fromEntries(
+              Object.entries(parsed.resetsByPlayerId).map(([playerId, value]) => [
+                playerId,
+                typeof value === "number" && Number.isFinite(value) ? value : 0,
+              ]),
+            )
+          : {},
+      busRiderPlayerId:
+        typeof parsed.busRiderPlayerId === "string"
+          ? parsed.busRiderPlayerId
+          : null,
+      escapedPlayerId:
+        typeof parsed.escapedPlayerId === "string"
+          ? parsed.escapedPlayerId
+          : null,
+      lastResult:
+        parsed.lastResult === "CORRECT" ||
+        parsed.lastResult === "WRONG" ||
+        parsed.lastResult === "COMPLETED_MAIN" ||
+        parsed.lastResult === "BUS_ASSIGNED" ||
+        parsed.lastResult === "ESCAPED"
+          ? parsed.lastResult
+          : null,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 function removeVowels(value: string): string {
   return value.replace(/[aeiou]/gi, "");
 }
@@ -1117,6 +1332,35 @@ function parseNameTheSongPrompt(raw: string | undefined) {
     title: rawTitle.trim(),
     artist: rawArtist.trim(),
   };
+}
+
+function getMovieCategoryLabel(edition: number | null | undefined): string {
+  if (edition === 1) return "Action & Adventure";
+  if (edition === 2) return "Comedy";
+  if (edition === 3) return "Animation & Family";
+  if (edition === 4) return "Horror & Thriller";
+  return "All Movies";
+}
+
+function getRideTheBusStepLabel(step: RideTheBusStep): string {
+  if (step === "COLOR") return "Step 1: Red or Black";
+  if (step === "HIGHER_LOWER") return "Step 2: Higher or Lower";
+  if (step === "INSIDE_OUTSIDE") return "Step 3: Inside or Outside";
+  return "Step 4: Suit";
+}
+
+function getRideTheBusCardLabel(card: RideTheBusCard): string {
+  const rankLabel =
+    card.rank === 1
+      ? "A"
+      : card.rank === 11
+        ? "J"
+        : card.rank === 12
+          ? "Q"
+          : card.rank === 13
+            ? "K"
+            : String(card.rank);
+  return `${rankLabel} of ${card.suit}`;
 }
 
 function parseJokerLoopState(raw: string | null | undefined): JokerLoopRoomState {
@@ -1906,6 +2150,86 @@ export default function RoomPage() {
       },
     }),
   );
+  const guessTheMovieBuzz = useMutation(
+    trpc.games.guessTheMovieBuzz.mutationOptions({
+      onSuccess: (data) => {
+        const playerName =
+          players.find((player) => player.id === data.buzzedPlayerId)?.name ||
+          "Player";
+        toast.success(`${playerName} buzzed first. ${data.timerSeconds} seconds started.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not buzz in.");
+      },
+    }),
+  );
+  const guessTheMovieJudge = useMutation(
+    trpc.games.guessTheMovieJudge.mutationOptions({
+      onSuccess: (data) => {
+        if (data.verdict === "CORRECT") {
+          const winnerName =
+            players.find((player) => player.id === data.pointPlayerIds[0])?.name ||
+            "Player";
+          toast.success(`${winnerName} gets +1 point. Everyone else drinks +1.`);
+          return;
+        }
+
+        const loserName =
+          players.find((player) => player.id === data.drinkPlayerIds[0])?.name ||
+          "Player";
+        toast.success(`${loserName} drinks +1. Everyone else gets +1 point.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not resolve the round.");
+      },
+    }),
+  );
+  const guessTheMovieNextRound = useMutation(
+    trpc.games.guessTheMovieNextRound.mutationOptions({
+      onSuccess: (data) => {
+        toast.success(`Round ${data.roundNumber} is ready.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not move to the next movie.");
+      },
+    }),
+  );
+  const rideTheBusGuess = useMutation(
+    trpc.games.rideTheBusGuess.mutationOptions({
+      onSuccess: (data) => {
+        const playerName =
+          players.find((player) => player.id === data.currentPlayerId)?.name ||
+          players.find((player) => player.id === actualPlayer)?.name ||
+          "Player";
+        if (data.result === "WRONG") {
+          toast.error(`${playerName} guessed wrong and restarts from step 1.`);
+          return;
+        }
+        if (data.result === "COMPLETED_MAIN") {
+          toast.success(`${playerName} cleared the ladder and is safe for now.`);
+          return;
+        }
+        if (data.result === "BUS_ASSIGNED") {
+          const riderName =
+            players.find((player) => player.id === data.busRiderPlayerId)?.name ||
+            "Player";
+          toast.success(`${riderName} is riding the bus.`);
+          return;
+        }
+        if (data.result === "ESCAPED") {
+          const escapedName =
+            players.find((player) => player.id === data.escapedPlayerId)?.name ||
+            "Player";
+          toast.success(`${escapedName} escaped the bus.`);
+          return;
+        }
+        toast.success("Correct guess.");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not submit guess.");
+      },
+    }),
+  );
   const jokerLoopReorderCard = useMutation(
     trpc.games.jokerLoopReorderCard.mutationOptions({
       onError: (error) => {
@@ -1998,6 +2322,9 @@ export default function RoomPage() {
     number | null
   >(null);
   const [nameTheSongTimerNow, setNameTheSongTimerNow] = React.useState(
+    Date.now(),
+  );
+  const [guessTheMovieTimerNow, setGuessTheMovieTimerNow] = React.useState(
     Date.now(),
   );
   const [connectLettersTimerNow, setConnectLettersTimerNow] = React.useState(
@@ -2127,6 +2454,12 @@ export default function RoomPage() {
   const nameTheSongState = React.useMemo(() => {
     return parseNameTheSongState(room?.currentAnswer);
   }, [room?.currentAnswer]);
+  const guessTheMovieState = React.useMemo(() => {
+    return parseGuessTheMovieState(room?.currentAnswer);
+  }, [room?.currentAnswer]);
+  const rideTheBusState = React.useMemo(() => {
+    return parseRideTheBusState(room?.currentAnswer);
+  }, [room?.currentAnswer]);
   const whoAmIState = React.useMemo(() => {
     return parseWhoAmIState(room?.currentAnswer);
   }, [room?.currentAnswer]);
@@ -2145,6 +2478,17 @@ export default function RoomPage() {
       ) || null
     );
   }, [game?.questions, nameTheSongState.currentQuestionId]);
+  const guessTheMovieQuestion = React.useMemo(() => {
+    if (!game?.questions || !guessTheMovieState.currentQuestionId) {
+      return null;
+    }
+
+    return (
+      game.questions.find(
+        (question) => question.id === guessTheMovieState.currentQuestionId,
+      ) || null
+    );
+  }, [game?.questions, guessTheMovieState.currentQuestionId]);
 
   const whoAmICards = React.useMemo(() => {
     if (!game?.questions) return [];
@@ -2839,6 +3183,31 @@ export default function RoomPage() {
     selectedGame,
   ]);
 
+  const guessTheMovieSecondsLeft = React.useMemo(() => {
+    if (selectedGame !== "guess-the-movie") {
+      return GUESS_THE_MOVIE_TIMER_SECONDS;
+    }
+    if (
+      guessTheMovieState.status !== "BUZZED" ||
+      !guessTheMovieState.attemptStartedAt
+    ) {
+      return GUESS_THE_MOVIE_TIMER_SECONDS;
+    }
+
+    const startedAt = new Date(guessTheMovieState.attemptStartedAt).getTime();
+    if (!Number.isFinite(startedAt)) {
+      return GUESS_THE_MOVIE_TIMER_SECONDS;
+    }
+
+    const elapsedSeconds = Math.floor((guessTheMovieTimerNow - startedAt) / 1000);
+    return Math.max(GUESS_THE_MOVIE_TIMER_SECONDS - elapsedSeconds, 0);
+  }, [
+    guessTheMovieState.attemptStartedAt,
+    guessTheMovieState.status,
+    guessTheMovieTimerNow,
+    selectedGame,
+  ]);
+
   React.useEffect(() => {
     if (selectedGame !== "name-the-song") {
       return;
@@ -2855,6 +3224,23 @@ export default function RoomPage() {
       clearInterval(interval);
     };
   }, [nameTheSongState.status, selectedGame]);
+
+  React.useEffect(() => {
+    if (selectedGame !== "guess-the-movie") {
+      return;
+    }
+    if (guessTheMovieState.status !== "BUZZED") {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setGuessTheMovieTimerNow(Date.now());
+    }, 250);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [guessTheMovieState.status, selectedGame]);
 
   const connectLettersSecondsLeft = React.useMemo(() => {
     if (selectedGame !== "connect-the-letters") {
@@ -5781,6 +6167,477 @@ export default function RoomPage() {
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        case "ride-the-bus": {
+          const busRiderName = rideTheBusState.busRiderPlayerId
+            ? players.find((player) => player.id === rideTheBusState.busRiderPlayerId)
+                ?.name || "Player"
+            : "";
+          const escapedName = rideTheBusState.escapedPlayerId
+            ? players.find((player) => player.id === rideTheBusState.escapedPlayerId)
+                ?.name || "Player"
+            : "";
+          const isMyTurn = actualPlayer === rideTheBusState.currentPlayerId;
+          const guessOptions =
+            rideTheBusState.activeStep === "COLOR"
+              ? ([
+                  { value: "RED", label: "Red" },
+                  { value: "BLACK", label: "Black" },
+                ] as const)
+              : rideTheBusState.activeStep === "HIGHER_LOWER"
+                ? ([
+                    { value: "HIGHER", label: "Higher" },
+                    { value: "LOWER", label: "Lower" },
+                  ] as const)
+                : rideTheBusState.activeStep === "INSIDE_OUTSIDE"
+                  ? ([
+                      { value: "INSIDE", label: "Inside" },
+                      { value: "OUTSIDE", label: "Outside" },
+                    ] as const)
+                  : ([
+                      { value: "HEARTS", label: "Hearts" },
+                      { value: "DIAMONDS", label: "Diamonds" },
+                      { value: "CLUBS", label: "Clubs" },
+                      { value: "SPADES", label: "Spades" },
+                    ] as const);
+          const currentTurnName = rideTheBusState.currentPlayerId
+            ? players.find((player) => player.id === rideTheBusState.currentPlayerId)
+                ?.name || "Player"
+            : "Player";
+
+          return (
+            <div className="w-full">
+              <div className="mb-6 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary">Ride the Bus</Badge>
+                  <Badge variant="outline">Phase: {rideTheBusState.phase}</Badge>
+                  <Badge className="bg-cyan-700">
+                    {getRideTheBusStepLabel(rideTheBusState.activeStep)}
+                  </Badge>
+                  {busRiderName && (
+                    <Badge className="bg-amber-600">Bus Rider: {busRiderName}</Badge>
+                  )}
+                  {escapedName && (
+                    <Badge className="bg-emerald-600">Escaped: {escapedName}</Badge>
+                  )}
+                </div>
+                <p className="mt-3 text-sm sm:text-base text-white/90">
+                  Clear the four-step ladder. Any wrong guess gives you +1 drink
+                  and sends you back to step 1. After everyone clears the ladder,
+                  the player with the most resets rides the bus.
+                </p>
+              </div>
+
+              <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.3fr_1fr]">
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <p className="text-sm text-cyan-200">
+                      Current turn: {currentTurnName}
+                    </p>
+                    <p className="mt-2 text-xl font-semibold text-white">
+                      {getRideTheBusStepLabel(rideTheBusState.activeStep)}
+                    </p>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-4">
+                      {["COLOR", "HIGHER_LOWER", "INSIDE_OUTSIDE", "SUIT"].map(
+                        (step, index) => {
+                          const isComplete = index < rideTheBusState.activeCards.length;
+                          const isActive = step === rideTheBusState.activeStep;
+                          return (
+                            <div
+                              key={step}
+                              className={`rounded-lg border p-3 text-center ${
+                                isComplete
+                                  ? "border-emerald-300/30 bg-emerald-500/10"
+                                  : isActive
+                                    ? "border-cyan-300/30 bg-cyan-500/10"
+                                    : "border-white/10 bg-black/20"
+                              }`}
+                            >
+                              <p className="text-xs uppercase tracking-[0.2em] text-white/50">
+                                Step {index + 1}
+                              </p>
+                              <p className="mt-2 text-sm text-white">
+                                {step === "COLOR"
+                                  ? "Color"
+                                  : step === "HIGHER_LOWER"
+                                    ? "High / Low"
+                                    : step === "INSIDE_OUTSIDE"
+                                      ? "Inside / Outside"
+                                      : "Suit"}
+                              </p>
+                            </div>
+                          );
+                        },
+                      )}
+                    </div>
+
+                    <div className="mt-4 rounded-xl border border-dashed border-cyan-300/30 bg-black/20 p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-white/45">
+                        Current run cards
+                      </p>
+                      {rideTheBusState.activeCards.length === 0 ? (
+                        <p className="mt-3 text-sm text-white/70">
+                          No cards yet. A wrong guess clears this row and restarts
+                          the run.
+                        </p>
+                      ) : (
+                        <div className="mt-3 grid gap-3 sm:grid-cols-4">
+                          {rideTheBusState.activeCards.map((card, index) => (
+                            <div
+                              key={`${card.rank}-${card.suit}-${index}`}
+                              className="rounded-lg border border-white/10 bg-white/5 p-3 text-center"
+                            >
+                              <p className="text-xs uppercase tracking-[0.2em] text-white/45">
+                                Card {index + 1}
+                              </p>
+                              <p className="mt-2 font-semibold text-white">
+                                {getRideTheBusCardLabel(card)}
+                              </p>
+                              <p className="mt-1 text-xs text-white/60">
+                                {card.color}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      {guessOptions.map((option) => (
+                        <Button
+                          key={option.value}
+                          className="bg-cyan-600 hover:bg-cyan-700"
+                          onClick={() =>
+                            rideTheBusGuess.mutate({
+                              roomId: room?.id || "",
+                              playerId: actualPlayer || "",
+                              guess: option.value,
+                            })
+                          }
+                          disabled={!isMyTurn || !actualPlayer || rideTheBusGuess.isPending}
+                        >
+                          {option.label}
+                        </Button>
+                      ))}
+                    </div>
+                    {!actualPlayer && (
+                      <p className="mt-3 text-sm text-amber-200">
+                        Select your player first.
+                      </p>
+                    )}
+                    {actualPlayer && !isMyTurn && (
+                      <p className="mt-3 text-sm text-white/70">
+                        Waiting for {currentTurnName} to make a guess.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <h3 className="text-lg font-semibold">Reset Board</h3>
+                    <div className="mt-3 space-y-2">
+                      {rideTheBusState.playerOrder.map((playerId) => {
+                        const player = players.find((entry) => entry.id === playerId);
+                        if (!player) return null;
+                        const completed = rideTheBusState.completedPlayerIds.includes(
+                          playerId,
+                        );
+                        const isRider = rideTheBusState.busRiderPlayerId === playerId;
+                        return (
+                          <div
+                            key={playerId}
+                            className="rounded-lg border border-white/10 bg-black/20 p-3"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-medium text-white">{player.name}</p>
+                              <div className="flex items-center gap-2">
+                                {completed && (
+                                  <Badge className="bg-emerald-600">Cleared</Badge>
+                                )}
+                                {isRider && (
+                                  <Badge className="bg-amber-600">Bus Rider</Badge>
+                                )}
+                              </div>
+                            </div>
+                            <p className="mt-2 text-sm text-white/75">
+                              Resets: {rideTheBusState.resetsByPlayerId[playerId] ?? 0}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <h3 className="text-lg font-semibold">Rules</h3>
+                    <p className="mt-2 text-sm text-white/85">
+                      Step 1 guess red or black, step 2 higher or lower than the
+                      first card, step 3 inside or outside the first two cards,
+                      and step 4 guess the exact suit.
+                    </p>
+                    <p className="mt-2 text-sm text-white/85">
+                      Any miss gives +1 drink and resets the run to the beginning.
+                      After everyone clears the ladder, the highest-reset player
+                      rides the bus until they finish a perfect run.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        case "guess-the-movie": {
+          const buzzedPlayerName = guessTheMovieState.buzzedPlayerId
+            ? players.find((player) => player.id === guessTheMovieState.buzzedPlayerId)
+                ?.name || "Player"
+            : "Player";
+          const isBuzzedPlayer = actualPlayer === guessTheMovieState.buzzedPlayerId;
+          const isAnswerVisibleToViewer =
+            guessTheMovieState.status === "ROUND_RESULT" ||
+            (guessTheMovieState.status === "BUZZED" && !isBuzzedPlayer) ||
+            (guessTheMovieState.status === "BUZZED" && guessTheMovieSecondsLeft === 0);
+          const pointPlayerNames = players
+            .filter((player) => guessTheMovieState.pointPlayerIds.includes(player.id))
+            .map((player) => player.name);
+          const drinkPlayerNames = players
+            .filter((player) => guessTheMovieState.drinkPlayerIds.includes(player.id))
+            .map((player) => player.name);
+          const selectedCategoryLabel = getMovieCategoryLabel(
+            guessTheMovieState.selectedCategory,
+          );
+          const movieQuestionCategory = getMovieCategoryLabel(
+            guessTheMovieQuestion?.edition,
+          );
+
+          return (
+            <div className="w-full">
+              <div className="mb-6 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary">
+                    Round {guessTheMovieState.roundNumber}
+                  </Badge>
+                  <Badge variant="outline">
+                    Status: {guessTheMovieState.status.replaceAll("_", " ")}
+                  </Badge>
+                  <Badge className="bg-amber-600">{selectedCategoryLabel}</Badge>
+                  {guessTheMovieState.buzzedPlayerId && (
+                    <Badge className="bg-rose-600">
+                      Buzzed: {buzzedPlayerName}
+                    </Badge>
+                  )}
+                </div>
+                <p className="mt-3 text-sm sm:text-base text-white/90">
+                  First player to buzz gets 30 seconds. Everyone except the
+                  buzzing player can see the movie answer immediately.
+                </p>
+              </div>
+
+              <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.35fr_1fr]">
+                <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                  <p className="text-xs uppercase tracking-[0.25em] text-white/50">
+                    Movie clue
+                  </p>
+                  <div className="mt-4 rounded-2xl border border-dashed border-amber-300/40 bg-black/20 px-4 py-8">
+                    <div className="flex items-start gap-3">
+                      <Film className="mt-1 h-6 w-6 shrink-0 text-amber-200" />
+                      <p className="text-lg font-semibold leading-relaxed text-amber-50 sm:text-xl">
+                        {guessTheMovieQuestion?.text || "Loading clue..."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
+                    <p className="text-xs uppercase tracking-[0.2em] text-white/45">
+                      Question category
+                    </p>
+                    <p className="mt-2 text-sm text-white/85">
+                      {movieQuestionCategory}
+                    </p>
+                  </div>
+
+                  {isAnswerVisibleToViewer && (
+                    <div className="mt-4 rounded-xl border border-emerald-300/30 bg-emerald-500/10 p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-emerald-100/70">
+                        Movie answer
+                      </p>
+                      <p className="mt-2 text-2xl font-bold text-emerald-100">
+                        {guessTheMovieQuestion?.answer || "Unknown movie"}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    {guessTheMovieState.status === "READY" && (
+                      <>
+                        <p className="text-sm text-white/85">
+                          Buzz first if you know the movie.
+                        </p>
+                        <Button
+                          className="mt-4 w-full bg-amber-600 hover:bg-amber-700"
+                          onClick={() =>
+                            guessTheMovieBuzz.mutate({
+                              roomId: room?.id || "",
+                              playerId: actualPlayer || "",
+                            })
+                          }
+                          disabled={
+                            !actualPlayer ||
+                            !guessTheMovieQuestion ||
+                            guessTheMovieBuzz.isPending
+                          }
+                        >
+                          I Know the Movie
+                        </Button>
+                        {!actualPlayer && (
+                          <p className="mt-3 text-sm text-amber-200">
+                            Select your player first.
+                          </p>
+                        )}
+                      </>
+                    )}
+
+                    {guessTheMovieState.status === "BUZZED" && (
+                      <>
+                        <p className="text-sm text-white/85">
+                          {buzzedPlayerName} is answering now.
+                        </p>
+                        <div className="mt-4 text-center">
+                          <div className="text-5xl font-black text-amber-200">
+                            {guessTheMovieSecondsLeft}s
+                          </div>
+                          <p className="mt-2 text-sm text-white/70">
+                            The buzzing player confirms right or wrong after the
+                            timer ends.
+                          </p>
+                        </div>
+
+                        {guessTheMovieSecondsLeft === 0 ? (
+                          isBuzzedPlayer ? (
+                            <div className="mt-4 flex gap-3">
+                              <Button
+                                className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                                onClick={() =>
+                                  guessTheMovieJudge.mutate({
+                                    roomId: room?.id || "",
+                                    playerId: actualPlayer || "",
+                                    verdict: "CORRECT",
+                                  })
+                                }
+                                disabled={guessTheMovieJudge.isPending}
+                              >
+                                Correct
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                className="flex-1"
+                                onClick={() =>
+                                  guessTheMovieJudge.mutate({
+                                    roomId: room?.id || "",
+                                    playerId: actualPlayer || "",
+                                    verdict: "WRONG",
+                                  })
+                                }
+                                disabled={guessTheMovieJudge.isPending}
+                              >
+                                Wrong
+                              </Button>
+                            </div>
+                          ) : (
+                            <p className="mt-4 text-sm text-white/75">
+                              Waiting for {buzzedPlayerName} to confirm whether
+                              they were right.
+                            </p>
+                          )
+                        ) : (
+                          <p className="mt-4 text-sm text-white/75">
+                            {isBuzzedPlayer
+                              ? "Everyone else can see the answer. Use the clue and say your answer out loud before time runs out."
+                              : `You can already see the answer while ${buzzedPlayerName} thinks.`}
+                          </p>
+                        )}
+                      </>
+                    )}
+
+                    {guessTheMovieState.status === "ROUND_RESULT" && (
+                      <>
+                        <p className="text-sm text-white/85">
+                          {guessTheMovieState.verdict === "CORRECT"
+                            ? `${buzzedPlayerName} got it right.`
+                            : `${buzzedPlayerName} got it wrong.`}
+                        </p>
+                        <div className="mt-4 space-y-3">
+                          <div className="rounded-lg border border-emerald-300/25 bg-emerald-500/10 p-3">
+                            <p className="text-xs uppercase tracking-[0.2em] text-emerald-100/70">
+                              Points +1
+                            </p>
+                            <p className="mt-1 text-sm text-emerald-100">
+                              {pointPlayerNames.join(", ") || "None"}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-amber-300/25 bg-amber-500/10 p-3">
+                            <p className="text-xs uppercase tracking-[0.2em] text-amber-100/70">
+                              Drinks +1
+                            </p>
+                            <p className="mt-1 text-sm text-amber-100">
+                              {drinkPlayerNames.join(", ") || "None"}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          className="mt-4 w-full bg-sky-600 hover:bg-sky-700"
+                          onClick={() =>
+                            guessTheMovieNextRound.mutate({
+                              roomId: room?.id || "",
+                              playerId: actualPlayer || "",
+                            })
+                          }
+                          disabled={!actualPlayer || guessTheMovieNextRound.isPending}
+                        >
+                          Next Movie
+                        </Button>
+                      </>
+                    )}
+
+                    <Button
+                      variant="outline"
+                      className="mt-4 w-full border-white/15 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                      onClick={() =>
+                        guessTheMovieNextRound.mutate({
+                          roomId: room?.id || "",
+                          playerId: actualPlayer || "",
+                        })
+                      }
+                      disabled={!actualPlayer || guessTheMovieNextRound.isPending}
+                    >
+                      Skip Movie
+                    </Button>
+                    {!actualPlayer && (
+                      <p className="mt-3 text-sm text-amber-200">
+                        Select your player first.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <h3 className="text-lg font-semibold">Scoring</h3>
+                    <p className="mt-2 text-sm text-white/85">
+                      On correct: the buzzing player gets +1 point and everyone
+                      else gets +1 drink.
+                    </p>
+                    <p className="mt-2 text-sm text-white/85">
+                      On wrong: the buzzing player gets +1 drink and everyone
+                      else gets +1 point.
+                    </p>
                   </div>
                 </div>
               </div>
