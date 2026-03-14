@@ -6409,90 +6409,88 @@ export const gamesRouter = createTRPCRouter({
       if (!challengerPlayerId || !guesserPlayerId) {
         throw new Error("Round state is invalid");
       }
-
-      if (input.verdict === "RIGHT") {
-        state.phase = "ROUND_COMPLETE";
-        state.roundWinnerPlayerId = guesserPlayerId;
-        state.roundLoserPlayerId = challengerPlayerId;
-        state.attemptStartedAt = null;
-
-        await prisma.$transaction(async (tx) => {
-          await tx.player.updateMany({
-            where: {
-              id: guesserPlayerId,
-              points: null,
-            },
-            data: {
-              points: 0,
-            },
-          });
-          await tx.player.updateMany({
-            where: {
-              id: challengerPlayerId,
-              drinks: null,
-            },
-            data: {
-              drinks: 0,
-            },
-          });
-
-          await tx.player.update({
-            where: {
-              id: guesserPlayerId,
-            },
-            data: {
-              points: {
-                increment: 1,
-              },
-            },
-          });
-
-          await tx.player.update({
-            where: {
-              id: challengerPlayerId,
-            },
-            data: {
-              drinks: {
-                increment: 1,
-              },
-            },
-          });
-
-          await tx.room.update({
-            where: { id: input.roomId },
-            data: {
-              currentPlayerId: guesserPlayerId,
-              currentAnswer: JSON.stringify(state),
-            },
-          });
-        });
-
-        return {
-          phase: state.phase,
-          winnerPlayerId: guesserPlayerId,
-          loserPlayerId: challengerPlayerId,
-        };
+      const pointPlayerId =
+        input.verdict === "RIGHT" ? guesserPlayerId : challengerPlayerId;
+      const drinkPlayerId =
+        input.verdict === "RIGHT" ? challengerPlayerId : guesserPlayerId;
+      const nextPair = pickNextConnectLettersPair(playerIds, state.usedPairKeys);
+      if (!nextPair) {
+        throw new Error("No player pair available");
       }
+      const nextLetters = pickNextConnectLettersRange(state.usedLetterKeys);
 
-      state.phase = "TIMER_RUNNING";
-      state.activeChallengerId = guesserPlayerId;
-      state.activeGuesserId = challengerPlayerId;
-      state.attemptStartedAt = new Date().toISOString();
+      state.status = "PLAYING";
+      state.currentPair = nextPair.pair;
+      state.usedPairKeys = nextPair.nextUsedPairKeys;
+      state.usedLetterKeys = nextLetters.nextUsedLetterKeys;
+      state.roundNumber = state.roundNumber + 1;
+      state.phase = "READY";
+      state.startLetter = nextLetters.range.startLetter;
+      state.endLetter = nextLetters.range.endLetter;
+      state.activeChallengerId = null;
+      state.activeGuesserId = null;
+      state.attemptStartedAt = null;
       state.roundWinnerPlayerId = null;
       state.roundLoserPlayerId = null;
 
-      await prisma.room.update({
-        where: { id: input.roomId },
-        data: {
-          currentPlayerId: challengerPlayerId,
-          currentAnswer: JSON.stringify(state),
-        },
+      await prisma.$transaction(async (tx) => {
+        await tx.player.updateMany({
+          where: {
+            id: pointPlayerId,
+            points: null,
+          },
+          data: {
+            points: 0,
+          },
+        });
+        await tx.player.updateMany({
+          where: {
+            id: drinkPlayerId,
+            drinks: null,
+          },
+          data: {
+            drinks: 0,
+          },
+        });
+
+        await tx.player.update({
+          where: {
+            id: pointPlayerId,
+          },
+          data: {
+            points: {
+              increment: 1,
+            },
+          },
+        });
+
+        await tx.player.update({
+          where: {
+            id: drinkPlayerId,
+          },
+          data: {
+            drinks: {
+              increment: 1,
+            },
+          },
+        });
+
+        await tx.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentPlayerId: nextPair.pair[0],
+            currentAnswer: JSON.stringify(state),
+          },
+        });
       });
 
       return {
         phase: state.phase,
-        winnerPlayerId: null,
-        loserPlayerId: null,
+        verdict: input.verdict,
+        pointPlayerId,
+        drinkPlayerId,
+        roundNumber: state.roundNumber,
+        currentPair: state.currentPair,
       };
     }),
 

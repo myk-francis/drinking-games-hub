@@ -1980,14 +1980,16 @@ export default function RoomPage() {
   const connectLettersJudge = useMutation(
     trpc.games.connectLettersJudge.mutationOptions({
       onSuccess: (data) => {
-        if (data.winnerPlayerId) {
-          const winnerName =
-            players.find((player) => player.id === data.winnerPlayerId)?.name ||
-            "Winner";
-          toast.success(`${winnerName} won this round.`);
-          return;
-        }
-        toast.success("Wrong answer. Timer swapped.");
+        const pointPlayerName =
+          players.find((player) => player.id === data.pointPlayerId)?.name ||
+          "Player";
+        const drinkPlayerName =
+          players.find((player) => player.id === data.drinkPlayerId)?.name ||
+          "Player";
+        const verdictLabel = data.verdict === "RIGHT" ? "Correct" : "Wrong";
+        toast.success(
+          `${verdictLabel}: ${pointPlayerName} gets +1 point, ${drinkPlayerName} gets +1 drink. Next round ready.`,
+        );
       },
       onError: (error) => {
         toast.error(error.message || "Could not submit verdict.");
@@ -5943,6 +5945,12 @@ export default function RoomPage() {
                     <div className="rounded-xl border border-emerald-300/30 bg-emerald-500/10 p-4">
                       <p className="text-sm text-emerald-100">
                         {challengerPlayerName}, was {guesserPlayerName} right?
+                      </p>
+                      <p className="mt-2 text-sm text-emerald-100/85">
+                        Right: {guesserPlayerName} gets +1 point, {challengerPlayerName} gets +1 drink.
+                      </p>
+                      <p className="text-sm text-emerald-100/85">
+                        Wrong: {challengerPlayerName} gets +1 point, {guesserPlayerName} gets +1 drink.
                       </p>
                       <div className="mt-3 flex gap-3">
                         <Button
