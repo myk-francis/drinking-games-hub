@@ -2823,6 +2823,9 @@ export default function RoomPage() {
     [assignPlayerTeam, room?.id],
   );
 
+  const canAddPlayers =
+    actualPlayer === players[0]?.id || selectedGame === "codenames";
+
   const handleChangePlayerName = React.useCallback(() => {
     if (!actualPlayer) {
       toast.error("Select your player first.");
@@ -7323,7 +7326,7 @@ export default function RoomPage() {
           selectedGame={selectedGame}
         />
       )}
-      {(actualPlayer === players[0].id || selectedGame === "codenames") && (
+      {canAddPlayers && (
         <AddPlayerModal
           newPlayer={newPlayer}
           setNewPlayer={setNewPlayer}
@@ -7487,7 +7490,7 @@ export default function RoomPage() {
         {/* Controls */}
         <RoomControls
           onEndGame={() => endRoom.mutate({ roomId: String(roomId) })}
-          canAddPlayer={actualPlayer === players[0]?.id}
+          canAddPlayer={canAddPlayers}
           onAddPlayer={() => setOpenAddPlayerModal(true)}
           canChangeName={canCurrentPlayerChangeName}
           onChangeName={() => {
