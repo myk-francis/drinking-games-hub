@@ -58,6 +58,7 @@ import {
   parseWhoAmIState,
 } from "@/modules/games/lib/room-state";
 import type {
+  GuessTheNumberFeedback,
   RideTheBusCard,
   RideTheBusStep,
 } from "@/modules/games/lib/room-state";

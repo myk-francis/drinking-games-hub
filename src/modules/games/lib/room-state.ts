@@ -465,7 +465,7 @@ export function parseConnectLettersState(
 
   try {
     const parsed = JSON.parse(raw) as Partial<ConnectLettersRoomState>;
-    const parsedPair =
+    const parsedPair: ConnectLettersRoomState["currentPair"] =
       Array.isArray(parsed.currentPair) &&
       parsed.currentPair.length === 2 &&
       typeof parsed.currentPair[0] === "string" &&
