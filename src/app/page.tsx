@@ -2,33 +2,10 @@
 import {
   Users,
   Play,
-  Heart,
-  Shuffle,
   Building,
   Share2,
-  Gamepad2,
-  Rainbow,
-  Layers,
-  FlaskConical,
-  Eye,
-  Mic,
-  ArrowUpRight,
-  Theater,
-  ShieldQuestion,
-  Compass,
-  Crown,
-  Sparkles,
-  ScrollText,
-  VenetianMask,
-  Scale,
   ClipboardPaste,
   Loader2,
-  Brain,
-  Hash,
-  Type,
-  Ghost,
-  Film,
-  Bus,
 } from "lucide-react";
 import React from "react";
 import { useTRPC } from "@/trpc/client";
@@ -47,6 +24,10 @@ import {
   parseSelfServicePayload,
   type SelfServicePayload,
 } from "@/lib/self-service";
+import {
+  getGameConfig,
+  isCreateRoomDisabled,
+} from "@/modules/games/lib/game-config";
 
 interface TeamsInfo {
   teamName: string;
@@ -194,122 +175,6 @@ export default function HomePage() {
   if (isLoading) return <Loading />;
   if (error) return <div>Error: {error.message}</div>;
 
-  const GameIcon = (gamecode: string) => {
-    if (gamecode === "never-have-i-ever") {
-      return <Heart className="w-6 h-6" />;
-    } else if (gamecode === "truth-or-drink") {
-      return <FlaskConical className="w-6 h-6" />;
-    } else if (gamecode === "most-likely") {
-      return <Users className="w-6 h-6" />;
-    } else if (gamecode === "paranoia") {
-      return <Eye className="w-6 h-6" />;
-    } else if (gamecode === "rhyme-time") {
-      return <Mic className="w-6 h-6" />;
-    } else if (gamecode === "higher-lower") {
-      return <ArrowUpRight className="w-6 h-6" />;
-    } else if (gamecode === "verbal-charades") {
-      return <Theater className="w-6 h-6" />;
-    } else if (gamecode === "taboo-lite") {
-      return <ShieldQuestion className="w-6 h-6" />;
-    } else if (gamecode === "would-you-rather") {
-      return <Compass className="w-6 h-6" />;
-    } else if (gamecode === "pick-a-card") {
-      return <Shuffle className="w-6 h-6" />;
-    } else if (gamecode === "kings-cup") {
-      return <Crown className="w-6 h-6" />;
-    } else if (gamecode === "catherines-special") {
-      return <Sparkles className="w-6 h-6" />;
-    } else if (gamecode === "story-building") {
-      return <ScrollText className="w-6 h-6" />;
-    } else if (gamecode === "imposter") {
-      return <VenetianMask className="w-6 h-6" />;
-    } else if (gamecode === "triviyay") {
-      return <Rainbow className="w-6 h-6" />;
-    } else if (gamecode === "truth-or-lie") {
-      return <Scale className="w-6 h-6" />;
-    } else if (gamecode === "codenames") {
-      return <Layers className="w-6 h-6" />;
-    } else if (gamecode === "memory-chain") {
-      return <Brain className="w-6 h-6" />;
-    } else if (gamecode === "guess-the-number") {
-      return <Hash className="w-6 h-6" />;
-    } else if (gamecode === "connect-the-letters") {
-      return <Type className="w-6 h-6" />;
-    } else if (gamecode === "ghost-tears") {
-      return <Ghost className="w-6 h-6" />;
-    } else if (gamecode === "joker-loop") {
-      return <Shuffle className="w-6 h-6" />;
-    } else if (gamecode === "who-am-i") {
-      return <ClipboardPaste className="w-6 h-6" />;
-    } else if (gamecode === "name-the-song") {
-      return <Mic className="w-6 h-6" />;
-    } else if (gamecode === "guess-the-movie") {
-      return <Film className="w-6 h-6" />;
-    } else if (gamecode === "ride-the-bus") {
-      return <Bus className="w-6 h-6" />;
-    } else {
-      return <Gamepad2 className="w-6 h-6" />;
-    }
-  };
-
-  const GameColor = (gamecode: string) => {
-    if (gamecode === "never-have-i-ever") {
-      return "from-pink-500 to-rose-600";
-    } else if (gamecode === "truth-or-drink") {
-      return "from-cyan-500 to-blue-700";
-    } else if (gamecode === "most-likely") {
-      return "from-emerald-500 to-lime-600";
-    } else if (gamecode === "paranoia") {
-      return "from-slate-600 to-rose-700";
-    } else if (gamecode === "rhyme-time") {
-      return "from-violet-500 to-fuchsia-600";
-    } else if (gamecode === "higher-lower") {
-      return "from-indigo-600 to-sky-500";
-    } else if (gamecode === "verbal-charades") {
-      return "from-amber-500 to-orange-600";
-    } else if (gamecode === "taboo-lite") {
-      return "from-teal-500 to-cyan-700";
-    } else if (gamecode === "would-you-rather") {
-      return "from-blue-500 to-indigo-700";
-    } else if (gamecode === "pick-a-card") {
-      return "from-red-500 to-pink-600";
-    } else if (gamecode === "kings-cup") {
-      return "from-yellow-500 to-red-700";
-    } else if (gamecode === "catherines-special") {
-      return "from-green-500 to-emerald-700";
-    } else if (gamecode === "story-building") {
-      return "from-orange-500 to-amber-700";
-    } else if (gamecode === "imposter") {
-      return "from-zinc-700 to-rose-600";
-    } else if (gamecode === "triviyay") {
-      return "from-purple-600 to-pink-600";
-    } else if (gamecode === "truth-or-lie") {
-      return "from-fuchsia-600 to-indigo-600";
-    } else if (gamecode === "codenames") {
-      return "from-red-600 to-blue-700";
-    } else if (gamecode === "memory-chain") {
-      return "from-cyan-600 to-slate-700";
-    } else if (gamecode === "guess-the-number") {
-      return "from-emerald-600 to-cyan-700";
-    } else if (gamecode === "connect-the-letters") {
-      return "from-fuchsia-600 to-cyan-700";
-    } else if (gamecode === "ghost-tears") {
-      return "from-indigo-700 to-cyan-700";
-    } else if (gamecode === "joker-loop") {
-      return "from-amber-600 to-rose-700";
-    } else if (gamecode === "who-am-i") {
-      return "from-sky-600 to-cyan-700";
-    } else if (gamecode === "name-the-song") {
-      return "from-fuchsia-600 to-pink-700";
-    } else if (gamecode === "guess-the-movie") {
-      return "from-amber-500 to-red-700";
-    } else if (gamecode === "ride-the-bus") {
-      return "from-cyan-600 to-blue-800";
-    } else {
-      return "from-teal-500 to-cyan-500";
-    }
-  };
-
   const createRoomFromPayload = (
     payload: SelfServicePayload,
     source: "manual" | "self-service",
@@ -444,33 +309,47 @@ export default function HomePage() {
     router.push(`/room/${roomId}`);
   };
 
-  //@ts-expect-error any type
-  const GameCard = ({ name, description, code, onClick, selected }) => (
-    <div
-      onClick={() => onClick(code)}
-      className={`relative overflow-hidden rounded-xl p-6 cursor-pointer transition-all duration-300 transform hover:scale-105 hover:shadow-xl ${
-        selected ? "ring-4 ring-white shadow-2xl scale-105" : "hover:shadow-lg"
-      }`}
-    >
+  const GameCard = ({
+    name,
+    description,
+    code,
+    onClick,
+    selected,
+  }: {
+    name: string;
+    description: string;
+    code: string;
+    onClick: (code: string) => void;
+    selected: boolean;
+  }) => {
+    const config = getGameConfig(code);
+    const Icon = config.icon;
+
+    return (
       <div
-        className={`absolute inset-0 bg-gradient-to-br ${GameColor(
-          code,
-        )} opacity-90`}
-      ></div>
-      <div className="relative z-10 text-white">
-        <div className="flex items-center justify-between mb-3">
-          {GameIcon(code)}
-          {selected && (
-            <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
-              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-            </div>
-          )}
+        onClick={() => onClick(code)}
+        className={`relative overflow-hidden rounded-xl p-6 cursor-pointer transition-all duration-300 transform hover:scale-105 hover:shadow-xl ${
+          selected ? "ring-4 ring-white shadow-2xl scale-105" : "hover:shadow-lg"
+        }`}
+      >
+        <div
+          className={`absolute inset-0 bg-gradient-to-br ${config.color} opacity-90`}
+        ></div>
+        <div className="relative z-10 text-white">
+          <div className="flex items-center justify-between mb-3">
+            <Icon className="w-6 h-6" />
+            {selected && (
+              <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              </div>
+            )}
+          </div>
+          <h3 className="text-xl font-bold mb-2">{name}</h3>
+          <p className="text-sm opacity-90 leading-relaxed">{description}</p>
         </div>
-        <h3 className="text-xl font-bold mb-2">{name}</h3>
-        <p className="text-sm opacity-90 leading-relaxed">{description}</p>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <main className="">
@@ -754,41 +633,12 @@ export default function HomePage() {
                 {!roomId && permissionToCreateRoooms && (
                   <button
                     onClick={handleCreateRoom}
-                    disabled={
-                      isCreatingRoom ||
-                      !selectedGame ||
-                      (selectedGame === "most-likely" && players.length < 3) ||
-                      (selectedGame === "verbal-charades" &&
-                        players.length < 4) ||
-                      (selectedGame === "higher-lower" && players.length < 2) ||
-                      (selectedGame === "never-have-i-ever" &&
-                        players.length < 2) ||
-                      (selectedGame === "truth-or-drink" &&
-                        players.length < 2) ||
-                      (selectedGame === "catherines-special" &&
-                        players.length < 2) ||
-                      (selectedGame === "would-you-rather" &&
-                        players.length < 3) ||
-                      (selectedGame === "pick-a-card" && players.length < 3) ||
-                      (selectedGame === "imposter" && players.length < 4) ||
-                      (selectedGame === "truth-or-lie" && players.length < 2) ||
-                      (selectedGame === "memory-chain" && players.length < 2) ||
-                      (selectedGame === "guess-the-number" &&
-                        players.length < 2) ||
-                      (selectedGame === "connect-the-letters" &&
-                        players.length < 2) ||
-                      (selectedGame === "ghost-tears" &&
-                        players.length < 2) ||
-                      (selectedGame === "joker-loop" && players.length < 2) ||
-                      (selectedGame === "who-am-i" && players.length < 2) ||
-                      (selectedGame === "name-the-song" &&
-                        players.length < 2) ||
-                      (selectedGame === "guess-the-movie" &&
-                        players.length < 2) ||
-                      (selectedGame === "ride-the-bus" &&
-                        players.length < 2) ||
-                      (selectedGame === "triviyay" && teams.length > 2)
-                    }
+                    disabled={isCreateRoomDisabled({
+                      isCreatingRoom,
+                      selectedGame,
+                      playersCount: players.length,
+                      teamsCount: teams.length,
+                    })}
                     className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
                   >
                     <Building className="w-5 h-5" />
