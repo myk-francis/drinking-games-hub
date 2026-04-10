@@ -5486,7 +5486,7 @@ export default function RoomPage() {
                   )}
                 </div>
                 <p className="mt-3 text-sm sm:text-base text-white/90">
-                  First player to buzz gets 30 seconds. Everyone except the
+                  First player to buzz gets 5 seconds. Everyone except the
                   buzzing player can see the movie answer immediately.
                 </p>
               </div>
@@ -5734,7 +5734,7 @@ export default function RoomPage() {
                 </div>
                 <p className="mt-3 text-sm sm:text-base text-white/90">
                   The song title appears with no vowels. First player to buzz
-                  gets 30 seconds to say the answer out loud.
+                  gets 5 seconds to say the answer out loud.
                 </p>
               </div>
 

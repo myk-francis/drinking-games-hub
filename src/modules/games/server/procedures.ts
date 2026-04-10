@@ -38,8 +38,8 @@ const MEMORY_CHAIN_CARD_COUNT = 12;
 const GUESS_THE_NUMBER_MIN = 0;
 const GUESS_THE_NUMBER_MAX = 100;
 const CONNECT_LETTERS_TIMER_SECONDS = 10;
-const NAME_THE_SONG_TIMER_SECONDS = 30;
-const GUESS_THE_MOVIE_TIMER_SECONDS = 30;
+const NAME_THE_SONG_TIMER_SECONDS = 5;
+const GUESS_THE_MOVIE_TIMER_SECONDS = 5;
 const GUESS_THE_MOVIE_ALL_CATEGORY = 0;
 const GHOST_TEARS_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 const REACTION_COOLDOWN_MS = 10 * 60 * 1000;
@@ -246,13 +246,6 @@ type RideTheBusSuit = "HEARTS" | "DIAMONDS" | "CLUBS" | "SPADES";
 type RideTheBusColor = "RED" | "BLACK";
 type RideTheBusStep = "COLOR" | "HIGHER_LOWER" | "INSIDE_OUTSIDE" | "SUIT";
 type RideTheBusPhase = "MAIN" | "BUS" | "ESCAPED";
-type RideTheBusGuess =
-  | RideTheBusColor
-  | "HIGHER"
-  | "LOWER"
-  | "INSIDE"
-  | "OUTSIDE"
-  | RideTheBusSuit;
 type RideTheBusCard = {
   rank: number;
   suit: RideTheBusSuit;
@@ -7596,7 +7589,7 @@ export const gamesRouter = createTRPCRouter({
         Number.isFinite(startedAt) &&
         Date.now() - startedAt < NAME_THE_SONG_TIMER_SECONDS * 1000
       ) {
-        throw new Error("Wait for the 30-second answer time to finish");
+        throw new Error("Wait for the 5-second answer time to finish");
       }
 
       const otherPlayerIds = playerIds.filter(
@@ -7852,7 +7845,7 @@ export const gamesRouter = createTRPCRouter({
         Number.isFinite(startedAt) &&
         Date.now() - startedAt < GUESS_THE_MOVIE_TIMER_SECONDS * 1000
       ) {
-        throw new Error("Wait for the 30-second answer time to finish");
+        throw new Error("Wait for the 5-second answer time to finish");
       }
 
       const otherPlayerIds = playerIds.filter(

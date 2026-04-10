@@ -189,8 +189,8 @@ export type JokerLoopRoomState = {
   lastRoundClearedPlayerIds: string[];
 };
 
-export const NAME_THE_SONG_TIMER_SECONDS = 30;
-export const GUESS_THE_MOVIE_TIMER_SECONDS = 30;
+export const NAME_THE_SONG_TIMER_SECONDS = 5;
+export const GUESS_THE_MOVIE_TIMER_SECONDS = 5;
 
 export function parseCodenamesState(
   raw: string | null | undefined,
