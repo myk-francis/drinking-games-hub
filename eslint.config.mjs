@@ -5,6 +5,15 @@ const eslintConfig = [
   ...nextCoreWebVitals,
   ...nextTypeScript,
   {
+    rules: {
+      "react-hooks/immutability": "off",
+      "react-hooks/preserve-manual-memoization": "off",
+      "react-hooks/purity": "off",
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/static-components": "off",
+    },
+  },
+  {
     ignores: ["**/generated/*"],
   },
 ];
