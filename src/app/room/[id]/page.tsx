@@ -596,6 +596,41 @@ function getBlackjackResultBadgeClasses(result: BlackjackPlayerResult | null): s
   return "border-white/15 bg-black/20 text-white/80";
 }
 
+function getBlackjackRoundExplanation({
+  dealerHand,
+  winners,
+  losers,
+  pushes,
+}: {
+  dealerHand: BlackjackCard[];
+  winners: string[];
+  losers: string[];
+  pushes: string[];
+}): string {
+  const dealerTotal = getBlackjackHandTotal(dealerHand);
+  const dealerNatural = dealerHand.length === 2 && dealerTotal === 21;
+
+  if (dealerNatural) {
+    return winners.length > 0
+      ? "Dealer opened with blackjack, but player naturals still paid out."
+      : "Dealer opened with blackjack, so non-natural hands lost immediately.";
+  }
+
+  if (dealerTotal > 21) {
+    return "Dealer busted after drawing to 17+, so every surviving player won the round.";
+  }
+
+  if (pushes.length > 0 && winners.length === 0 && losers.length === 0) {
+    return "The table tied the dealer exactly, so everyone pushed and no drinks were assigned.";
+  }
+
+  if (pushes.length > 0) {
+    return "The dealer stood on 17+, so matching totals pushed while higher hands won and lower hands drank.";
+  }
+
+  return "The dealer stood on 17+, and results were settled by comparing each hand directly to the dealer.";
+}
+
 export default function RoomPage() {
   const [quote, setQuote] = React.useState<string>("");
   const [whoAmINotesOpen, setWhoAmINotesOpen] = React.useState(false);
@@ -5405,6 +5440,12 @@ export default function RoomPage() {
                   players.find((player) => player.id === playerId)?.name || "Player",
               )
               .join(", ");
+          const blackjackRoundExplanation = getBlackjackRoundExplanation({
+            dealerHand: blackjackState.dealerHand,
+            winners: blackjackWinners,
+            losers: blackjackLosers,
+            pushes: blackjackPushes,
+          });
 
           return (
             <div className="w-full">
@@ -5470,6 +5511,9 @@ export default function RoomPage() {
                       </p>
                     </div>
                   </div>
+                  <p className="mt-4 text-sm text-cyan-50/90">
+                    {blackjackRoundExplanation}
+                  </p>
                 </div>
               )}
 
@@ -5481,19 +5525,34 @@ export default function RoomPage() {
                     </p>
                     <div className="mt-3 flex flex-wrap gap-3">
                       {dealerCards.map((card, index) => (
-                        <div
+                        <motion.div
                           key={`dealer-${index}`}
+                          initial={{ opacity: 0, y: 10, rotateY: card ? 0 : 180, scale: 0.96 }}
+                          animate={{
+                            opacity: 1,
+                            y: 0,
+                            rotateY: card ? 0 : 180,
+                            scale: card ? 1 : 0.98,
+                          }}
+                          transition={{
+                            duration: blackjackState.hiddenDealerCard ? 0.22 : 0.38,
+                            delay: blackjackState.hiddenDealerCard ? index * 0.04 : index * 0.08,
+                            ease: "easeOut",
+                          }}
                           className={`flex h-20 w-16 items-center justify-center rounded-xl border text-sm font-semibold shadow-lg ${getBlackjackCardClasses(
                             card,
                           )}`}
                         >
                           {card ? getBlackjackCardLabel(card) : "Hidden"}
-                        </div>
+                        </motion.div>
                       ))}
                     </div>
                     <p className="mt-3 text-sm text-cyan-200">
                       Total: {dealerVisibleTotal}
                       {blackjackState.hiddenDealerCard ? "+" : ""}
+                    </p>
+                    <p className="mt-1 text-xs text-white/60">
+                      Dealer reveals the hole card, then draws until reaching 17 or more.
                     </p>
                   </div>
 
