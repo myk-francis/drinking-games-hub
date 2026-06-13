@@ -45,6 +45,14 @@ interface TeamsInfo {
   players: string[];
 }
 
+const pokerStakeOptions = [
+  { id: 1, name: "10000 chips", value: 10000 },
+  { id: 2, name: "20000 chips", value: 20000 },
+  { id: 3, name: "30000 chips", value: 30000 },
+  { id: 4, name: "40000 chips", value: 40000 },
+  { id: 5, name: "50000 chips", value: 50000 },
+];
+
 const GameIcon = (gamecode: string) => {
   if (gamecode === "never-have-i-ever") return <Heart className="w-6 h-6" />;
   if (gamecode === "truth-or-drink") return <FlaskConical className="w-6 h-6" />;
@@ -116,6 +124,7 @@ export default function SelfServicePage() {
   const [teamInput, setTeamInput] = React.useState("");
   const [selectedRounds, setSelectedRounds] = React.useState<number>(0);
   const [selectedEdition, setSelectedEdition] = React.useState<number>(0);
+  const [selectedPokerStake, setSelectedPokerStake] = React.useState<number>(10000);
   const [jsonCopied, setJsonCopied] = React.useState(false);
 
   const addPlayer = () => {
@@ -189,6 +198,7 @@ export default function SelfServicePage() {
       selectedGame,
       players,
       selectedRounds: selectedGame === "truth-or-drink" ? selectedEdition : selectedRounds,
+      selectedStake: selectedGame === "poker" ? selectedPokerStake : 10000,
       teamsInfo,
     });
 
@@ -347,6 +357,19 @@ export default function SelfServicePage() {
             {selectedGame === "truth-or-drink" && (
               <div className="mt-4">
                 <ComboBox options={editions || []} handleSelect={setSelectedEdition} value={selectedEdition} />
+              </div>
+            )}
+            {selectedGame === "poker" && (
+              <div className="mt-4">
+                <ComboBox
+                  options={pokerStakeOptions}
+                  handleSelect={setSelectedPokerStake}
+                  value={selectedPokerStake}
+                />
+                <p className="mt-2 text-sm text-white/75">
+                  Starting stack: {selectedPokerStake}. Opening blinds:{" "}
+                  {selectedPokerStake / 10} / {selectedPokerStake / 5}.
+                </p>
               </div>
             )}
 

@@ -213,6 +213,8 @@ export type PokerRoomState = {
   status: "PLAYING" | "ENDED";
   roundNumber: number;
   phase: PokerPhase;
+  startingStack: number;
+  betStep: number;
   playerOrder: string[];
   currentPlayerId: string | null;
   dealerPlayerId: string | null;
@@ -1095,6 +1097,8 @@ export function parsePokerState(
     status: "PLAYING",
     roundNumber: 1,
     phase: "PRE_FLOP",
+    startingStack: 10000,
+    betStep: 1000,
     playerOrder: [],
     currentPlayerId: null,
     dealerPlayerId: null,
@@ -1224,6 +1228,15 @@ export function parsePokerState(
         parsed.phase === "SHOWDOWN"
           ? parsed.phase
           : "PRE_FLOP",
+      startingStack:
+        typeof parsed.startingStack === "number" &&
+        Number.isFinite(parsed.startingStack)
+          ? parsed.startingStack
+          : 10000,
+      betStep:
+        typeof parsed.betStep === "number" && Number.isFinite(parsed.betStep)
+          ? parsed.betStep
+          : 1000,
       playerOrder,
       currentPlayerId:
         typeof parsed.currentPlayerId === "string" ? parsed.currentPlayerId : null,

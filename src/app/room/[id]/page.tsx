@@ -1451,6 +1451,7 @@ export default function RoomPage() {
         const nextPlayerName =
           players.find((player) => player.id === data.currentPlayerId)?.name ||
           "next player";
+        setPokerBetPickerOpen(false);
         toast.success(`Bet placed. ${nextPlayerName} must respond.`);
       },
       onError: (error) => {
@@ -1647,6 +1648,8 @@ export default function RoomPage() {
   const [reactionCooldownNow, setReactionCooldownNow] = React.useState<number>(
     Date.now(),
   );
+  const [pokerBetPickerOpen, setPokerBetPickerOpen] = React.useState(false);
+  const [pokerBetDraft, setPokerBetDraft] = React.useState(0);
   const [winningTeams, setWinningTeams] = React.useState<string[]>([]);
   const [forfited, setForfited] = React.useState<boolean>(false);
   const selectedActualPlayer = React.useMemo(
@@ -1822,6 +1825,54 @@ export default function RoomPage() {
       }
     };
   }, [blackjackState.hiddenDealerCard, blackjackState.roundNumber]);
+
+  React.useEffect(() => {
+    if (selectedGame !== "poker") {
+      setPokerBetPickerOpen(false);
+      setPokerBetDraft(0);
+      return;
+    }
+
+    const myStack = actualPlayer ? pokerState.stackByPlayerId[actualPlayer] ?? 0 : 0;
+    const roundedMinimum =
+      myStack <= 0
+        ? 0
+        : Math.min(
+            myStack,
+            Math.max(
+              pokerState.betStep,
+              Math.ceil(pokerState.bigBlindAmount / pokerState.betStep) *
+                pokerState.betStep,
+            ),
+          );
+
+    if (pokerState.phase === "SHOWDOWN" || pokerState.currentBet > 0 || myStack <= 0) {
+      setPokerBetPickerOpen(false);
+    }
+
+    setPokerBetDraft((currentDraft) => {
+      if (myStack <= 0) return 0;
+      if (currentDraft <= 0 || currentDraft > myStack) {
+        return roundedMinimum;
+      }
+      return Math.max(
+        roundedMinimum,
+        Math.min(
+          myStack,
+          Math.round(currentDraft / pokerState.betStep) * pokerState.betStep,
+        ),
+      );
+    });
+  }, [
+    actualPlayer,
+    pokerState.betStep,
+    pokerState.bigBlindAmount,
+    pokerState.currentBet,
+    pokerState.phase,
+    pokerState.roundNumber,
+    pokerState.stackByPlayerId,
+    selectedGame,
+  ]);
 
   const whoAmICards = React.useMemo(() => {
     if (!game?.questions) return [];
@@ -5539,6 +5590,18 @@ export default function RoomPage() {
           const myStack = actualPlayer
             ? pokerState.stackByPlayerId[actualPlayer] ?? 0
             : 0;
+          const isPokerSpectator = myStack <= 0 && myPokerHand.length === 0;
+          const minimumOpenBet =
+            myStack <= 0
+              ? 0
+              : Math.min(
+                  myStack,
+                  Math.max(
+                    pokerState.betStep,
+                    Math.ceil(pokerState.bigBlindAmount / pokerState.betStep) *
+                      pokerState.betStep,
+                  ),
+                );
           const pokerCommunitySlots = Array.from({ length: 5 }, (_, index) =>
             pokerState.communityCards[index] ?? null,
           );
@@ -5566,6 +5629,9 @@ export default function RoomPage() {
                   </Badge>
                   <Badge className="bg-cyan-700">
                     Blinds {pokerState.smallBlindAmount} / {pokerState.bigBlindAmount}
+                  </Badge>
+                  <Badge variant="outline">
+                    Stack {pokerState.startingStack} | Bet Step {pokerState.betStep}
                   </Badge>
                   {pokerState.currentPlayerId && !isPokerShowdown && (
                     <Badge className="bg-emerald-700">Turn: {currentTurnName}</Badge>
@@ -5624,7 +5690,9 @@ export default function RoomPage() {
                       </p>
                       {myPokerHand.length === 0 ? (
                         <p className="mt-3 text-sm text-white/70">
-                          You are sitting out this hand or waiting for the next deal.
+                          {isPokerSpectator
+                            ? "You are out of chips and can spectate the rest of the table."
+                            : "You are sitting out this hand or waiting for the next deal."}
                         </p>
                       ) : (
                         <>
@@ -5668,10 +5736,7 @@ export default function RoomPage() {
                           </Button>
                           <Button
                             onClick={() =>
-                              pokerBet.mutate({
-                                roomId: room?.id || "",
-                                playerId: actualPlayer || "",
-                              })
+                              setPokerBetPickerOpen((open) => !open)
                             }
                             disabled={
                               !isMyTurn ||
@@ -5684,7 +5749,9 @@ export default function RoomPage() {
                             }
                             className="w-full bg-amber-600 py-6 text-base hover:bg-amber-700"
                           >
-                            Bet {Math.min(pokerState.bigBlindAmount, myStack)}
+                            {pokerBetPickerOpen
+                              ? "Hide Bet"
+                              : `Bet ${minimumOpenBet}`}
                           </Button>
                           <Button
                             onClick={() =>
@@ -5707,9 +5774,83 @@ export default function RoomPage() {
                         </div>
                       )}
 
+                      {!isPokerShowdown && pokerBetPickerOpen && pokerState.currentBet === 0 && (
+                        <div className="mt-4 rounded-xl border border-amber-300/25 bg-amber-500/10 p-4">
+                          <p className="text-sm text-amber-50">
+                            Choose your opening bet. Step size is {pokerState.betStep}.
+                          </p>
+                          <div className="mt-3 flex items-center gap-3">
+                            <Button
+                              type="button"
+                              onClick={() =>
+                                setPokerBetDraft((value) =>
+                                  Math.max(minimumOpenBet, value - pokerState.betStep),
+                                )
+                              }
+                              disabled={pokerBetDraft <= minimumOpenBet}
+                              className="min-w-12 bg-slate-700 px-4 hover:bg-slate-800"
+                            >
+                              -
+                            </Button>
+                            <div className="flex-1 rounded-lg border border-white/15 bg-black/20 px-4 py-3 text-center text-lg font-semibold text-white">
+                              {pokerBetDraft}
+                            </div>
+                            <Button
+                              type="button"
+                              onClick={() =>
+                                setPokerBetDraft((value) =>
+                                  Math.min(myStack, value + pokerState.betStep),
+                                )
+                              }
+                              disabled={pokerBetDraft >= myStack}
+                              className="min-w-12 bg-slate-700 px-4 hover:bg-slate-800"
+                            >
+                              +
+                            </Button>
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 gap-3">
+                            <Button
+                              type="button"
+                              onClick={() =>
+                                pokerBet.mutate({
+                                  roomId: room?.id || "",
+                                  playerId: actualPlayer || "",
+                                  amount: pokerBetDraft,
+                                })
+                              }
+                              disabled={
+                                pokerBet.isPending ||
+                                pokerBetDraft < minimumOpenBet ||
+                                pokerBetDraft > myStack
+                              }
+                              className="w-full bg-amber-600 hover:bg-amber-700"
+                            >
+                              Confirm Bet
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={() => {
+                                setPokerBetPickerOpen(false);
+                                setPokerBetDraft(minimumOpenBet);
+                              }}
+                              className="w-full bg-slate-700 hover:bg-slate-800"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
                       {!isMyTurn && !isPokerShowdown && (
                         <p className="mt-4 text-sm text-amber-300">
                           Waiting for {currentTurnName}.
+                        </p>
+                      )}
+
+                      {isPokerSpectator && (
+                        <p className="mt-4 text-sm text-cyan-100/85">
+                          You can keep watching the hand, but your controls are disabled
+                          until a new game with chips starts.
                         </p>
                       )}
 

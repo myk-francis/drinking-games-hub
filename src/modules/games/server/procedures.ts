@@ -309,6 +309,8 @@ type PokerState = {
   status: "PLAYING" | "ENDED";
   roundNumber: number;
   phase: PokerPhase;
+  startingStack: number;
+  betStep: number;
   playerOrder: string[];
   currentPlayerId: string | null;
   dealerPlayerId: string | null;
@@ -2014,13 +2016,18 @@ function drawPokerCard(state: PokerState): PokerCard {
   return nextCard;
 }
 
-function getPokerBlindLevel(roundNumber: number): PokerBlindLevel {
+function getPokerBetStep(startingStack: number): number {
+  return startingStack >= 40_000 ? 2_000 : 1_000;
+}
+
+function getPokerBlindLevel(roundNumber: number, startingStack: number): PokerBlindLevel {
   const multiplier =
     Math.floor(Math.max(0, roundNumber - 1) / POKER_BLIND_INCREASE_ROUNDS) + 1;
+  const baseSmallBlind = Math.max(1_000, Math.floor(startingStack / 10));
 
   return {
-    smallBlind: POKER_SMALL_BLIND_BASE * multiplier,
-    bigBlind: POKER_BIG_BLIND_BASE * multiplier,
+    smallBlind: baseSmallBlind * multiplier,
+    bigBlind: baseSmallBlind * 2 * multiplier,
   };
 }
 
@@ -2586,6 +2593,20 @@ function parsePokerState(raw: string | null, playerIds: string[]): PokerState {
         parsed.phase === "SHOWDOWN"
           ? parsed.phase
           : "PRE_FLOP",
+      startingStack:
+        typeof parsed.startingStack === "number" &&
+        Number.isFinite(parsed.startingStack)
+          ? parsed.startingStack
+          : POKER_STARTING_STACK,
+      betStep:
+        typeof parsed.betStep === "number" && Number.isFinite(parsed.betStep)
+          ? parsed.betStep
+          : getPokerBetStep(
+              typeof parsed.startingStack === "number" &&
+                Number.isFinite(parsed.startingStack)
+                ? parsed.startingStack
+                : POKER_STARTING_STACK,
+            ),
       playerOrder,
       currentPlayerId:
         typeof parsed.currentPlayerId === "string" &&
@@ -2651,17 +2672,19 @@ function createInitialPokerState(
   existingStacks?: Record<string, number>,
   previousRoundNumber = 0,
   previousDealerPlayerId: string | null = null,
+  startingStack = POKER_STARTING_STACK,
 ): {
   state: PokerState;
   pointPlayerIds: string[];
   drinkPlayerIds: string[];
 } {
   const roundNumber = Math.max(1, previousRoundNumber + 1);
-  const blindLevel = getPokerBlindLevel(roundNumber);
+  const blindLevel = getPokerBlindLevel(roundNumber, startingStack);
+  const betStep = getPokerBetStep(startingStack);
   const stackByPlayerId = Object.fromEntries(
     playerIds.map((playerId) => [
       playerId,
-      existingStacks?.[playerId] ?? POKER_STARTING_STACK,
+      existingStacks?.[playerId] ?? startingStack,
     ]),
   );
   const dealerPlayerId = getPokerRoundDealerPlayerId(
@@ -2685,6 +2708,8 @@ function createInitialPokerState(
     status: "PLAYING",
     roundNumber,
     phase: "PRE_FLOP",
+    startingStack,
+    betStep,
     playerOrder: [...playerIds],
     currentPlayerId: null,
     dealerPlayerId,
@@ -3348,7 +3373,7 @@ async function syncRoomStateAfterPlayerAdded(
       const state = parsePokerState(room.currentAnswer, nextPlayerIds);
       state.playerOrder = nextPlayerIds;
       state.holeCardsByPlayerId[newPlayer.id] = [];
-      state.stackByPlayerId[newPlayer.id] = POKER_STARTING_STACK;
+      state.stackByPlayerId[newPlayer.id] = state.startingStack;
       state.playerBets[newPlayer.id] = 0;
       state.totalContributionsByPlayerId[newPlayer.id] = 0;
       state.lastActionByPlayerId[newPlayer.id] = "NONE";
@@ -3806,6 +3831,7 @@ export const gamesRouter = createTRPCRouter({
         players: z.array(z.string()).optional(),
         userId: z.string(),
         selectedRounds: z.number(),
+        selectedStake: z.number().int().min(10000).max(50000).optional().default(10000),
         teamsInfo: z.array(teamInfoSchema).optional(),
       }),
     )
@@ -4188,7 +4214,13 @@ export const gamesRouter = createTRPCRouter({
           }
           if (input.selectedGame === "poker") {
             const playerIds = createdRoom.players.map((player) => player.id);
-            const pokerSetup = createInitialPokerState(playerIds);
+            const pokerSetup = createInitialPokerState(
+              playerIds,
+              undefined,
+              0,
+              null,
+              input.selectedStake,
+            );
             roomCurrentAnswer = JSON.stringify(pokerSetup.state);
             pokerCurrentPlayerId = pokerSetup.state.currentPlayerId;
           }
@@ -9393,6 +9425,7 @@ export const gamesRouter = createTRPCRouter({
       z.object({
         roomId: z.string().min(1),
         playerId: z.string().min(1),
+        amount: z.number().int().positive(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -9429,7 +9462,18 @@ export const gamesRouter = createTRPCRouter({
       }
 
       const stack = state.stackByPlayerId[input.playerId] ?? 0;
-      const betAmount = Math.min(stack, state.bigBlindAmount);
+      const minBet = Math.min(stack, state.bigBlindAmount);
+      if (stack <= 0) {
+        throw new Error("You have no chips left to bet");
+      }
+
+      const betAmount = Math.min(stack, input.amount);
+      if (betAmount < minBet) {
+        throw new Error(`Minimum opening bet is ${minBet}.`);
+      }
+      if (betAmount !== stack && betAmount % state.betStep !== 0) {
+        throw new Error(`Bet must move in steps of ${state.betStep}.`);
+      }
       if (betAmount <= 0) {
         throw new Error("You have no chips left to bet");
       }
@@ -9645,6 +9689,7 @@ export const gamesRouter = createTRPCRouter({
         state.stackByPlayerId,
         state.roundNumber,
         state.dealerPlayerId,
+        state.startingStack,
       );
 
       await prisma.room.update({

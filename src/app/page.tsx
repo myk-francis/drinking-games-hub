@@ -34,6 +34,14 @@ interface TeamsInfo {
   players: string[];
 }
 
+const pokerStakeOptions = [
+  { id: 1, name: "10000 chips", value: 10000 },
+  { id: 2, name: "20000 chips", value: 20000 },
+  { id: 3, name: "30000 chips", value: 30000 },
+  { id: 4, name: "40000 chips", value: 40000 },
+  { id: 5, name: "50000 chips", value: 50000 },
+];
+
 export default function HomePage() {
   const router = useRouter();
   const trpc = useTRPC();
@@ -85,6 +93,7 @@ export default function HomePage() {
     React.useState(true);
   const [selectedRounds, setSelectedRounds] = React.useState<number>(0);
   const [selectedEdition, setSelectedEdition] = React.useState<number>(0);
+  const [selectedPokerStake, setSelectedPokerStake] = React.useState<number>(10000);
   const [showJsonImport, setShowJsonImport] = React.useState(false);
   const [jsonImportInput, setJsonImportInput] = React.useState("");
   const [roomCreateSource, setRoomCreateSource] = React.useState<
@@ -190,6 +199,7 @@ export default function HomePage() {
       players: payload.players,
       userId: currentUser?.id || "",
       selectedRounds: payload.selectedRounds,
+      selectedStake: payload.selectedStake,
       teamsInfo: payload.teamsInfo,
     });
   };
@@ -207,6 +217,7 @@ export default function HomePage() {
         players,
         selectedRounds:
           selectedGame === "truth-or-drink" ? selectedEdition : selectedRounds,
+        selectedStake: selectedGame === "poker" ? selectedPokerStake : 10000,
         teamsInfo,
       },
       "manual",
@@ -576,6 +587,19 @@ export default function HomePage() {
                       handleSelect={setSelectedRounds}
                       value={selectedRounds}
                     />
+                  </div>
+                )}
+                {selectedGame === "poker" && (
+                  <div className="mt-4">
+                    <ComboBox
+                      options={pokerStakeOptions}
+                      handleSelect={setSelectedPokerStake}
+                      value={selectedPokerStake}
+                    />
+                    <p className="mt-2 text-sm text-white/75">
+                      Starting stack: {selectedPokerStake}. Opening blinds:{" "}
+                      {selectedPokerStake / 10} / {selectedPokerStake / 5}.
+                    </p>
                   </div>
                 )}
               </div>

@@ -10,6 +10,7 @@ const rawSelfServicePayloadSchema = z.object({
   selectedGame: z.string().min(1),
   players: z.array(z.string()).optional().default([]),
   selectedRounds: z.number().int().min(0).optional().default(0),
+  selectedStake: z.number().int().min(10000).max(50000).optional().default(10000),
   teamsInfo: z.array(teamInfoSchema).optional().default([]),
 });
 
@@ -35,6 +36,7 @@ export const MIN_PLAYERS_BY_GAME: Record<string, number> = {
   "ghost-tears": 2,
   "joker-loop": 2,
   "name-the-song": 2,
+  poker: 2,
 };
 
 const uniqueTrimmed = (items: string[]) =>
@@ -55,6 +57,7 @@ export function normalizeSelfServicePayload(
     selectedGame: payload.selectedGame.trim(),
     players: uniqueTrimmed(payload.players),
     selectedRounds: payload.selectedRounds,
+    selectedStake: payload.selectedStake,
     teamsInfo: normalizedTeamsInfo,
   };
 }
