@@ -1674,6 +1674,12 @@ export default function RoomPage() {
   const blackjackState = React.useMemo(() => {
     return parseBlackjackState(room?.currentAnswer);
   }, [room?.currentAnswer]);
+  const [blackjackDealerRevealVersion, setBlackjackDealerRevealVersion] =
+    React.useState(0);
+  const previousBlackjackDealerStateRef = React.useRef<{
+    roundNumber: number;
+    hiddenDealerCard: boolean;
+  } | null>(null);
   const whoAmIState = React.useMemo(() => {
     return parseWhoAmIState(room?.currentAnswer);
   }, [room?.currentAnswer]);
@@ -1703,6 +1709,21 @@ export default function RoomPage() {
       ) || null
     );
   }, [game?.questions, guessTheMovieState.currentQuestionId]);
+
+  React.useEffect(() => {
+    const previous = previousBlackjackDealerStateRef.current;
+
+    if (!previous || previous.roundNumber !== blackjackState.roundNumber) {
+      setBlackjackDealerRevealVersion(0);
+    } else if (previous.hiddenDealerCard && !blackjackState.hiddenDealerCard) {
+      setBlackjackDealerRevealVersion((version) => version + 1);
+    }
+
+    previousBlackjackDealerStateRef.current = {
+      roundNumber: blackjackState.roundNumber,
+      hiddenDealerCard: blackjackState.hiddenDealerCard,
+    };
+  }, [blackjackState.hiddenDealerCard, blackjackState.roundNumber]);
 
   const whoAmICards = React.useMemo(() => {
     if (!game?.questions) return [];
@@ -5412,6 +5433,8 @@ export default function RoomPage() {
                   : [],
               )
             : getBlackjackHandTotal(blackjackState.dealerHand);
+          const shouldAnimateDealerReveal =
+            !blackjackState.hiddenDealerCard && blackjackDealerRevealVersion > 0;
           const isMyTurn = actualPlayer === blackjackState.currentPlayerId;
           const isBlackjackPlayerTurns = blackjackState.phase === "PLAYER_TURNS";
           const isBlackjackRoundResult = blackjackState.phase === "ROUND_RESULT";
@@ -5526,17 +5549,22 @@ export default function RoomPage() {
                     <div className="mt-3 flex flex-wrap gap-3">
                       {dealerCards.map((card, index) => (
                         <motion.div
-                          key={`dealer-${index}`}
-                          initial={{ opacity: 0, y: 10, rotateY: card ? 0 : 180, scale: 0.96 }}
+                          key={`dealer-${index}-${
+                            shouldAnimateDealerReveal ? blackjackDealerRevealVersion : 0
+                          }`}
+                          initial={
+                            shouldAnimateDealerReveal
+                              ? { opacity: 0, y: 12, scale: 0.94 }
+                              : false
+                          }
                           animate={{
                             opacity: 1,
                             y: 0,
-                            rotateY: card ? 0 : 180,
                             scale: card ? 1 : 0.98,
                           }}
                           transition={{
-                            duration: blackjackState.hiddenDealerCard ? 0.22 : 0.38,
-                            delay: blackjackState.hiddenDealerCard ? index * 0.04 : index * 0.08,
+                            duration: shouldAnimateDealerReveal ? 0.32 : 0,
+                            delay: shouldAnimateDealerReveal ? index * 0.08 : 0,
                             ease: "easeOut",
                           }}
                           className={`flex h-20 w-16 items-center justify-center rounded-xl border text-sm font-semibold shadow-lg ${getBlackjackCardClasses(
