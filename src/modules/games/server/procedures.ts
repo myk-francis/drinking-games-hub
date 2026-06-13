@@ -297,6 +297,41 @@ type BlackjackState = {
   hiddenDealerCard: boolean;
 };
 
+type PokerSuit = "HEARTS" | "DIAMONDS" | "CLUBS" | "SPADES";
+type PokerCard = {
+  rank: number;
+  suit: PokerSuit;
+};
+type PokerPhase = "PRE_FLOP" | "FLOP" | "TURN" | "RIVER" | "SHOWDOWN";
+type PokerPlayerAction = "NONE" | "CHECK" | "CALL" | "BET" | "FOLD";
+
+type PokerState = {
+  status: "PLAYING" | "ENDED";
+  roundNumber: number;
+  phase: PokerPhase;
+  playerOrder: string[];
+  currentPlayerId: string | null;
+  dealerPlayerId: string | null;
+  smallBlindPlayerId: string | null;
+  bigBlindPlayerId: string | null;
+  smallBlindAmount: number;
+  bigBlindAmount: number;
+  currentBet: number;
+  pot: number;
+  deck: PokerCard[];
+  communityCards: PokerCard[];
+  holeCardsByPlayerId: Record<string, PokerCard[]>;
+  stackByPlayerId: Record<string, number>;
+  playerBets: Record<string, number>;
+  totalContributionsByPlayerId: Record<string, number>;
+  actedPlayerIds: string[];
+  foldedPlayerIds: string[];
+  allInPlayerIds: string[];
+  lastActionByPlayerId: Record<string, PokerPlayerAction>;
+  winnerPlayerIds: string[];
+  handLabelByPlayerId: Record<string, string | null>;
+};
+
 type JokerLoopCardTemplate = {
   word: string;
   icon: string;
@@ -1942,6 +1977,774 @@ function parseBlackjackState(
   }
 }
 
+const POKER_STARTING_STACK = 10_000;
+const POKER_SMALL_BLIND_BASE = 1_000;
+const POKER_BIG_BLIND_BASE = 2_000;
+const POKER_BLIND_INCREASE_ROUNDS = 5;
+
+type PokerBlindLevel = {
+  smallBlind: number;
+  bigBlind: number;
+};
+
+type PokerHandEvaluation = {
+  category: number;
+  values: number[];
+  label: string;
+};
+
+function createPokerDeck(): PokerCard[] {
+  return shuffleArray(
+    BLACKJACK_SUITS.flatMap((suit) =>
+      Array.from({ length: 13 }, (_, index) => ({
+        rank: index + 1,
+        suit,
+      })),
+    ),
+  );
+}
+
+function drawPokerCard(state: PokerState): PokerCard {
+  if (state.deck.length === 0) {
+    throw new Error("The poker deck is empty");
+  }
+
+  const nextCard = state.deck[0];
+  state.deck = state.deck.slice(1);
+  return nextCard;
+}
+
+function getPokerBlindLevel(roundNumber: number): PokerBlindLevel {
+  const multiplier =
+    Math.floor(Math.max(0, roundNumber - 1) / POKER_BLIND_INCREASE_ROUNDS) + 1;
+
+  return {
+    smallBlind: POKER_SMALL_BLIND_BASE * multiplier,
+    bigBlind: POKER_BIG_BLIND_BASE * multiplier,
+  };
+}
+
+function getPokerNextSeat(
+  playerOrder: string[],
+  fromPlayerId: string | null,
+  predicate?: (playerId: string) => boolean,
+): string | null {
+  if (playerOrder.length === 0) return null;
+  const startIndex =
+    fromPlayerId && playerOrder.includes(fromPlayerId)
+      ? playerOrder.indexOf(fromPlayerId)
+      : -1;
+
+  for (let step = 1; step <= playerOrder.length; step += 1) {
+    const nextIndex = (startIndex + step) % playerOrder.length;
+    const playerId = playerOrder[nextIndex];
+    if (!predicate || predicate(playerId)) {
+      return playerId;
+    }
+  }
+
+  return null;
+}
+
+function isPokerPlayerInHand(state: PokerState, playerId: string): boolean {
+  return (state.holeCardsByPlayerId[playerId] ?? []).length > 0;
+}
+
+function isPokerPlayerFolded(state: PokerState, playerId: string): boolean {
+  return state.foldedPlayerIds.includes(playerId);
+}
+
+function isPokerPlayerAllIn(state: PokerState, playerId: string): boolean {
+  return state.allInPlayerIds.includes(playerId) || (state.stackByPlayerId[playerId] ?? 0) <= 0;
+}
+
+function getPokerEligiblePlayerIds(state: PokerState): string[] {
+  return state.playerOrder.filter(
+    (playerId) =>
+      isPokerPlayerInHand(state, playerId) && !isPokerPlayerFolded(state, playerId),
+  );
+}
+
+function getPokerActionablePlayerIds(state: PokerState): string[] {
+  return getPokerEligiblePlayerIds(state).filter(
+    (playerId) => !isPokerPlayerAllIn(state, playerId),
+  );
+}
+
+function postPokerForcedBet(
+  state: PokerState,
+  playerId: string | null,
+  amount: number,
+): number {
+  if (!playerId) return 0;
+  const stack = state.stackByPlayerId[playerId] ?? 0;
+  const posted = Math.min(stack, amount);
+  state.stackByPlayerId[playerId] = stack - posted;
+  state.playerBets[playerId] = (state.playerBets[playerId] ?? 0) + posted;
+  state.totalContributionsByPlayerId[playerId] =
+    (state.totalContributionsByPlayerId[playerId] ?? 0) + posted;
+  state.pot += posted;
+  if (state.stackByPlayerId[playerId] === 0 && posted > 0) {
+    state.allInPlayerIds = Array.from(
+      new Set([...state.allInPlayerIds, playerId]),
+    );
+  }
+  return posted;
+}
+
+function sortRanksDescending(values: number[]): number[] {
+  return [...values].sort((a, b) => b - a);
+}
+
+function getStraightHighCard(ranks: number[]): number | null {
+  const uniqueRanks = Array.from(new Set(ranks)).sort((a, b) => b - a);
+  if (uniqueRanks.includes(14)) {
+    uniqueRanks.push(1);
+  }
+
+  let streak = 1;
+  for (let index = 0; index < uniqueRanks.length - 1; index += 1) {
+    if (uniqueRanks[index] - 1 === uniqueRanks[index + 1]) {
+      streak += 1;
+      if (streak >= 5) {
+        return uniqueRanks[index - 3];
+      }
+    } else {
+      streak = 1;
+    }
+  }
+
+  return null;
+}
+
+function getPokerCardRankValue(card: PokerCard): number {
+  return card.rank === 1 ? 14 : card.rank;
+}
+
+function evaluateFiveCardPokerHand(cards: PokerCard[]): PokerHandEvaluation {
+  const ranks = sortRanksDescending(cards.map(getPokerCardRankValue));
+  const rankCounts = new Map<number, number>();
+  for (const rank of ranks) {
+    rankCounts.set(rank, (rankCounts.get(rank) ?? 0) + 1);
+  }
+
+  const entries = Array.from(rankCounts.entries()).sort((a, b) => {
+    if (b[1] !== a[1]) return b[1] - a[1];
+    return b[0] - a[0];
+  });
+
+  const isFlush = cards.every((card) => card.suit === cards[0]?.suit);
+  const straightHigh = getStraightHighCard(ranks);
+
+  if (isFlush && straightHigh !== null) {
+    return {
+      category: 8,
+      values: [straightHigh],
+      label: straightHigh === 14 ? "Royal Flush" : "Straight Flush",
+    };
+  }
+
+  if (entries[0]?.[1] === 4) {
+    return {
+      category: 7,
+      values: [entries[0][0], entries[1]?.[0] ?? 0],
+      label: "Four of a Kind",
+    };
+  }
+
+  if (entries[0]?.[1] === 3 && entries[1]?.[1] === 2) {
+    return {
+      category: 6,
+      values: [entries[0][0], entries[1][0]],
+      label: "Full House",
+    };
+  }
+
+  if (isFlush) {
+    return {
+      category: 5,
+      values: ranks,
+      label: "Flush",
+    };
+  }
+
+  if (straightHigh !== null) {
+    return {
+      category: 4,
+      values: [straightHigh],
+      label: "Straight",
+    };
+  }
+
+  if (entries[0]?.[1] === 3) {
+    return {
+      category: 3,
+      values: [entries[0][0], ...entries.slice(1).map(([rank]) => rank)],
+      label: "Three of a Kind",
+    };
+  }
+
+  if (entries[0]?.[1] === 2 && entries[1]?.[1] === 2) {
+    const pairRanks = entries
+      .filter(([, count]) => count === 2)
+      .map(([rank]) => rank)
+      .sort((a, b) => b - a);
+    const kicker = entries.find(([, count]) => count === 1)?.[0] ?? 0;
+    return {
+      category: 2,
+      values: [...pairRanks, kicker],
+      label: "Two Pair",
+    };
+  }
+
+  if (entries[0]?.[1] === 2) {
+    return {
+      category: 1,
+      values: [entries[0][0], ...entries.slice(1).map(([rank]) => rank)],
+      label: "Pair",
+    };
+  }
+
+  return {
+    category: 0,
+    values: ranks,
+    label: "High Card",
+  };
+}
+
+function comparePokerHands(
+  left: PokerHandEvaluation,
+  right: PokerHandEvaluation,
+): number {
+  if (left.category !== right.category) {
+    return left.category - right.category;
+  }
+
+  const maxLength = Math.max(left.values.length, right.values.length);
+  for (let index = 0; index < maxLength; index += 1) {
+    const leftValue = left.values[index] ?? 0;
+    const rightValue = right.values[index] ?? 0;
+    if (leftValue !== rightValue) {
+      return leftValue - rightValue;
+    }
+  }
+
+  return 0;
+}
+
+function getFiveCardCombinations(cards: PokerCard[]): PokerCard[][] {
+  const combinations: PokerCard[][] = [];
+  for (let a = 0; a < cards.length - 4; a += 1) {
+    for (let b = a + 1; b < cards.length - 3; b += 1) {
+      for (let c = b + 1; c < cards.length - 2; c += 1) {
+        for (let d = c + 1; d < cards.length - 1; d += 1) {
+          for (let e = d + 1; e < cards.length; e += 1) {
+            combinations.push([cards[a], cards[b], cards[c], cards[d], cards[e]]);
+          }
+        }
+      }
+    }
+  }
+  return combinations;
+}
+
+function evaluateSevenCardPokerHand(cards: PokerCard[]): PokerHandEvaluation {
+  const combinations = getFiveCardCombinations(cards);
+  let best = evaluateFiveCardPokerHand(combinations[0] ?? cards.slice(0, 5));
+  for (const combination of combinations.slice(1)) {
+    const nextEvaluation = evaluateFiveCardPokerHand(combination);
+    if (comparePokerHands(nextEvaluation, best) > 0) {
+      best = nextEvaluation;
+    }
+  }
+  return best;
+}
+
+function getPokerRoundDealerPlayerId(
+  playerOrder: string[],
+  previousDealerPlayerId: string | null,
+  stackByPlayerId: Record<string, number>,
+): string | null {
+  const eligiblePlayers = playerOrder.filter(
+    (playerId) => (stackByPlayerId[playerId] ?? 0) > 0,
+  );
+  if (eligiblePlayers.length === 0) return null;
+  if (!previousDealerPlayerId || !eligiblePlayers.includes(previousDealerPlayerId)) {
+    return eligiblePlayers[0] ?? null;
+  }
+
+  return (
+    getPokerNextSeat(eligiblePlayers, previousDealerPlayerId) ??
+    eligiblePlayers[0] ??
+    null
+  );
+}
+
+function getPokerNextActionPlayerId(
+  state: PokerState,
+  fromPlayerId: string | null,
+): string | null {
+  const actionablePlayers = getPokerActionablePlayerIds(state);
+  if (actionablePlayers.length === 0) return null;
+
+  return (
+    getPokerNextSeat(actionablePlayers, fromPlayerId, (playerId) =>
+      actionablePlayers.includes(playerId),
+    ) ?? actionablePlayers[0] ?? null
+  );
+}
+
+function isPokerBettingRoundComplete(state: PokerState): boolean {
+  const actionablePlayers = getPokerActionablePlayerIds(state);
+  if (actionablePlayers.length === 0) return true;
+
+  return actionablePlayers.every((playerId) => {
+    if (!state.actedPlayerIds.includes(playerId)) {
+      return false;
+    }
+    return (state.playerBets[playerId] ?? 0) === state.currentBet;
+  });
+}
+
+function dealPokerCommunityCards(state: PokerState, count: number) {
+  for (let index = 0; index < count; index += 1) {
+    state.communityCards.push(drawPokerCard(state));
+  }
+}
+
+function resetPokerBettingRound(
+  state: PokerState,
+  nextPhase: Exclude<PokerPhase, "PRE_FLOP" | "SHOWDOWN">,
+) {
+  state.phase = nextPhase;
+  state.currentBet = 0;
+  state.playerBets = Object.fromEntries(
+    state.playerOrder.map((playerId) => [playerId, 0]),
+  );
+  state.actedPlayerIds = [];
+  state.lastActionByPlayerId = Object.fromEntries(
+    state.playerOrder.map((playerId) => [playerId, "NONE" as PokerPlayerAction]),
+  );
+  state.currentPlayerId = getPokerNextActionPlayerId(state, state.dealerPlayerId);
+}
+
+function resolvePokerShowdown(state: PokerState): {
+  pointPlayerIds: string[];
+  drinkPlayerIds: string[];
+} {
+  const eligiblePlayers = getPokerEligiblePlayerIds(state);
+  const pointPlayerIds: string[] = [];
+  const drinkPlayerIds: string[] = [];
+
+  if (eligiblePlayers.length === 1) {
+    const soleWinnerId = eligiblePlayers[0];
+    state.winnerPlayerIds = [soleWinnerId];
+    state.handLabelByPlayerId[soleWinnerId] = "Last Player Standing";
+  } else {
+    let bestEvaluation: PokerHandEvaluation | null = null;
+    const winningPlayerIds: string[] = [];
+
+    for (const playerId of eligiblePlayers) {
+      const evaluation = evaluateSevenCardPokerHand([
+        ...(state.holeCardsByPlayerId[playerId] ?? []),
+        ...state.communityCards,
+      ]);
+      state.handLabelByPlayerId[playerId] = evaluation.label;
+
+      if (!bestEvaluation || comparePokerHands(evaluation, bestEvaluation) > 0) {
+        bestEvaluation = evaluation;
+        winningPlayerIds.splice(0, winningPlayerIds.length, playerId);
+      } else if (bestEvaluation && comparePokerHands(evaluation, bestEvaluation) === 0) {
+        winningPlayerIds.push(playerId);
+      }
+    }
+
+    state.winnerPlayerIds = winningPlayerIds;
+  }
+
+  for (const playerId of state.winnerPlayerIds) {
+    pointPlayerIds.push(playerId);
+  }
+
+  for (const playerId of state.playerOrder) {
+    if ((state.holeCardsByPlayerId[playerId] ?? []).length === 0) continue;
+    if (!state.winnerPlayerIds.includes(playerId)) {
+      drinkPlayerIds.push(playerId);
+    }
+  }
+
+  const winnerShare =
+    state.winnerPlayerIds.length > 0
+      ? Math.floor(state.pot / state.winnerPlayerIds.length)
+      : 0;
+  const remainder =
+    state.winnerPlayerIds.length > 0 ? state.pot % state.winnerPlayerIds.length : 0;
+
+  state.winnerPlayerIds.forEach((playerId, index) => {
+    state.stackByPlayerId[playerId] =
+      (state.stackByPlayerId[playerId] ?? 0) +
+      winnerShare +
+      (index === 0 ? remainder : 0);
+  });
+
+  state.phase = "SHOWDOWN";
+  state.currentPlayerId = null;
+
+  return {
+    pointPlayerIds,
+    drinkPlayerIds,
+  };
+}
+
+function maybeResolvePokerByLastPlayer(state: PokerState):
+  | { pointPlayerIds: string[]; drinkPlayerIds: string[] }
+  | null {
+  const eligiblePlayers = getPokerEligiblePlayerIds(state);
+  if (eligiblePlayers.length > 1) return null;
+
+  return resolvePokerShowdown(state);
+}
+
+function advancePokerStateAfterAction(state: PokerState): {
+  pointPlayerIds: string[];
+  drinkPlayerIds: string[];
+} {
+  const immediateResolution = maybeResolvePokerByLastPlayer(state);
+  if (immediateResolution) {
+    return immediateResolution;
+  }
+
+  if (!isPokerBettingRoundComplete(state)) {
+    return {
+      pointPlayerIds: [],
+      drinkPlayerIds: [],
+    };
+  }
+
+  if (state.phase === "PRE_FLOP") {
+    dealPokerCommunityCards(state, 3);
+    resetPokerBettingRound(state, "FLOP");
+  } else if (state.phase === "FLOP") {
+    dealPokerCommunityCards(state, 1);
+    resetPokerBettingRound(state, "TURN");
+  } else if (state.phase === "TURN") {
+    dealPokerCommunityCards(state, 1);
+    resetPokerBettingRound(state, "RIVER");
+  } else {
+    return resolvePokerShowdown(state);
+  }
+
+  while (state.currentPlayerId === null && getPokerActionablePlayerIds(state).length === 0) {
+    const phase = state.phase as PokerPhase;
+
+    if (phase === "FLOP") {
+      dealPokerCommunityCards(state, 1);
+      resetPokerBettingRound(state, "TURN");
+    } else if (phase === "TURN") {
+      dealPokerCommunityCards(state, 1);
+      resetPokerBettingRound(state, "RIVER");
+    } else if (phase === "RIVER") {
+      return resolvePokerShowdown(state);
+    } else {
+      break;
+    }
+  }
+
+  return {
+    pointPlayerIds: [],
+    drinkPlayerIds: [],
+  };
+}
+
+function parsePokerCard(raw: unknown): PokerCard | null {
+  if (!raw || typeof raw !== "object") return null;
+  const card = raw as Partial<PokerCard>;
+  if (
+    typeof card.rank !== "number" ||
+    !Number.isInteger(card.rank) ||
+    card.rank < 1 ||
+    card.rank > 13
+  ) {
+    return null;
+  }
+  if (
+    card.suit !== "HEARTS" &&
+    card.suit !== "DIAMONDS" &&
+    card.suit !== "CLUBS" &&
+    card.suit !== "SPADES"
+  ) {
+    return null;
+  }
+
+  return {
+    rank: card.rank,
+    suit: card.suit,
+  };
+}
+
+function parsePokerState(raw: string | null, playerIds: string[]): PokerState {
+  const baseStacks = Object.fromEntries(
+    playerIds.map((playerId) => [playerId, POKER_STARTING_STACK]),
+  );
+  const fallbackState = createInitialPokerState(playerIds, baseStacks).state;
+  if (!raw) return fallbackState;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<PokerState>;
+    const playerOrder = [
+      ...(Array.isArray(parsed.playerOrder)
+        ? parsed.playerOrder.filter((playerId): playerId is string =>
+            playerIds.includes(playerId),
+          )
+        : []),
+      ...playerIds.filter(
+        (playerId) =>
+          !(
+            Array.isArray(parsed.playerOrder) &&
+            parsed.playerOrder.includes(playerId)
+          ),
+      ),
+    ];
+
+    const holeCardsByPlayerId: Record<string, PokerCard[]> = {};
+    for (const playerId of playerOrder) {
+      const rawHand =
+        parsed.holeCardsByPlayerId && typeof parsed.holeCardsByPlayerId === "object"
+          ? (parsed.holeCardsByPlayerId as Record<string, unknown>)[playerId]
+          : [];
+      holeCardsByPlayerId[playerId] = Array.isArray(rawHand)
+        ? rawHand
+            .map((card) => parsePokerCard(card))
+            .filter((card): card is PokerCard => card !== null)
+        : [];
+    }
+
+    const numericRecord = (value: unknown, defaultValue = 0) =>
+      Object.fromEntries(
+        playerOrder.map((playerId) => {
+          const nextValue =
+            value && typeof value === "object"
+              ? (value as Record<string, unknown>)[playerId]
+              : undefined;
+          return [
+            playerId,
+            typeof nextValue === "number" && Number.isFinite(nextValue)
+              ? nextValue
+              : defaultValue,
+          ];
+        }),
+      );
+
+    const lastActionByPlayerId = Object.fromEntries(
+      playerOrder.map((playerId) => {
+        const rawAction =
+          parsed.lastActionByPlayerId && typeof parsed.lastActionByPlayerId === "object"
+            ? (parsed.lastActionByPlayerId as Record<string, unknown>)[playerId]
+            : undefined;
+        return [
+          playerId,
+          rawAction === "CHECK" ||
+          rawAction === "CALL" ||
+          rawAction === "BET" ||
+          rawAction === "FOLD"
+            ? rawAction
+            : "NONE",
+        ];
+      }),
+    ) as Record<string, PokerPlayerAction>;
+
+    const parsePlayerIdList = (value: unknown) =>
+      Array.isArray(value)
+        ? value.filter(
+            (playerId): playerId is string => playerOrder.includes(playerId),
+          )
+        : [];
+
+    const handLabelByPlayerId = Object.fromEntries(
+      playerOrder.map((playerId) => {
+        const rawLabel =
+          parsed.handLabelByPlayerId &&
+          typeof parsed.handLabelByPlayerId === "object"
+            ? (parsed.handLabelByPlayerId as Record<string, unknown>)[playerId]
+            : undefined;
+        return [playerId, typeof rawLabel === "string" ? rawLabel : null];
+      }),
+    ) as Record<string, string | null>;
+
+    return {
+      status: parsed.status === "ENDED" ? "ENDED" : "PLAYING",
+      roundNumber:
+        typeof parsed.roundNumber === "number" &&
+        Number.isFinite(parsed.roundNumber) &&
+        parsed.roundNumber > 0
+          ? Math.floor(parsed.roundNumber)
+          : 1,
+      phase:
+        parsed.phase === "FLOP" ||
+        parsed.phase === "TURN" ||
+        parsed.phase === "RIVER" ||
+        parsed.phase === "SHOWDOWN"
+          ? parsed.phase
+          : "PRE_FLOP",
+      playerOrder,
+      currentPlayerId:
+        typeof parsed.currentPlayerId === "string" &&
+        playerOrder.includes(parsed.currentPlayerId)
+          ? parsed.currentPlayerId
+          : null,
+      dealerPlayerId:
+        typeof parsed.dealerPlayerId === "string" &&
+        playerOrder.includes(parsed.dealerPlayerId)
+          ? parsed.dealerPlayerId
+          : null,
+      smallBlindPlayerId:
+        typeof parsed.smallBlindPlayerId === "string" &&
+        playerOrder.includes(parsed.smallBlindPlayerId)
+          ? parsed.smallBlindPlayerId
+          : null,
+      bigBlindPlayerId:
+        typeof parsed.bigBlindPlayerId === "string" &&
+        playerOrder.includes(parsed.bigBlindPlayerId)
+          ? parsed.bigBlindPlayerId
+          : null,
+      smallBlindAmount:
+        typeof parsed.smallBlindAmount === "number"
+          ? parsed.smallBlindAmount
+          : POKER_SMALL_BLIND_BASE,
+      bigBlindAmount:
+        typeof parsed.bigBlindAmount === "number"
+          ? parsed.bigBlindAmount
+          : POKER_BIG_BLIND_BASE,
+      currentBet:
+        typeof parsed.currentBet === "number" && Number.isFinite(parsed.currentBet)
+          ? parsed.currentBet
+          : 0,
+      pot: typeof parsed.pot === "number" && Number.isFinite(parsed.pot) ? parsed.pot : 0,
+      deck: Array.isArray(parsed.deck)
+        ? parsed.deck
+            .map((card) => parsePokerCard(card))
+            .filter((card): card is PokerCard => card !== null)
+        : [],
+      communityCards: Array.isArray(parsed.communityCards)
+        ? parsed.communityCards
+            .map((card) => parsePokerCard(card))
+            .filter((card): card is PokerCard => card !== null)
+        : [],
+      holeCardsByPlayerId,
+      stackByPlayerId: numericRecord(parsed.stackByPlayerId, POKER_STARTING_STACK),
+      playerBets: numericRecord(parsed.playerBets),
+      totalContributionsByPlayerId: numericRecord(parsed.totalContributionsByPlayerId),
+      actedPlayerIds: parsePlayerIdList(parsed.actedPlayerIds),
+      foldedPlayerIds: parsePlayerIdList(parsed.foldedPlayerIds),
+      allInPlayerIds: parsePlayerIdList(parsed.allInPlayerIds),
+      lastActionByPlayerId,
+      winnerPlayerIds: parsePlayerIdList(parsed.winnerPlayerIds),
+      handLabelByPlayerId,
+    };
+  } catch {
+    return fallbackState;
+  }
+}
+
+function createInitialPokerState(
+  playerIds: string[],
+  existingStacks?: Record<string, number>,
+  previousRoundNumber = 0,
+  previousDealerPlayerId: string | null = null,
+): {
+  state: PokerState;
+  pointPlayerIds: string[];
+  drinkPlayerIds: string[];
+} {
+  const roundNumber = Math.max(1, previousRoundNumber + 1);
+  const blindLevel = getPokerBlindLevel(roundNumber);
+  const stackByPlayerId = Object.fromEntries(
+    playerIds.map((playerId) => [
+      playerId,
+      existingStacks?.[playerId] ?? POKER_STARTING_STACK,
+    ]),
+  );
+  const dealerPlayerId = getPokerRoundDealerPlayerId(
+    playerIds,
+    previousDealerPlayerId,
+    stackByPlayerId,
+  );
+  const activeSeatPredicate = (playerId: string) => (stackByPlayerId[playerId] ?? 0) > 0;
+  const smallBlindPlayerId = getPokerNextSeat(
+    playerIds,
+    dealerPlayerId,
+    activeSeatPredicate,
+  );
+  const bigBlindPlayerId = getPokerNextSeat(
+    playerIds,
+    smallBlindPlayerId,
+    activeSeatPredicate,
+  );
+  const deck = createPokerDeck();
+  const state: PokerState = {
+    status: "PLAYING",
+    roundNumber,
+    phase: "PRE_FLOP",
+    playerOrder: [...playerIds],
+    currentPlayerId: null,
+    dealerPlayerId,
+    smallBlindPlayerId,
+    bigBlindPlayerId,
+    smallBlindAmount: blindLevel.smallBlind,
+    bigBlindAmount: blindLevel.bigBlind,
+    currentBet: blindLevel.bigBlind,
+    pot: 0,
+    deck,
+    communityCards: [],
+    holeCardsByPlayerId: Object.fromEntries(
+      playerIds.map((playerId) => [playerId, [] as PokerCard[]]),
+    ),
+    stackByPlayerId,
+    playerBets: Object.fromEntries(playerIds.map((playerId) => [playerId, 0])),
+    totalContributionsByPlayerId: Object.fromEntries(
+      playerIds.map((playerId) => [playerId, 0]),
+    ),
+    actedPlayerIds: [],
+    foldedPlayerIds: [],
+    allInPlayerIds: [],
+    lastActionByPlayerId: Object.fromEntries(
+      playerIds.map((playerId) => [playerId, "NONE" as PokerPlayerAction]),
+    ),
+    winnerPlayerIds: [],
+    handLabelByPlayerId: Object.fromEntries(
+      playerIds.map((playerId) => [playerId, null]),
+    ),
+  };
+
+  const activePlayers = playerIds.filter((playerId) => activeSeatPredicate(playerId));
+  for (let pass = 0; pass < 2; pass += 1) {
+    for (const playerId of activePlayers) {
+      state.holeCardsByPlayerId[playerId]?.push(drawPokerCard(state));
+    }
+  }
+
+  postPokerForcedBet(state, smallBlindPlayerId, blindLevel.smallBlind);
+  postPokerForcedBet(state, bigBlindPlayerId, blindLevel.bigBlind);
+  state.currentBet = Math.max(
+    state.playerBets[smallBlindPlayerId ?? ""] ?? 0,
+    state.playerBets[bigBlindPlayerId ?? ""] ?? blindLevel.bigBlind,
+  );
+  state.currentPlayerId = getPokerNextActionPlayerId(state, bigBlindPlayerId);
+
+  if (getPokerEligiblePlayerIds(state).length <= 1) {
+    return {
+      state,
+      ...resolvePokerShowdown(state),
+    };
+  }
+
+  return {
+    state,
+    pointPlayerIds: [],
+    drinkPlayerIds: [],
+  };
+}
+
 function getNextPlayerWithCards(
   state: JokerLoopState,
   fromPlayerId: string,
@@ -2541,6 +3344,30 @@ async function syncRoomStateAfterPlayerAdded(
       return;
     }
 
+    case "poker": {
+      const state = parsePokerState(room.currentAnswer, nextPlayerIds);
+      state.playerOrder = nextPlayerIds;
+      state.holeCardsByPlayerId[newPlayer.id] = [];
+      state.stackByPlayerId[newPlayer.id] = POKER_STARTING_STACK;
+      state.playerBets[newPlayer.id] = 0;
+      state.totalContributionsByPlayerId[newPlayer.id] = 0;
+      state.lastActionByPlayerId[newPlayer.id] = "NONE";
+      state.handLabelByPlayerId[newPlayer.id] = null;
+      state.actedPlayerIds = state.actedPlayerIds.filter((playerId) => playerId !== newPlayer.id);
+      state.foldedPlayerIds = state.foldedPlayerIds.filter((playerId) => playerId !== newPlayer.id);
+      state.allInPlayerIds = state.allInPlayerIds.filter((playerId) => playerId !== newPlayer.id);
+      state.winnerPlayerIds = state.winnerPlayerIds.filter((playerId) => playerId !== newPlayer.id);
+
+      await tx.room.update({
+        where: { id: room.id },
+        data: {
+          currentAnswer: JSON.stringify(state),
+          currentPlayerId: state.currentPlayerId,
+        },
+      });
+      return;
+    }
+
     case "guess-the-number": {
       const state = parseGuessTheNumberState(
         room.currentAnswer,
@@ -3094,6 +3921,12 @@ export const gamesRouter = createTRPCRouter({
         ) {
           throw new Error("Blackjack requires at least 1 player.");
         }
+        if (
+          input.selectedGame === "poker" &&
+          (input.players?.length || 0) < 2
+        ) {
+          throw new Error("Poker requires at least 2 players.");
+        }
 
         if (input.selectedGame === "triviyay") {
           if (!input.teamsInfo || input.teamsInfo.length < 1) {
@@ -3229,6 +4062,7 @@ export const gamesRouter = createTRPCRouter({
           let blackjackCurrentPlayerId: string | null = null;
           let blackjackPointPlayerIds: string[] = [];
           let blackjackDrinkPlayerIds: string[] = [];
+          let pokerCurrentPlayerId: string | null = null;
 
           if (input.selectedGame === "truth-or-drink") {
             currentQuestionId =
@@ -3352,6 +4186,12 @@ export const gamesRouter = createTRPCRouter({
             blackjackPointPlayerIds = blackjackSetup.pointPlayerIds;
             blackjackDrinkPlayerIds = blackjackSetup.drinkPlayerIds;
           }
+          if (input.selectedGame === "poker") {
+            const playerIds = createdRoom.players.map((player) => player.id);
+            const pokerSetup = createInitialPokerState(playerIds);
+            roomCurrentAnswer = JSON.stringify(pokerSetup.state);
+            pokerCurrentPlayerId = pokerSetup.state.currentPlayerId;
+          }
 
           const createdRoomId = createdRoom.id;
           await prisma.room.update({
@@ -3364,6 +4204,8 @@ export const gamesRouter = createTRPCRouter({
                     ? rideTheBusCurrentPlayerId
                   : input.selectedGame === "blackjack"
                     ? blackjackCurrentPlayerId
+                  : input.selectedGame === "poker"
+                    ? pokerCurrentPlayerId
                   : randomCurrentPlayerId,
               previousPlayersIds: [],
               currentQuestionId: currentQuestionId,
@@ -3379,7 +4221,8 @@ export const gamesRouter = createTRPCRouter({
                 input.selectedGame === "who-am-i" ||
                 input.selectedGame === "name-the-song" ||
                 input.selectedGame === "guess-the-movie" ||
-                input.selectedGame === "blackjack"
+                input.selectedGame === "blackjack" ||
+                input.selectedGame === "poker"
                   ? 1
                   : undefined,
             },
@@ -8427,6 +9270,395 @@ export const gamesRouter = createTRPCRouter({
 
       return {
         roundNumber: nextState.roundNumber,
+      };
+    }),
+
+  pokerCall: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "poker") {
+        throw new Error("This room is not Poker");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parsePokerState(room.currentAnswer, playerIds);
+      if (state.phase === "SHOWDOWN") {
+        throw new Error("Start the next hand first");
+      }
+      if (state.currentPlayerId !== input.playerId) {
+        throw new Error("It is not your turn");
+      }
+
+      const stack = state.stackByPlayerId[input.playerId] ?? 0;
+      const toCall = Math.max(
+        0,
+        state.currentBet - (state.playerBets[input.playerId] ?? 0),
+      );
+      const posted = Math.min(stack, toCall);
+
+      state.stackByPlayerId[input.playerId] = stack - posted;
+      state.playerBets[input.playerId] =
+        (state.playerBets[input.playerId] ?? 0) + posted;
+      state.totalContributionsByPlayerId[input.playerId] =
+        (state.totalContributionsByPlayerId[input.playerId] ?? 0) + posted;
+      state.pot += posted;
+      state.lastActionByPlayerId[input.playerId] = toCall === 0 ? "CHECK" : "CALL";
+      state.actedPlayerIds = Array.from(
+        new Set([...state.actedPlayerIds, input.playerId]),
+      );
+      if (state.stackByPlayerId[input.playerId] === 0) {
+        state.allInPlayerIds = Array.from(
+          new Set([...state.allInPlayerIds, input.playerId]),
+        );
+      }
+
+      state.currentPlayerId = getPokerNextActionPlayerId(state, input.playerId);
+      const roundResolution = advancePokerStateAfterAction(state);
+
+      await prisma.$transaction(async (tx) => {
+        if (roundResolution.pointPlayerIds.length > 0) {
+          await tx.player.updateMany({
+            where: {
+              roomId: input.roomId,
+              id: {
+                in: roundResolution.pointPlayerIds,
+              },
+            },
+            data: {
+              points: {
+                increment: 1,
+              },
+            },
+          });
+        }
+
+        if (roundResolution.drinkPlayerIds.length > 0) {
+          await tx.player.updateMany({
+            where: {
+              roomId: input.roomId,
+              id: {
+                in: roundResolution.drinkPlayerIds,
+              },
+            },
+            data: {
+              drinks: {
+                increment: 1,
+              },
+            },
+          });
+        }
+
+        await tx.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentPlayerId: state.currentPlayerId,
+            currentAnswer: JSON.stringify(state),
+          },
+        });
+      });
+
+      return {
+        action: state.lastActionByPlayerId[input.playerId],
+        currentPlayerId: state.currentPlayerId,
+        phase: state.phase as PokerPhase,
+        pot: state.pot,
+        currentBet: state.currentBet,
+        winnerPlayerIds: state.winnerPlayerIds,
+      };
+    }),
+
+  pokerBet: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "poker") {
+        throw new Error("This room is not Poker");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parsePokerState(room.currentAnswer, playerIds);
+      if (state.phase === "SHOWDOWN") {
+        throw new Error("Start the next hand first");
+      }
+      if (state.currentPlayerId !== input.playerId) {
+        throw new Error("It is not your turn");
+      }
+      if (state.currentBet > 0) {
+        throw new Error("There is already a live bet. Call or fold.");
+      }
+
+      const stack = state.stackByPlayerId[input.playerId] ?? 0;
+      const betAmount = Math.min(stack, state.bigBlindAmount);
+      if (betAmount <= 0) {
+        throw new Error("You have no chips left to bet");
+      }
+
+      state.stackByPlayerId[input.playerId] = stack - betAmount;
+      state.playerBets[input.playerId] = betAmount;
+      state.totalContributionsByPlayerId[input.playerId] =
+        (state.totalContributionsByPlayerId[input.playerId] ?? 0) + betAmount;
+      state.pot += betAmount;
+      state.currentBet = betAmount;
+      state.lastActionByPlayerId[input.playerId] = "BET";
+      state.actedPlayerIds = [input.playerId];
+      if (state.stackByPlayerId[input.playerId] === 0) {
+        state.allInPlayerIds = Array.from(
+          new Set([...state.allInPlayerIds, input.playerId]),
+        );
+      }
+
+      state.currentPlayerId = getPokerNextActionPlayerId(state, input.playerId);
+      const roundResolution = advancePokerStateAfterAction(state);
+
+      await prisma.$transaction(async (tx) => {
+        if (roundResolution.pointPlayerIds.length > 0) {
+          await tx.player.updateMany({
+            where: {
+              roomId: input.roomId,
+              id: {
+                in: roundResolution.pointPlayerIds,
+              },
+            },
+            data: {
+              points: {
+                increment: 1,
+              },
+            },
+          });
+        }
+
+        if (roundResolution.drinkPlayerIds.length > 0) {
+          await tx.player.updateMany({
+            where: {
+              roomId: input.roomId,
+              id: {
+                in: roundResolution.drinkPlayerIds,
+              },
+            },
+            data: {
+              drinks: {
+                increment: 1,
+              },
+            },
+          });
+        }
+
+        await tx.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentPlayerId: state.currentPlayerId,
+            currentAnswer: JSON.stringify(state),
+          },
+        });
+      });
+
+      return {
+        currentPlayerId: state.currentPlayerId,
+        phase: state.phase as PokerPhase,
+        pot: state.pot,
+        currentBet: state.currentBet,
+        winnerPlayerIds: state.winnerPlayerIds,
+      };
+    }),
+
+  pokerFold: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "poker") {
+        throw new Error("This room is not Poker");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parsePokerState(room.currentAnswer, playerIds);
+      if (state.phase === "SHOWDOWN") {
+        throw new Error("Start the next hand first");
+      }
+      if (state.currentPlayerId !== input.playerId) {
+        throw new Error("It is not your turn");
+      }
+
+      state.foldedPlayerIds = Array.from(
+        new Set([...state.foldedPlayerIds, input.playerId]),
+      );
+      state.actedPlayerIds = Array.from(
+        new Set([...state.actedPlayerIds, input.playerId]),
+      );
+      state.lastActionByPlayerId[input.playerId] = "FOLD";
+
+      state.currentPlayerId = getPokerNextActionPlayerId(state, input.playerId);
+      const roundResolution = advancePokerStateAfterAction(state);
+
+      await prisma.$transaction(async (tx) => {
+        if (roundResolution.pointPlayerIds.length > 0) {
+          await tx.player.updateMany({
+            where: {
+              roomId: input.roomId,
+              id: {
+                in: roundResolution.pointPlayerIds,
+              },
+            },
+            data: {
+              points: {
+                increment: 1,
+              },
+            },
+          });
+        }
+
+        if (roundResolution.drinkPlayerIds.length > 0) {
+          await tx.player.updateMany({
+            where: {
+              roomId: input.roomId,
+              id: {
+                in: roundResolution.drinkPlayerIds,
+              },
+            },
+            data: {
+              drinks: {
+                increment: 1,
+              },
+            },
+          });
+        }
+
+        await tx.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentPlayerId: state.currentPlayerId,
+            currentAnswer: JSON.stringify(state),
+          },
+        });
+      });
+
+      return {
+        currentPlayerId: state.currentPlayerId,
+        phase: state.phase as PokerPhase,
+        winnerPlayerIds: state.winnerPlayerIds,
+      };
+    }),
+
+  pokerNextRound: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "poker") {
+        throw new Error("This room is not Poker");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parsePokerState(room.currentAnswer, playerIds);
+      if (state.phase !== "SHOWDOWN") {
+        throw new Error("Finish the current hand first");
+      }
+
+      const playersWithChips = playerIds.filter(
+        (playerId) => (state.stackByPlayerId[playerId] ?? 0) > 0,
+      );
+      if (playersWithChips.length < 2) {
+        throw new Error("At least two players need chips to start another hand");
+      }
+
+      const nextSetup = createInitialPokerState(
+        playerIds,
+        state.stackByPlayerId,
+        state.roundNumber,
+        state.dealerPlayerId,
+      );
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentPlayerId: nextSetup.state.currentPlayerId,
+          currentAnswer: JSON.stringify(nextSetup.state),
+          currentRound: nextSetup.state.roundNumber,
+        },
+      });
+
+      return {
+        roundNumber: nextSetup.state.roundNumber,
+        currentPlayerId: nextSetup.state.currentPlayerId,
       };
     }),
 

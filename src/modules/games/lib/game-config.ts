@@ -168,6 +168,11 @@ export const GAME_CONFIG: Record<string, GameConfig> = {
     icon: Club,
     minPlayers: 1,
   },
+  poker: {
+    color: "from-red-800 to-zinc-950",
+    icon: Club,
+    minPlayers: 2,
+  },
 };
 
 export function getGameConfig(gameCode: string): GameConfig {

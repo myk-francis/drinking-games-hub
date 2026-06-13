@@ -196,6 +196,46 @@ export type BlackjackRoomState = {
   hiddenDealerCard: boolean;
 };
 
+export type PokerSuit = "HEARTS" | "DIAMONDS" | "CLUBS" | "SPADES";
+export type PokerCard = {
+  rank: number;
+  suit: PokerSuit;
+};
+export type PokerPhase =
+  | "PRE_FLOP"
+  | "FLOP"
+  | "TURN"
+  | "RIVER"
+  | "SHOWDOWN";
+export type PokerPlayerAction = "NONE" | "CHECK" | "CALL" | "BET" | "FOLD";
+
+export type PokerRoomState = {
+  status: "PLAYING" | "ENDED";
+  roundNumber: number;
+  phase: PokerPhase;
+  playerOrder: string[];
+  currentPlayerId: string | null;
+  dealerPlayerId: string | null;
+  smallBlindPlayerId: string | null;
+  bigBlindPlayerId: string | null;
+  smallBlindAmount: number;
+  bigBlindAmount: number;
+  currentBet: number;
+  pot: number;
+  deck: PokerCard[];
+  communityCards: PokerCard[];
+  holeCardsByPlayerId: Record<string, PokerCard[]>;
+  stackByPlayerId: Record<string, number>;
+  playerBets: Record<string, number>;
+  totalContributionsByPlayerId: Record<string, number>;
+  actedPlayerIds: string[];
+  foldedPlayerIds: string[];
+  allInPlayerIds: string[];
+  lastActionByPlayerId: Record<string, PokerPlayerAction>;
+  winnerPlayerIds: string[];
+  handLabelByPlayerId: Record<string, string | null>;
+};
+
 export type JokerLoopCard = {
   id: string;
   word: string;
@@ -1042,6 +1082,196 @@ export function parseBlackjackState(
       finishedPlayerIds: parsePlayerIdList(parsed.finishedPlayerIds),
       resultByPlayerId,
       hiddenDealerCard: parsed.hiddenDealerCard !== false,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+export function parsePokerState(
+  raw: string | null | undefined,
+): PokerRoomState {
+  const fallback: PokerRoomState = {
+    status: "PLAYING",
+    roundNumber: 1,
+    phase: "PRE_FLOP",
+    playerOrder: [],
+    currentPlayerId: null,
+    dealerPlayerId: null,
+    smallBlindPlayerId: null,
+    bigBlindPlayerId: null,
+    smallBlindAmount: 1000,
+    bigBlindAmount: 2000,
+    currentBet: 0,
+    pot: 0,
+    deck: [],
+    communityCards: [],
+    holeCardsByPlayerId: {},
+    stackByPlayerId: {},
+    playerBets: {},
+    totalContributionsByPlayerId: {},
+    actedPlayerIds: [],
+    foldedPlayerIds: [],
+    allInPlayerIds: [],
+    lastActionByPlayerId: {},
+    winnerPlayerIds: [],
+    handLabelByPlayerId: {},
+  };
+
+  const parseCard = (value: unknown): PokerCard | null => {
+    if (!value || typeof value !== "object") return null;
+    const card = value as Partial<PokerCard>;
+    if (
+      typeof card.rank !== "number" ||
+      !Number.isInteger(card.rank) ||
+      card.rank < 1 ||
+      card.rank > 13
+    ) {
+      return null;
+    }
+    if (
+      card.suit !== "HEARTS" &&
+      card.suit !== "DIAMONDS" &&
+      card.suit !== "CLUBS" &&
+      card.suit !== "SPADES"
+    ) {
+      return null;
+    }
+    return {
+      rank: card.rank,
+      suit: card.suit,
+    };
+  };
+
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<PokerRoomState>;
+    const playerOrder = Array.isArray(parsed.playerOrder)
+      ? parsed.playerOrder.filter(
+          (playerId): playerId is string => typeof playerId === "string",
+        )
+      : [];
+
+    const parsePlayerIdList = (value: unknown) =>
+      Array.isArray(value)
+        ? value.filter(
+            (playerId): playerId is string => typeof playerId === "string",
+          )
+        : [];
+
+    const holeCardsByPlayerId =
+      parsed.holeCardsByPlayerId && typeof parsed.holeCardsByPlayerId === "object"
+        ? Object.fromEntries(
+            Object.entries(parsed.holeCardsByPlayerId).map(([playerId, hand]) => [
+              playerId,
+              Array.isArray(hand)
+                ? hand
+                    .map((card) => parseCard(card))
+                    .filter((card): card is PokerCard => card !== null)
+                : [],
+            ]),
+          )
+        : {};
+
+    const numericRecord = (value: unknown) =>
+      value && typeof value === "object"
+        ? Object.fromEntries(
+            Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+              key,
+              typeof item === "number" && Number.isFinite(item) ? item : 0,
+            ]),
+          )
+        : {};
+
+    const actionRecord =
+      parsed.lastActionByPlayerId && typeof parsed.lastActionByPlayerId === "object"
+        ? Object.fromEntries(
+            Object.entries(parsed.lastActionByPlayerId).map(([playerId, action]) => [
+              playerId,
+              action === "CHECK" ||
+              action === "CALL" ||
+              action === "BET" ||
+              action === "FOLD"
+                ? action
+                : "NONE",
+            ]),
+          )
+        : {};
+
+    const handLabelByPlayerId =
+      parsed.handLabelByPlayerId && typeof parsed.handLabelByPlayerId === "object"
+        ? Object.fromEntries(
+            Object.entries(parsed.handLabelByPlayerId).map(([playerId, label]) => [
+              playerId,
+              typeof label === "string" ? label : null,
+            ]),
+          )
+        : {};
+
+    return {
+      status: parsed.status === "ENDED" ? "ENDED" : "PLAYING",
+      roundNumber:
+        typeof parsed.roundNumber === "number" &&
+        Number.isFinite(parsed.roundNumber) &&
+        parsed.roundNumber > 0
+          ? parsed.roundNumber
+          : 1,
+      phase:
+        parsed.phase === "FLOP" ||
+        parsed.phase === "TURN" ||
+        parsed.phase === "RIVER" ||
+        parsed.phase === "SHOWDOWN"
+          ? parsed.phase
+          : "PRE_FLOP",
+      playerOrder,
+      currentPlayerId:
+        typeof parsed.currentPlayerId === "string" ? parsed.currentPlayerId : null,
+      dealerPlayerId:
+        typeof parsed.dealerPlayerId === "string" ? parsed.dealerPlayerId : null,
+      smallBlindPlayerId:
+        typeof parsed.smallBlindPlayerId === "string"
+          ? parsed.smallBlindPlayerId
+          : null,
+      bigBlindPlayerId:
+        typeof parsed.bigBlindPlayerId === "string" ? parsed.bigBlindPlayerId : null,
+      smallBlindAmount:
+        typeof parsed.smallBlindAmount === "number" &&
+        Number.isFinite(parsed.smallBlindAmount)
+          ? parsed.smallBlindAmount
+          : 1000,
+      bigBlindAmount:
+        typeof parsed.bigBlindAmount === "number" &&
+        Number.isFinite(parsed.bigBlindAmount)
+          ? parsed.bigBlindAmount
+          : 2000,
+      currentBet:
+        typeof parsed.currentBet === "number" && Number.isFinite(parsed.currentBet)
+          ? parsed.currentBet
+          : 0,
+      pot: typeof parsed.pot === "number" && Number.isFinite(parsed.pot) ? parsed.pot : 0,
+      deck: Array.isArray(parsed.deck)
+        ? parsed.deck
+            .map((card) => parseCard(card))
+            .filter((card): card is PokerCard => card !== null)
+        : [],
+      communityCards: Array.isArray(parsed.communityCards)
+        ? parsed.communityCards
+            .map((card) => parseCard(card))
+            .filter((card): card is PokerCard => card !== null)
+        : [],
+      holeCardsByPlayerId,
+      stackByPlayerId: numericRecord(parsed.stackByPlayerId),
+      playerBets: numericRecord(parsed.playerBets),
+      totalContributionsByPlayerId: numericRecord(
+        parsed.totalContributionsByPlayerId,
+      ),
+      actedPlayerIds: parsePlayerIdList(parsed.actedPlayerIds),
+      foldedPlayerIds: parsePlayerIdList(parsed.foldedPlayerIds),
+      allInPlayerIds: parsePlayerIdList(parsed.allInPlayerIds),
+      lastActionByPlayerId: actionRecord as Record<string, PokerPlayerAction>,
+      winnerPlayerIds: parsePlayerIdList(parsed.winnerPlayerIds),
+      handLabelByPlayerId,
     };
   } catch {
     return fallback;
