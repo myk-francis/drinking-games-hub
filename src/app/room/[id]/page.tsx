@@ -5419,25 +5419,34 @@ export default function RoomPage() {
         }
 
         case "blackjack": {
-          const dealerCards = blackjackState.hiddenDealerCard
-            ? blackjackState.dealerHand.map((card, index) =>
-                index === 1
-                  ? null
-                  : card,
+          const isBlackjackPlayerTurns = blackjackState.phase === "PLAYER_TURNS";
+          const isBlackjackRoundResult = blackjackState.phase === "ROUND_RESULT";
+          const shouldKeepDealerFullyHidden =
+            players.length > 1 && isBlackjackPlayerTurns;
+          const dealerCards = shouldKeepDealerFullyHidden
+            ? Array.from(
+                { length: Math.max(blackjackState.dealerHand.length, 2) },
+                () => null,
               )
-            : blackjackState.dealerHand;
-          const dealerVisibleTotal = blackjackState.hiddenDealerCard
-            ? getBlackjackHandTotal(
-                blackjackState.dealerHand.length > 0
-                  ? [blackjackState.dealerHand[0]]
-                  : [],
-              )
-            : getBlackjackHandTotal(blackjackState.dealerHand);
+            : blackjackState.hiddenDealerCard
+              ? blackjackState.dealerHand.map((card, index) =>
+                  index === 1
+                    ? null
+                    : card,
+                )
+              : blackjackState.dealerHand;
+          const dealerVisibleTotal = shouldKeepDealerFullyHidden
+            ? null
+            : blackjackState.hiddenDealerCard
+              ? getBlackjackHandTotal(
+                  blackjackState.dealerHand.length > 0
+                    ? [blackjackState.dealerHand[0]]
+                    : [],
+                )
+              : getBlackjackHandTotal(blackjackState.dealerHand);
           const shouldAnimateDealerReveal =
             !blackjackState.hiddenDealerCard && blackjackDealerRevealVersion > 0;
           const isMyTurn = actualPlayer === blackjackState.currentPlayerId;
-          const isBlackjackPlayerTurns = blackjackState.phase === "PLAYER_TURNS";
-          const isBlackjackRoundResult = blackjackState.phase === "ROUND_RESULT";
           const myHand = actualPlayer
             ? blackjackState.handsByPlayerId[actualPlayer] ?? []
             : [];
@@ -5553,7 +5562,7 @@ export default function RoomPage() {
                             shouldAnimateDealerReveal ? blackjackDealerRevealVersion : 0
                           }`}
                           initial={
-                            shouldAnimateDealerReveal
+                            shouldAnimateDealerReveal && !shouldKeepDealerFullyHidden
                               ? { opacity: 0, y: 12, scale: 0.94 }
                               : false
                           }
@@ -5563,8 +5572,14 @@ export default function RoomPage() {
                             scale: card ? 1 : 0.98,
                           }}
                           transition={{
-                            duration: shouldAnimateDealerReveal ? 0.32 : 0,
-                            delay: shouldAnimateDealerReveal ? index * 0.08 : 0,
+                            duration:
+                              shouldAnimateDealerReveal && !shouldKeepDealerFullyHidden
+                                ? 0.32
+                                : 0,
+                            delay:
+                              shouldAnimateDealerReveal && !shouldKeepDealerFullyHidden
+                                ? index * 0.08
+                                : 0,
                             ease: "easeOut",
                           }}
                           className={`flex h-20 w-16 items-center justify-center rounded-xl border text-sm font-semibold shadow-lg ${getBlackjackCardClasses(
@@ -5576,11 +5591,19 @@ export default function RoomPage() {
                       ))}
                     </div>
                     <p className="mt-3 text-sm text-cyan-200">
-                      Total: {dealerVisibleTotal}
-                      {blackjackState.hiddenDealerCard ? "+" : ""}
+                      {dealerVisibleTotal === null ? (
+                        "Dealer stays hidden until everyone has played."
+                      ) : (
+                        <>
+                          Total: {dealerVisibleTotal}
+                          {blackjackState.hiddenDealerCard ? "+" : ""}
+                        </>
+                      )}
                     </p>
                     <p className="mt-1 text-xs text-white/60">
-                      Dealer reveals the hole card, then draws until reaching 17 or more.
+                      {shouldKeepDealerFullyHidden
+                        ? "With multiple players, the dealer reveals only after every player has hit or stood."
+                        : "Dealer reveals the hole card, then draws until reaching 17 or more."}
                     </p>
                   </div>
 
@@ -5614,7 +5637,7 @@ export default function RoomPage() {
                     )}
 
                     {isBlackjackPlayerTurns && (
-                      <div className="mt-4 flex flex-wrap gap-3">
+                      <div className="mt-4 grid grid-cols-2 gap-3">
                         <Button
                           onClick={() =>
                             blackjackHit.mutate({
@@ -5628,7 +5651,7 @@ export default function RoomPage() {
                             blackjackStand.isPending ||
                             myHand.length === 0
                           }
-                          className="bg-emerald-600 hover:bg-emerald-700"
+                          className="w-full bg-emerald-600 py-6 text-base hover:bg-emerald-700"
                         >
                           Hit
                         </Button>
@@ -5645,7 +5668,7 @@ export default function RoomPage() {
                             blackjackStand.isPending ||
                             myHand.length === 0
                           }
-                          className="bg-slate-700 hover:bg-slate-800"
+                          className="w-full bg-slate-700 py-6 text-base hover:bg-slate-800"
                         >
                           Stand
                         </Button>
