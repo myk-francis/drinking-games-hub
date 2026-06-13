@@ -2206,7 +2206,10 @@ export default function RoomPage() {
   );
 
   const canAddPlayers =
-    actualPlayer === players[0]?.id || selectedGame === "codenames";
+    actualPlayer === players[0]?.id ||
+    selectedGame === "codenames" ||
+    selectedGame === "blackjack" ||
+    selectedGame === "poker";
 
   const handleChangePlayerName = React.useCallback(() => {
     if (!actualPlayer) {
