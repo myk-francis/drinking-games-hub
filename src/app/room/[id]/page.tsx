@@ -56,6 +56,7 @@ import {
   parseJokerLoopState,
   parseMemoryChainState,
   parseNameTheSongState,
+  parsePokerState,
   parseRideTheBusState,
   parseWhoAmIState,
 } from "@/modules/games/lib/room-state";
@@ -63,6 +64,8 @@ import type {
   BlackjackCard,
   BlackjackPlayerResult,
   GuessTheNumberFeedback,
+  PokerCard,
+  PokerPlayerAction,
   RideTheBusCard,
   RideTheBusStep,
 } from "@/modules/games/lib/room-state";
@@ -522,7 +525,7 @@ function getRideTheBusCardLabel(card: RideTheBusCard): string {
   return `${rankLabel} of ${card.suit}`;
 }
 
-function getBlackjackCardLabel(card: BlackjackCard): string {
+function getBlackjackCardLabel(card: BlackjackCard | PokerCard): string {
   const rankLabel =
     card.rank === 1
       ? "A"
@@ -572,7 +575,7 @@ function getBlackjackResultLabel(result: BlackjackPlayerResult | null): string {
   return "Waiting";
 }
 
-function getBlackjackCardClasses(card: BlackjackCard | null): string {
+function getBlackjackCardClasses(card: BlackjackCard | PokerCard | null): string {
   if (!card) {
     return "border-white/15 bg-black/25 text-white/80";
   }
@@ -581,6 +584,22 @@ function getBlackjackCardClasses(card: BlackjackCard | null): string {
   return isRedSuit
     ? "border-rose-300/35 bg-rose-500/10 text-rose-100"
     : "border-slate-300/35 bg-slate-900/60 text-slate-100";
+}
+
+function getPokerPhaseLabel(phase: string): string {
+  if (phase === "PRE_FLOP") return "Pre-Flop";
+  if (phase === "FLOP") return "Flop";
+  if (phase === "TURN") return "Turn";
+  if (phase === "RIVER") return "River";
+  return "Showdown";
+}
+
+function getPokerActionLabel(action: PokerPlayerAction): string {
+  if (action === "CHECK") return "Checked";
+  if (action === "CALL") return "Called";
+  if (action === "BET") return "Bet";
+  if (action === "FOLD") return "Folded";
+  return "Waiting";
 }
 
 function getBlackjackResultBadgeClasses(result: BlackjackPlayerResult | null): string {
@@ -1405,6 +1424,71 @@ export default function RoomPage() {
       },
     }),
   );
+  const pokerCall = useMutation(
+    trpc.games.pokerCall.mutationOptions({
+      onSuccess: (data) => {
+        if (data.phase === "SHOWDOWN") {
+          toast.success("Hand finished. Check the showdown results below.");
+          return;
+        }
+        const nextPlayerName =
+          players.find((player) => player.id === data.currentPlayerId)?.name ||
+          "next player";
+        toast.success(`${data.action === "CHECK" ? "Checked" : "Called"}. ${nextPlayerName} is up.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not complete the action.");
+      },
+    }),
+  );
+  const pokerBet = useMutation(
+    trpc.games.pokerBet.mutationOptions({
+      onSuccess: (data) => {
+        if (data.phase === "SHOWDOWN") {
+          toast.success("Bet placed and hand resolved.");
+          return;
+        }
+        const nextPlayerName =
+          players.find((player) => player.id === data.currentPlayerId)?.name ||
+          "next player";
+        setPokerBetPickerOpen(false);
+        toast.success(`Bet placed. ${nextPlayerName} must respond.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not place the bet.");
+      },
+    }),
+  );
+  const pokerFold = useMutation(
+    trpc.games.pokerFold.mutationOptions({
+      onSuccess: (data) => {
+        if (data.phase === "SHOWDOWN") {
+          toast.success("Player folded and the hand ended.");
+          return;
+        }
+        const nextPlayerName =
+          players.find((player) => player.id === data.currentPlayerId)?.name ||
+          "next player";
+        toast.success(`Folded. ${nextPlayerName} is up.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not fold.");
+      },
+    }),
+  );
+  const pokerNextRound = useMutation(
+    trpc.games.pokerNextRound.mutationOptions({
+      onSuccess: (data) => {
+        const nextPlayerName =
+          players.find((player) => player.id === data.currentPlayerId)?.name ||
+          "first player";
+        toast.success(`Hand ${data.roundNumber} started. ${nextPlayerName} acts first.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not deal the next hand.");
+      },
+    }),
+  );
   const rideTheBusGuess = useMutation(
     trpc.games.rideTheBusGuess.mutationOptions({
       onSuccess: (data) => {
@@ -1564,6 +1648,8 @@ export default function RoomPage() {
   const [reactionCooldownNow, setReactionCooldownNow] = React.useState<number>(
     Date.now(),
   );
+  const [pokerBetPickerOpen, setPokerBetPickerOpen] = React.useState(false);
+  const [pokerBetDraft, setPokerBetDraft] = React.useState(0);
   const [winningTeams, setWinningTeams] = React.useState<string[]>([]);
   const [forfited, setForfited] = React.useState<boolean>(false);
   const selectedActualPlayer = React.useMemo(
@@ -1674,6 +1760,9 @@ export default function RoomPage() {
   const blackjackState = React.useMemo(() => {
     return parseBlackjackState(room?.currentAnswer);
   }, [room?.currentAnswer]);
+  const pokerState = React.useMemo(() => {
+    return parsePokerState(room?.currentAnswer);
+  }, [room?.currentAnswer]);
   const [blackjackDealerRevealPending, setBlackjackDealerRevealPending] =
     React.useState(false);
   const previousBlackjackDealerStateRef = React.useRef<{
@@ -1736,6 +1825,54 @@ export default function RoomPage() {
       }
     };
   }, [blackjackState.hiddenDealerCard, blackjackState.roundNumber]);
+
+  React.useEffect(() => {
+    if (selectedGame !== "poker") {
+      setPokerBetPickerOpen(false);
+      setPokerBetDraft(0);
+      return;
+    }
+
+    const myStack = actualPlayer ? pokerState.stackByPlayerId[actualPlayer] ?? 0 : 0;
+    const roundedMinimum =
+      myStack <= 0
+        ? 0
+        : Math.min(
+            myStack,
+            Math.max(
+              pokerState.betStep,
+              Math.ceil(pokerState.bigBlindAmount / pokerState.betStep) *
+                pokerState.betStep,
+            ),
+          );
+
+    if (pokerState.phase === "SHOWDOWN" || pokerState.currentBet > 0 || myStack <= 0) {
+      setPokerBetPickerOpen(false);
+    }
+
+    setPokerBetDraft((currentDraft) => {
+      if (myStack <= 0) return 0;
+      if (currentDraft <= 0 || currentDraft > myStack) {
+        return roundedMinimum;
+      }
+      return Math.max(
+        roundedMinimum,
+        Math.min(
+          myStack,
+          Math.round(currentDraft / pokerState.betStep) * pokerState.betStep,
+        ),
+      );
+    });
+  }, [
+    actualPlayer,
+    pokerState.betStep,
+    pokerState.bigBlindAmount,
+    pokerState.currentBet,
+    pokerState.phase,
+    pokerState.roundNumber,
+    pokerState.stackByPlayerId,
+    selectedGame,
+  ]);
 
   const whoAmICards = React.useMemo(() => {
     if (!game?.questions) return [];
@@ -2069,7 +2206,10 @@ export default function RoomPage() {
   );
 
   const canAddPlayers =
-    actualPlayer === players[0]?.id || selectedGame === "codenames";
+    actualPlayer === players[0]?.id ||
+    selectedGame === "codenames" ||
+    selectedGame === "blackjack" ||
+    selectedGame === "poker";
 
   const handleChangePlayerName = React.useCallback(() => {
     if (!actualPlayer) {
@@ -5423,6 +5563,390 @@ export default function RoomPage() {
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        case "poker": {
+          const isPokerShowdown = pokerState.phase === "SHOWDOWN";
+          const isMyTurn = actualPlayer === pokerState.currentPlayerId;
+          const myPokerHand = actualPlayer
+            ? pokerState.holeCardsByPlayerId[actualPlayer] ?? []
+            : [];
+          const currentTurnName = pokerState.currentPlayerId
+            ? players.find((player) => player.id === pokerState.currentPlayerId)?.name ||
+              "Player"
+            : "Dealer";
+          const dealerButtonName = pokerState.dealerPlayerId
+            ? players.find((player) => player.id === pokerState.dealerPlayerId)?.name ||
+              "Player"
+            : "Player";
+          const toCall = actualPlayer
+            ? Math.max(
+                0,
+                pokerState.currentBet - (pokerState.playerBets[actualPlayer] ?? 0),
+              )
+            : 0;
+          const myStack = actualPlayer
+            ? pokerState.stackByPlayerId[actualPlayer] ?? 0
+            : 0;
+          const isPokerSpectator = myStack <= 0 && myPokerHand.length === 0;
+          const minimumOpenBet =
+            myStack <= 0
+              ? 0
+              : Math.min(
+                  myStack,
+                  Math.max(
+                    pokerState.betStep,
+                    Math.ceil(pokerState.bigBlindAmount / pokerState.betStep) *
+                      pokerState.betStep,
+                  ),
+                );
+          const pokerCommunitySlots = Array.from({ length: 5 }, (_, index) =>
+            pokerState.communityCards[index] ?? null,
+          );
+          const winnersLabel =
+            pokerState.winnerPlayerIds.length > 0
+              ? pokerState.winnerPlayerIds
+                  .map(
+                    (playerId) =>
+                      players.find((player) => player.id === playerId)?.name || "Player",
+                  )
+                  .join(", ")
+              : "Waiting for showdown";
+
+          return (
+            <div className="w-full">
+              <div className="mb-6 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary" className="gap-1">
+                    <Club className="h-3.5 w-3.5" />
+                    Poker
+                  </Badge>
+                  <Badge variant="outline">Hand {pokerState.roundNumber}</Badge>
+                  <Badge className="bg-rose-800">
+                    {getPokerPhaseLabel(pokerState.phase)}
+                  </Badge>
+                  <Badge className="bg-cyan-700">
+                    Blinds {pokerState.smallBlindAmount} / {pokerState.bigBlindAmount}
+                  </Badge>
+                  <Badge variant="outline">
+                    Stack {pokerState.startingStack} | Bet Step {pokerState.betStep}
+                  </Badge>
+                  {pokerState.currentPlayerId && !isPokerShowdown && (
+                    <Badge className="bg-emerald-700">Turn: {currentTurnName}</Badge>
+                  )}
+                </div>
+                <p className="mt-3 text-sm sm:text-base text-white/90">
+                  The app deals a simplified Texas Hold&apos;em hand. Everyone starts with
+                  10000 chips, blinds go up every five hands, winners get +1 point,
+                  and everyone else in the hand gets +1 drink.
+                </p>
+              </div>
+
+              <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.2fr_1fr]">
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.2em] text-white/50">
+                          Table
+                        </p>
+                        <p className="mt-2 text-sm text-white/80">
+                          App dealer active. Button: {dealerButtonName}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs uppercase tracking-[0.2em] text-white/50">
+                          Pot
+                        </p>
+                        <p className="mt-2 text-xl font-semibold text-amber-200">
+                          {pokerState.pot}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-white/50">
+                        Community Cards
+                      </p>
+                      <div className="mt-3 grid grid-cols-5 gap-2 sm:gap-3">
+                        {pokerCommunitySlots.map((card, index) => (
+                          <div
+                            key={`community-${index}`}
+                            className={`flex h-20 items-center justify-center rounded-xl border text-sm font-semibold shadow-lg ${getBlackjackCardClasses(
+                              card,
+                            )}`}
+                          >
+                            {card ? getBlackjackCardLabel(card) : "?"}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 rounded-xl border border-white/15 bg-black/20 p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-white/50">
+                        Your Hand
+                      </p>
+                      {myPokerHand.length === 0 ? (
+                        <p className="mt-3 text-sm text-white/70">
+                          {isPokerSpectator
+                            ? "You are out of chips and can spectate the rest of the table."
+                            : "You are sitting out this hand or waiting for the next deal."}
+                        </p>
+                      ) : (
+                        <>
+                          <div className="mt-3 flex gap-3">
+                            {myPokerHand.map((card, index) => (
+                              <div
+                                key={`poker-my-${index}-${card.rank}-${card.suit}`}
+                                className={`flex h-20 w-16 items-center justify-center rounded-xl border text-sm font-semibold shadow-lg ${getBlackjackCardClasses(
+                                  card,
+                                )}`}
+                              >
+                                {getBlackjackCardLabel(card)}
+                              </div>
+                            ))}
+                          </div>
+                          <p className="mt-3 text-sm text-cyan-100">
+                            Stack: {myStack} chips
+                          </p>
+                        </>
+                      )}
+
+                      {!isPokerShowdown && (
+                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                          <Button
+                            onClick={() =>
+                              pokerCall.mutate({
+                                roomId: room?.id || "",
+                                playerId: actualPlayer || "",
+                              })
+                            }
+                            disabled={
+                              !isMyTurn ||
+                              pokerCall.isPending ||
+                              pokerBet.isPending ||
+                              pokerFold.isPending ||
+                              myPokerHand.length === 0
+                            }
+                            className="w-full bg-emerald-600 py-6 text-base hover:bg-emerald-700"
+                          >
+                            {toCall === 0 ? "Check" : `Call ${Math.min(toCall, myStack)}`}
+                          </Button>
+                          <Button
+                            onClick={() =>
+                              setPokerBetPickerOpen((open) => !open)
+                            }
+                            disabled={
+                              !isMyTurn ||
+                              pokerCall.isPending ||
+                              pokerBet.isPending ||
+                              pokerFold.isPending ||
+                              myPokerHand.length === 0 ||
+                              pokerState.currentBet > 0 ||
+                              myStack <= 0
+                            }
+                            className="w-full bg-amber-600 py-6 text-base hover:bg-amber-700"
+                          >
+                            {pokerBetPickerOpen
+                              ? "Hide Bet"
+                              : `Bet ${minimumOpenBet}`}
+                          </Button>
+                          <Button
+                            onClick={() =>
+                              pokerFold.mutate({
+                                roomId: room?.id || "",
+                                playerId: actualPlayer || "",
+                              })
+                            }
+                            disabled={
+                              !isMyTurn ||
+                              pokerCall.isPending ||
+                              pokerBet.isPending ||
+                              pokerFold.isPending ||
+                              myPokerHand.length === 0
+                            }
+                            className="w-full bg-slate-700 py-6 text-base hover:bg-slate-800"
+                          >
+                            Fold
+                          </Button>
+                        </div>
+                      )}
+
+                      {!isPokerShowdown && pokerBetPickerOpen && pokerState.currentBet === 0 && (
+                        <div className="mt-4 rounded-xl border border-amber-300/25 bg-amber-500/10 p-4">
+                          <p className="text-sm text-amber-50">
+                            Choose your opening bet. Step size is {pokerState.betStep}.
+                          </p>
+                          <div className="mt-3 flex items-center gap-3">
+                            <Button
+                              type="button"
+                              onClick={() =>
+                                setPokerBetDraft((value) =>
+                                  Math.max(minimumOpenBet, value - pokerState.betStep),
+                                )
+                              }
+                              disabled={pokerBetDraft <= minimumOpenBet}
+                              className="min-w-12 bg-slate-700 px-4 hover:bg-slate-800"
+                            >
+                              -
+                            </Button>
+                            <div className="flex-1 rounded-lg border border-white/15 bg-black/20 px-4 py-3 text-center text-lg font-semibold text-white">
+                              {pokerBetDraft}
+                            </div>
+                            <Button
+                              type="button"
+                              onClick={() =>
+                                setPokerBetDraft((value) =>
+                                  Math.min(myStack, value + pokerState.betStep),
+                                )
+                              }
+                              disabled={pokerBetDraft >= myStack}
+                              className="min-w-12 bg-slate-700 px-4 hover:bg-slate-800"
+                            >
+                              +
+                            </Button>
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 gap-3">
+                            <Button
+                              type="button"
+                              onClick={() =>
+                                pokerBet.mutate({
+                                  roomId: room?.id || "",
+                                  playerId: actualPlayer || "",
+                                  amount: pokerBetDraft,
+                                })
+                              }
+                              disabled={
+                                pokerBet.isPending ||
+                                pokerBetDraft < minimumOpenBet ||
+                                pokerBetDraft > myStack
+                              }
+                              className="w-full bg-amber-600 hover:bg-amber-700"
+                            >
+                              Confirm Bet
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={() => {
+                                setPokerBetPickerOpen(false);
+                                setPokerBetDraft(minimumOpenBet);
+                              }}
+                              className="w-full bg-slate-700 hover:bg-slate-800"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {!isMyTurn && !isPokerShowdown && (
+                        <p className="mt-4 text-sm text-amber-300">
+                          Waiting for {currentTurnName}.
+                        </p>
+                      )}
+
+                      {isPokerSpectator && (
+                        <p className="mt-4 text-sm text-cyan-100/85">
+                          You can keep watching the hand, but your controls are disabled
+                          until a new game with chips starts.
+                        </p>
+                      )}
+
+                      {isPokerShowdown && (
+                        <div className="mt-4 rounded-xl border border-emerald-300/25 bg-emerald-500/10 p-4">
+                          <p className="text-sm text-emerald-100">
+                            Winners: {winnersLabel}
+                          </p>
+                          <Button
+                            onClick={() =>
+                              pokerNextRound.mutate({
+                                roomId: room?.id || "",
+                                playerId: actualPlayer || "",
+                              })
+                            }
+                            disabled={pokerNextRound.isPending || !actualPlayer}
+                            className="mt-4 bg-cyan-600 hover:bg-cyan-700"
+                          >
+                            Deal Next Hand
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <h3 className="text-lg font-semibold text-white">Players</h3>
+                    <div className="mt-4 space-y-3">
+                      {pokerState.playerOrder.map((playerId) => {
+                        const player = players.find((item) => item.id === playerId);
+                        const stack = pokerState.stackByPlayerId[playerId] ?? 0;
+                        const currentBet = pokerState.playerBets[playerId] ?? 0;
+                        const totalContribution =
+                          pokerState.totalContributionsByPlayerId[playerId] ?? 0;
+                        const isCurrent = pokerState.currentPlayerId === playerId;
+                        const isFolded = pokerState.foldedPlayerIds.includes(playerId);
+                        const isAllIn = pokerState.allInPlayerIds.includes(playerId);
+                        const isWinner = pokerState.winnerPlayerIds.includes(playerId);
+                        const canRevealHand =
+                          isPokerShowdown || playerId === actualPlayer;
+                        const hand = pokerState.holeCardsByPlayerId[playerId] ?? [];
+
+                        return (
+                          <div
+                            key={playerId}
+                            className={`rounded-xl border p-3 ${
+                              isWinner
+                                ? "border-emerald-300/30 bg-emerald-500/10"
+                                : isCurrent
+                                  ? "border-cyan-300/30 bg-cyan-500/10"
+                                  : isFolded
+                                    ? "border-rose-300/25 bg-rose-500/10"
+                                    : "border-white/10 bg-black/20"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-semibold text-white">
+                                {player?.name || "Player"}
+                              </p>
+                              <Badge variant="outline">
+                                {isWinner
+                                  ? "Winner"
+                                  : isFolded
+                                    ? "Folded"
+                                    : isAllIn
+                                      ? "All-In"
+                                      : getPokerActionLabel(
+                                          pokerState.lastActionByPlayerId[playerId] ?? "NONE",
+                                        )}
+                              </Badge>
+                            </div>
+                            <p className="mt-2 text-sm text-white/80">
+                              Stack: {stack} | Street Bet: {currentBet} | Total In: {totalContribution}
+                            </p>
+                            <p className="mt-1 text-sm text-white/70">
+                              Cards:{" "}
+                              {hand.length === 0
+                                ? "Not in this hand"
+                                : canRevealHand
+                                  ? hand.map(getBlackjackCardLabel).join(", ")
+                                  : `${hand.length} hidden cards`}
+                            </p>
+                            {isPokerShowdown && pokerState.handLabelByPlayerId[playerId] && (
+                              <p className="mt-1 text-sm text-cyan-100">
+                                Best Hand: {pokerState.handLabelByPlayerId[playerId]}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
