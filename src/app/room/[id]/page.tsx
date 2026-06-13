@@ -533,7 +533,15 @@ function getBlackjackCardLabel(card: BlackjackCard): string {
           : card.rank === 13
             ? "K"
             : String(card.rank);
-  return `${rankLabel} ${card.suit[0]}`;
+  const suitLabel =
+    card.suit === "HEARTS"
+      ? "♥"
+      : card.suit === "DIAMONDS"
+        ? "♦"
+        : card.suit === "CLUBS"
+          ? "♣"
+          : "♠";
+  return `${rankLabel}${suitLabel}`;
 }
 
 function getBlackjackHandTotal(cards: BlackjackCard[]): number {
@@ -562,6 +570,30 @@ function getBlackjackResultLabel(result: BlackjackPlayerResult | null): string {
   if (result === "PUSH") return "Push";
   if (result === "BUST") return "Bust";
   return "Waiting";
+}
+
+function getBlackjackCardClasses(card: BlackjackCard | null): string {
+  if (!card) {
+    return "border-white/15 bg-black/25 text-white/80";
+  }
+
+  const isRedSuit = card.suit === "HEARTS" || card.suit === "DIAMONDS";
+  return isRedSuit
+    ? "border-rose-300/35 bg-rose-500/10 text-rose-100"
+    : "border-slate-300/35 bg-slate-900/60 text-slate-100";
+}
+
+function getBlackjackResultBadgeClasses(result: BlackjackPlayerResult | null): string {
+  if (result === "BLACKJACK" || result === "WIN") {
+    return "border-emerald-300/30 bg-emerald-500/15 text-emerald-100";
+  }
+  if (result === "PUSH") {
+    return "border-amber-300/30 bg-amber-500/15 text-amber-100";
+  }
+  if (result === "LOSE" || result === "BUST") {
+    return "border-rose-300/30 bg-rose-500/15 text-rose-100";
+  }
+  return "border-white/15 bg-black/20 text-white/80";
 }
 
 export default function RoomPage() {
@@ -5355,6 +5387,24 @@ export default function RoomPage() {
             ? players.find((player) => player.id === blackjackState.currentPlayerId)
                 ?.name || "Player"
             : "Dealer";
+          const blackjackWinners = blackjackState.playerOrder.filter((playerId) => {
+            const result = blackjackState.resultByPlayerId[playerId];
+            return result === "BLACKJACK" || result === "WIN";
+          });
+          const blackjackLosers = blackjackState.playerOrder.filter((playerId) => {
+            const result = blackjackState.resultByPlayerId[playerId];
+            return result === "LOSE" || result === "BUST";
+          });
+          const blackjackPushes = blackjackState.playerOrder.filter(
+            (playerId) => blackjackState.resultByPlayerId[playerId] === "PUSH",
+          );
+          const formatBlackjackPlayerNames = (playerIds: string[]) =>
+            playerIds
+              .map(
+                (playerId) =>
+                  players.find((player) => player.id === playerId)?.name || "Player",
+              )
+              .join(", ");
 
           return (
             <div className="w-full">
@@ -5380,6 +5430,49 @@ export default function RoomPage() {
                 </p>
               </div>
 
+              {isBlackjackRoundResult && (
+                <div className="mb-6 rounded-2xl border border-cyan-300/20 bg-gradient-to-r from-cyan-500/15 via-emerald-500/10 to-slate-900/50 p-4 backdrop-blur-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className="bg-cyan-700">Round Summary</Badge>
+                    <Badge variant="outline">
+                      Dealer total: {getBlackjackHandTotal(blackjackState.dealerHand)}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 grid gap-3 md:grid-cols-3">
+                    <div className="rounded-xl border border-emerald-300/25 bg-emerald-500/10 p-3">
+                      <p className="text-xs uppercase tracking-[0.2em] text-emerald-200/80">
+                        Winners
+                      </p>
+                      <p className="mt-2 text-sm text-emerald-50">
+                        {blackjackWinners.length > 0
+                          ? formatBlackjackPlayerNames(blackjackWinners)
+                          : "No winners this round"}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-rose-300/25 bg-rose-500/10 p-3">
+                      <p className="text-xs uppercase tracking-[0.2em] text-rose-200/80">
+                        Drinks
+                      </p>
+                      <p className="mt-2 text-sm text-rose-50">
+                        {blackjackLosers.length > 0
+                          ? formatBlackjackPlayerNames(blackjackLosers)
+                          : "Nobody drinks this round"}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-amber-300/25 bg-amber-500/10 p-3">
+                      <p className="text-xs uppercase tracking-[0.2em] text-amber-200/80">
+                        Pushes
+                      </p>
+                      <p className="mt-2 text-sm text-amber-50">
+                        {blackjackPushes.length > 0
+                          ? formatBlackjackPlayerNames(blackjackPushes)
+                          : "No pushes this round"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.15fr_1fr]">
                 <div className="space-y-4">
                   <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
@@ -5390,7 +5483,9 @@ export default function RoomPage() {
                       {dealerCards.map((card, index) => (
                         <div
                           key={`dealer-${index}`}
-                          className="flex h-20 w-16 items-center justify-center rounded-xl border border-white/15 bg-black/25 text-sm font-semibold text-white"
+                          className={`flex h-20 w-16 items-center justify-center rounded-xl border text-sm font-semibold shadow-lg ${getBlackjackCardClasses(
+                            card,
+                          )}`}
                         >
                           {card ? getBlackjackCardLabel(card) : "Hidden"}
                         </div>
@@ -5417,7 +5512,9 @@ export default function RoomPage() {
                           {myHand.map((card, index) => (
                             <div
                               key={`my-${index}-${card.rank}-${card.suit}`}
-                              className="flex h-20 w-16 items-center justify-center rounded-xl border border-emerald-300/30 bg-emerald-500/10 text-sm font-semibold text-white"
+                              className={`flex h-20 w-16 items-center justify-center rounded-xl border text-sm font-semibold shadow-lg ${getBlackjackCardClasses(
+                                card,
+                              )}`}
                             >
                               {getBlackjackCardLabel(card)}
                             </div>
@@ -5519,7 +5616,10 @@ export default function RoomPage() {
                               <p className="font-semibold text-white">
                                 {player?.name || "Player"}
                               </p>
-                              <Badge variant="outline">
+                              <Badge
+                                variant="outline"
+                                className={getBlackjackResultBadgeClasses(result)}
+                              >
                                 {getBlackjackResultLabel(result)}
                               </Badge>
                             </div>
