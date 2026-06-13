@@ -1674,8 +1674,8 @@ export default function RoomPage() {
   const blackjackState = React.useMemo(() => {
     return parseBlackjackState(room?.currentAnswer);
   }, [room?.currentAnswer]);
-  const [blackjackDealerRevealVersion, setBlackjackDealerRevealVersion] =
-    React.useState(0);
+  const [blackjackDealerRevealPending, setBlackjackDealerRevealPending] =
+    React.useState(false);
   const previousBlackjackDealerStateRef = React.useRef<{
     roundNumber: number;
     hiddenDealerCard: boolean;
@@ -1712,16 +1712,28 @@ export default function RoomPage() {
 
   React.useEffect(() => {
     const previous = previousBlackjackDealerStateRef.current;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     if (!previous || previous.roundNumber !== blackjackState.roundNumber) {
-      setBlackjackDealerRevealVersion(0);
+      setBlackjackDealerRevealPending(false);
     } else if (previous.hiddenDealerCard && !blackjackState.hiddenDealerCard) {
-      setBlackjackDealerRevealVersion((version) => version + 1);
+      setBlackjackDealerRevealPending(true);
+      timeoutId = setTimeout(() => {
+        setBlackjackDealerRevealPending(false);
+      }, 1000);
+    } else if (blackjackState.hiddenDealerCard) {
+      setBlackjackDealerRevealPending(false);
     }
 
     previousBlackjackDealerStateRef.current = {
       roundNumber: blackjackState.roundNumber,
       hiddenDealerCard: blackjackState.hiddenDealerCard,
+    };
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
   }, [blackjackState.hiddenDealerCard, blackjackState.roundNumber]);
 
@@ -5421,31 +5433,36 @@ export default function RoomPage() {
         case "blackjack": {
           const isBlackjackPlayerTurns = blackjackState.phase === "PLAYER_TURNS";
           const isBlackjackRoundResult = blackjackState.phase === "ROUND_RESULT";
-          const shouldKeepDealerFullyHidden =
+          const isDealerRevealPending =
+            blackjackDealerRevealPending && !blackjackState.hiddenDealerCard;
+          const isDealerEffectivelyHidden =
+            blackjackState.hiddenDealerCard || isDealerRevealPending;
+          const shouldKeepDealerPartiallyHidden =
             players.length > 1 && isBlackjackPlayerTurns;
-          const dealerCards = shouldKeepDealerFullyHidden
-            ? Array.from(
-                { length: Math.max(blackjackState.dealerHand.length, 2) },
-                () => null,
-              )
-            : blackjackState.hiddenDealerCard
+          const dealerCards = shouldKeepDealerPartiallyHidden
+            ? Array.from({
+                length: Math.max(blackjackState.dealerHand.length, 2),
+              }).map((_, index) => (index === 0 ? blackjackState.dealerHand[0] ?? null : null))
+            : isDealerEffectivelyHidden
               ? blackjackState.dealerHand.map((card, index) =>
                   index === 1
                     ? null
                     : card,
                 )
               : blackjackState.dealerHand;
-          const dealerVisibleTotal = shouldKeepDealerFullyHidden
-            ? null
-            : blackjackState.hiddenDealerCard
+          const dealerVisibleTotal = shouldKeepDealerPartiallyHidden
+            ? getBlackjackHandTotal(
+                blackjackState.dealerHand.length > 0
+                  ? [blackjackState.dealerHand[0]]
+                  : [],
+              )
+            : isDealerEffectivelyHidden
               ? getBlackjackHandTotal(
                   blackjackState.dealerHand.length > 0
                     ? [blackjackState.dealerHand[0]]
                     : [],
                 )
               : getBlackjackHandTotal(blackjackState.dealerHand);
-          const shouldAnimateDealerReveal =
-            !blackjackState.hiddenDealerCard && blackjackDealerRevealVersion > 0;
           const isMyTurn = actualPlayer === blackjackState.currentPlayerId;
           const myHand = actualPlayer
             ? blackjackState.handsByPlayerId[actualPlayer] ?? []
@@ -5557,52 +5574,27 @@ export default function RoomPage() {
                     </p>
                     <div className="mt-3 flex flex-wrap gap-3">
                       {dealerCards.map((card, index) => (
-                        <motion.div
-                          key={`dealer-${index}-${
-                            shouldAnimateDealerReveal ? blackjackDealerRevealVersion : 0
-                          }`}
-                          initial={
-                            shouldAnimateDealerReveal && !shouldKeepDealerFullyHidden
-                              ? { opacity: 0, y: 12, scale: 0.94 }
-                              : false
-                          }
-                          animate={{
-                            opacity: 1,
-                            y: 0,
-                            scale: card ? 1 : 0.98,
-                          }}
-                          transition={{
-                            duration:
-                              shouldAnimateDealerReveal && !shouldKeepDealerFullyHidden
-                                ? 0.32
-                                : 0,
-                            delay:
-                              shouldAnimateDealerReveal && !shouldKeepDealerFullyHidden
-                                ? index * 0.08
-                                : 0,
-                            ease: "easeOut",
-                          }}
+                        <div
+                          key={`dealer-${index}`}
                           className={`flex h-20 w-16 items-center justify-center rounded-xl border text-sm font-semibold shadow-lg ${getBlackjackCardClasses(
                             card,
                           )}`}
                         >
                           {card ? getBlackjackCardLabel(card) : "Hidden"}
-                        </motion.div>
+                        </div>
                       ))}
                     </div>
                     <p className="mt-3 text-sm text-cyan-200">
-                      {dealerVisibleTotal === null ? (
-                        "Dealer stays hidden until everyone has played."
-                      ) : (
-                        <>
-                          Total: {dealerVisibleTotal}
-                          {blackjackState.hiddenDealerCard ? "+" : ""}
-                        </>
-                      )}
+                      Total: {dealerVisibleTotal}
+                      {(shouldKeepDealerPartiallyHidden || isDealerEffectivelyHidden)
+                        ? "+"
+                        : ""}
                     </p>
                     <p className="mt-1 text-xs text-white/60">
-                      {shouldKeepDealerFullyHidden
-                        ? "With multiple players, the dealer reveals only after every player has hit or stood."
+                      {shouldKeepDealerPartiallyHidden
+                        ? "With multiple players, one dealer up-card stays visible and the hole card reveals after everyone has hit or stood."
+                        : isDealerRevealPending
+                          ? "Dealer reveal incoming..."
                         : "Dealer reveals the hole card, then draws until reaching 17 or more."}
                     </p>
                   </div>
