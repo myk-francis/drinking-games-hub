@@ -8,6 +8,7 @@ import {
   Star,
   Trophy,
   ArrowLeft,
+  Club,
   Film,
 } from "lucide-react";
 import { useParams } from "next/navigation";
@@ -46,6 +47,7 @@ import { DRINKING_QUOTES } from "@/lib/quotes";
 import {
   GUESS_THE_MOVIE_TIMER_SECONDS,
   NAME_THE_SONG_TIMER_SECONDS,
+  parseBlackjackState,
   parseCodenamesState,
   parseConnectLettersState,
   parseGhostTearsState,
@@ -58,6 +60,8 @@ import {
   parseWhoAmIState,
 } from "@/modules/games/lib/room-state";
 import type {
+  BlackjackCard,
+  BlackjackPlayerResult,
   GuessTheNumberFeedback,
   RideTheBusCard,
   RideTheBusStep,
@@ -516,6 +520,115 @@ function getRideTheBusCardLabel(card: RideTheBusCard): string {
             ? "K"
             : String(card.rank);
   return `${rankLabel} of ${card.suit}`;
+}
+
+function getBlackjackCardLabel(card: BlackjackCard): string {
+  const rankLabel =
+    card.rank === 1
+      ? "A"
+      : card.rank === 11
+        ? "J"
+        : card.rank === 12
+          ? "Q"
+          : card.rank === 13
+            ? "K"
+            : String(card.rank);
+  const suitLabel =
+    card.suit === "HEARTS"
+      ? "♥"
+      : card.suit === "DIAMONDS"
+        ? "♦"
+        : card.suit === "CLUBS"
+          ? "♣"
+          : "♠";
+  return `${rankLabel}${suitLabel}`;
+}
+
+function getBlackjackHandTotal(cards: BlackjackCard[]): number {
+  let total = 0;
+  let aces = 0;
+
+  for (const card of cards) {
+    total += card.rank === 1 ? 11 : card.rank >= 10 ? 10 : card.rank;
+    if (card.rank === 1) {
+      aces += 1;
+    }
+  }
+
+  while (total > 21 && aces > 0) {
+    total -= 10;
+    aces -= 1;
+  }
+
+  return total;
+}
+
+function getBlackjackResultLabel(result: BlackjackPlayerResult | null): string {
+  if (result === "BLACKJACK") return "Blackjack";
+  if (result === "WIN") return "Win";
+  if (result === "LOSE") return "Lose";
+  if (result === "PUSH") return "Push";
+  if (result === "BUST") return "Bust";
+  return "Waiting";
+}
+
+function getBlackjackCardClasses(card: BlackjackCard | null): string {
+  if (!card) {
+    return "border-white/15 bg-black/25 text-white/80";
+  }
+
+  const isRedSuit = card.suit === "HEARTS" || card.suit === "DIAMONDS";
+  return isRedSuit
+    ? "border-rose-300/35 bg-rose-500/10 text-rose-100"
+    : "border-slate-300/35 bg-slate-900/60 text-slate-100";
+}
+
+function getBlackjackResultBadgeClasses(result: BlackjackPlayerResult | null): string {
+  if (result === "BLACKJACK" || result === "WIN") {
+    return "border-emerald-300/30 bg-emerald-500/15 text-emerald-100";
+  }
+  if (result === "PUSH") {
+    return "border-amber-300/30 bg-amber-500/15 text-amber-100";
+  }
+  if (result === "LOSE" || result === "BUST") {
+    return "border-rose-300/30 bg-rose-500/15 text-rose-100";
+  }
+  return "border-white/15 bg-black/20 text-white/80";
+}
+
+function getBlackjackRoundExplanation({
+  dealerHand,
+  winners,
+  losers,
+  pushes,
+}: {
+  dealerHand: BlackjackCard[];
+  winners: string[];
+  losers: string[];
+  pushes: string[];
+}): string {
+  const dealerTotal = getBlackjackHandTotal(dealerHand);
+  const dealerNatural = dealerHand.length === 2 && dealerTotal === 21;
+
+  if (dealerNatural) {
+    return winners.length > 0
+      ? "Dealer opened with blackjack, but player naturals still paid out."
+      : "Dealer opened with blackjack, so non-natural hands lost immediately.";
+  }
+
+  if (dealerTotal > 21) {
+    return "Dealer busted after drawing to 17+, so every surviving player won the round.";
+  }
+
+  if (pushes.length > 0 && winners.length === 0 && losers.length === 0) {
+    return "The table tied the dealer exactly, so everyone pushed and no drinks were assigned.";
+  }
+
+  if (pushes.length > 0) {
+    return "The dealer stood on 17+, so matching totals pushed while higher hands won and lower hands drank.";
+  }
+
+  return "The dealer stood on 17+, and results were settled by comparing each hand directly to the dealer.";
 }
 
 export default function RoomPage() {
@@ -1236,6 +1349,62 @@ export default function RoomPage() {
       },
     }),
   );
+  const blackjackHit = useMutation(
+    trpc.games.blackjackHit.mutationOptions({
+      onSuccess: (data) => {
+        const playerName =
+          players.find((player) => player.id === data.playerId)?.name || "Player";
+        if (data.phase === "ROUND_RESULT") {
+          toast.success(`Round settled. ${playerName} finished the table.`);
+          return;
+        }
+        if (data.total > 21) {
+          toast.error(`${playerName} busted with ${data.total}.`);
+          return;
+        }
+        if (data.total === 21) {
+          toast.success(`${playerName} made 21 and is locked in.`);
+          return;
+        }
+        toast.success(`${playerName} hits to ${data.total}.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not draw a card.");
+      },
+    }),
+  );
+  const blackjackStand = useMutation(
+    trpc.games.blackjackStand.mutationOptions({
+      onSuccess: (data) => {
+        const playerName =
+          players.find((player) => player.id === data.playerId)?.name || "Player";
+        if (data.phase === "ROUND_RESULT") {
+          toast.success(`Dealer played out the round after ${playerName} stood.`);
+          return;
+        }
+        const nextName =
+          players.find((player) => player.id === data.currentPlayerId)?.name ||
+          "next player";
+        toast.success(`${playerName} stands. ${nextName} is up.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not stand.");
+      },
+    }),
+  );
+  const blackjackNextRound = useMutation(
+    trpc.games.blackjackNextRound.mutationOptions({
+      onSuccess: (data) => {
+        const currentName =
+          players.find((player) => player.id === data.currentPlayerId)?.name ||
+          "first player";
+        toast.success(`Round ${data.roundNumber} is live. ${currentName} starts.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not start the next round.");
+      },
+    }),
+  );
   const rideTheBusGuess = useMutation(
     trpc.games.rideTheBusGuess.mutationOptions({
       onSuccess: (data) => {
@@ -1502,6 +1671,15 @@ export default function RoomPage() {
   const rideTheBusState = React.useMemo(() => {
     return parseRideTheBusState(room?.currentAnswer);
   }, [room?.currentAnswer]);
+  const blackjackState = React.useMemo(() => {
+    return parseBlackjackState(room?.currentAnswer);
+  }, [room?.currentAnswer]);
+  const [blackjackDealerRevealPending, setBlackjackDealerRevealPending] =
+    React.useState(false);
+  const previousBlackjackDealerStateRef = React.useRef<{
+    roundNumber: number;
+    hiddenDealerCard: boolean;
+  } | null>(null);
   const whoAmIState = React.useMemo(() => {
     return parseWhoAmIState(room?.currentAnswer);
   }, [room?.currentAnswer]);
@@ -1531,6 +1709,33 @@ export default function RoomPage() {
       ) || null
     );
   }, [game?.questions, guessTheMovieState.currentQuestionId]);
+
+  React.useEffect(() => {
+    const previous = previousBlackjackDealerStateRef.current;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    if (!previous || previous.roundNumber !== blackjackState.roundNumber) {
+      setBlackjackDealerRevealPending(false);
+    } else if (previous.hiddenDealerCard && !blackjackState.hiddenDealerCard) {
+      setBlackjackDealerRevealPending(true);
+      timeoutId = setTimeout(() => {
+        setBlackjackDealerRevealPending(false);
+      }, 1000);
+    } else if (blackjackState.hiddenDealerCard) {
+      setBlackjackDealerRevealPending(false);
+    }
+
+    previousBlackjackDealerStateRef.current = {
+      roundNumber: blackjackState.roundNumber,
+      hiddenDealerCard: blackjackState.hiddenDealerCard,
+    };
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [blackjackState.hiddenDealerCard, blackjackState.roundNumber]);
 
   const whoAmICards = React.useMemo(() => {
     if (!game?.questions) return [];
@@ -5218,6 +5423,318 @@ export default function RoomPage() {
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        case "blackjack": {
+          const isBlackjackPlayerTurns = blackjackState.phase === "PLAYER_TURNS";
+          const isBlackjackRoundResult = blackjackState.phase === "ROUND_RESULT";
+          const isDealerRevealPending =
+            blackjackDealerRevealPending && !blackjackState.hiddenDealerCard;
+          const isDealerEffectivelyHidden =
+            blackjackState.hiddenDealerCard || isDealerRevealPending;
+          const shouldKeepDealerPartiallyHidden =
+            players.length > 1 && isBlackjackPlayerTurns;
+          const dealerCards = shouldKeepDealerPartiallyHidden
+            ? Array.from({
+                length: Math.max(blackjackState.dealerHand.length, 2),
+              }).map((_, index) => (index === 0 ? blackjackState.dealerHand[0] ?? null : null))
+            : isDealerEffectivelyHidden
+              ? blackjackState.dealerHand.map((card, index) =>
+                  index === 1
+                    ? null
+                    : card,
+                )
+              : blackjackState.dealerHand;
+          const dealerVisibleTotal = shouldKeepDealerPartiallyHidden
+            ? getBlackjackHandTotal(
+                blackjackState.dealerHand.length > 0
+                  ? [blackjackState.dealerHand[0]]
+                  : [],
+              )
+            : isDealerEffectivelyHidden
+              ? getBlackjackHandTotal(
+                  blackjackState.dealerHand.length > 0
+                    ? [blackjackState.dealerHand[0]]
+                    : [],
+                )
+              : getBlackjackHandTotal(blackjackState.dealerHand);
+          const isMyTurn = actualPlayer === blackjackState.currentPlayerId;
+          const myHand = actualPlayer
+            ? blackjackState.handsByPlayerId[actualPlayer] ?? []
+            : [];
+          const currentTurnName = blackjackState.currentPlayerId
+            ? players.find((player) => player.id === blackjackState.currentPlayerId)
+                ?.name || "Player"
+            : "Dealer";
+          const blackjackWinners = blackjackState.playerOrder.filter((playerId) => {
+            const result = blackjackState.resultByPlayerId[playerId];
+            return result === "BLACKJACK" || result === "WIN";
+          });
+          const blackjackLosers = blackjackState.playerOrder.filter((playerId) => {
+            const result = blackjackState.resultByPlayerId[playerId];
+            return result === "LOSE" || result === "BUST";
+          });
+          const blackjackPushes = blackjackState.playerOrder.filter(
+            (playerId) => blackjackState.resultByPlayerId[playerId] === "PUSH",
+          );
+          const formatBlackjackPlayerNames = (playerIds: string[]) =>
+            playerIds
+              .map(
+                (playerId) =>
+                  players.find((player) => player.id === playerId)?.name || "Player",
+              )
+              .join(", ");
+          const blackjackRoundExplanation = getBlackjackRoundExplanation({
+            dealerHand: blackjackState.dealerHand,
+            winners: blackjackWinners,
+            losers: blackjackLosers,
+            pushes: blackjackPushes,
+          });
+
+          return (
+            <div className="w-full">
+              <div className="mb-6 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary" className="gap-1">
+                    <Club className="h-3.5 w-3.5" />
+                    Blackjack
+                  </Badge>
+                  <Badge variant="outline">Round {blackjackState.roundNumber}</Badge>
+                  <Badge className="bg-emerald-700">
+                    Phase: {blackjackState.phase.replaceAll("_", " ")}
+                  </Badge>
+                  {blackjackState.currentPlayerId && (
+                    <Badge className="bg-cyan-700">
+                      Turn: {currentTurnName}
+                    </Badge>
+                  )}
+                </div>
+                <p className="mt-3 text-sm sm:text-base text-white/90">
+                  The app is the dealer. Beat the dealer without going over 21.
+                  Win for +1 point, lose for +1 drink, and pushes are safe.
+                </p>
+              </div>
+
+              {isBlackjackRoundResult && (
+                <div className="mb-6 rounded-2xl border border-cyan-300/20 bg-gradient-to-r from-cyan-500/15 via-emerald-500/10 to-slate-900/50 p-4 backdrop-blur-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className="bg-cyan-700">Round Summary</Badge>
+                    <Badge variant="outline">
+                      Dealer total: {getBlackjackHandTotal(blackjackState.dealerHand)}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 grid gap-3 md:grid-cols-3">
+                    <div className="rounded-xl border border-emerald-300/25 bg-emerald-500/10 p-3">
+                      <p className="text-xs uppercase tracking-[0.2em] text-emerald-200/80">
+                        Winners
+                      </p>
+                      <p className="mt-2 text-sm text-emerald-50">
+                        {blackjackWinners.length > 0
+                          ? formatBlackjackPlayerNames(blackjackWinners)
+                          : "No winners this round"}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-rose-300/25 bg-rose-500/10 p-3">
+                      <p className="text-xs uppercase tracking-[0.2em] text-rose-200/80">
+                        Drinks
+                      </p>
+                      <p className="mt-2 text-sm text-rose-50">
+                        {blackjackLosers.length > 0
+                          ? formatBlackjackPlayerNames(blackjackLosers)
+                          : "Nobody drinks this round"}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-amber-300/25 bg-amber-500/10 p-3">
+                      <p className="text-xs uppercase tracking-[0.2em] text-amber-200/80">
+                        Pushes
+                      </p>
+                      <p className="mt-2 text-sm text-amber-50">
+                        {blackjackPushes.length > 0
+                          ? formatBlackjackPlayerNames(blackjackPushes)
+                          : "No pushes this round"}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="mt-4 text-sm text-cyan-50/90">
+                    {blackjackRoundExplanation}
+                  </p>
+                </div>
+              )}
+
+              <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.15fr_1fr]">
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <p className="text-xs uppercase tracking-[0.2em] text-white/50">
+                      Dealer
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-3">
+                      {dealerCards.map((card, index) => (
+                        <div
+                          key={`dealer-${index}`}
+                          className={`flex h-20 w-16 items-center justify-center rounded-xl border text-sm font-semibold shadow-lg ${getBlackjackCardClasses(
+                            card,
+                          )}`}
+                        >
+                          {card ? getBlackjackCardLabel(card) : "Hidden"}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-sm text-cyan-200">
+                      Total: {dealerVisibleTotal}
+                      {(shouldKeepDealerPartiallyHidden || isDealerEffectivelyHidden)
+                        ? "+"
+                        : ""}
+                    </p>
+                    <p className="mt-1 text-xs text-white/60">
+                      {shouldKeepDealerPartiallyHidden
+                        ? "With multiple players, one dealer up-card stays visible and the hole card reveals after everyone has hit or stood."
+                        : isDealerRevealPending
+                          ? "Dealer reveal incoming..."
+                        : "Dealer reveals the hole card, then draws until reaching 17 or more."}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <p className="text-xs uppercase tracking-[0.2em] text-white/50">
+                      Your hand
+                    </p>
+                    {myHand.length === 0 ? (
+                      <p className="mt-3 text-sm text-white/70">
+                        You joined after the round started. You&apos;ll be dealt in on
+                        the next round.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="mt-3 flex flex-wrap gap-3">
+                          {myHand.map((card, index) => (
+                            <div
+                              key={`my-${index}-${card.rank}-${card.suit}`}
+                              className={`flex h-20 w-16 items-center justify-center rounded-xl border text-sm font-semibold shadow-lg ${getBlackjackCardClasses(
+                                card,
+                              )}`}
+                            >
+                              {getBlackjackCardLabel(card)}
+                            </div>
+                          ))}
+                        </div>
+                        <p className="mt-3 text-sm text-emerald-200">
+                          Total: {getBlackjackHandTotal(myHand)}
+                        </p>
+                      </>
+                    )}
+
+                    {isBlackjackPlayerTurns && (
+                      <div className="mt-4 grid grid-cols-2 gap-3">
+                        <Button
+                          onClick={() =>
+                            blackjackHit.mutate({
+                              roomId: room?.id || "",
+                              playerId: actualPlayer || "",
+                            })
+                          }
+                          disabled={
+                            !isMyTurn ||
+                            blackjackHit.isPending ||
+                            blackjackStand.isPending ||
+                            myHand.length === 0
+                          }
+                          className="w-full bg-emerald-600 py-6 text-base hover:bg-emerald-700"
+                        >
+                          Hit
+                        </Button>
+                        <Button
+                          onClick={() =>
+                            blackjackStand.mutate({
+                              roomId: room?.id || "",
+                              playerId: actualPlayer || "",
+                            })
+                          }
+                          disabled={
+                            !isMyTurn ||
+                            blackjackHit.isPending ||
+                            blackjackStand.isPending ||
+                            myHand.length === 0
+                          }
+                          className="w-full bg-slate-700 py-6 text-base hover:bg-slate-800"
+                        >
+                          Stand
+                        </Button>
+                      </div>
+                    )}
+
+                    {!isMyTurn && isBlackjackPlayerTurns && (
+                      <p className="mt-4 text-sm text-amber-300">
+                        Waiting for {currentTurnName}.
+                      </p>
+                    )}
+
+                    {isBlackjackRoundResult && (
+                      <div className="mt-4">
+                        <Button
+                          onClick={() =>
+                            blackjackNextRound.mutate({
+                              roomId: room?.id || "",
+                              playerId: actualPlayer || "",
+                            })
+                          }
+                          disabled={blackjackNextRound.isPending || !actualPlayer}
+                          className="bg-cyan-600 hover:bg-cyan-700"
+                        >
+                          Deal Next Round
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <h3 className="text-lg font-semibold text-white">Table</h3>
+                    <div className="mt-4 space-y-3">
+                      {blackjackState.playerOrder.map((playerId) => {
+                        const player = players.find((item) => item.id === playerId);
+                        const hand = blackjackState.handsByPlayerId[playerId] ?? [];
+                        const total = hand.length > 0 ? getBlackjackHandTotal(hand) : 0;
+                        const result = blackjackState.resultByPlayerId[playerId] ?? null;
+                        const isCurrent = blackjackState.currentPlayerId === playerId;
+
+                        return (
+                          <div
+                            key={playerId}
+                            className={`rounded-xl border p-3 ${
+                              result
+                                ? "border-emerald-300/30 bg-emerald-500/10"
+                                : isCurrent
+                                  ? "border-cyan-300/30 bg-cyan-500/10"
+                                  : "border-white/10 bg-black/20"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-semibold text-white">
+                                {player?.name || "Player"}
+                              </p>
+                              <Badge
+                                variant="outline"
+                                className={getBlackjackResultBadgeClasses(result)}
+                              >
+                                {getBlackjackResultLabel(result)}
+                              </Badge>
+                            </div>
+                            <p className="mt-2 text-sm text-white/75">
+                              Cards: {hand.length > 0 ? hand.map(getBlackjackCardLabel).join(", ") : "Waiting for next round"}
+                            </p>
+                            <p className="mt-1 text-sm text-white/75">
+                              Total: {hand.length > 0 ? total : "-"}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>

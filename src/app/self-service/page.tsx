@@ -15,6 +15,7 @@ import {
   Theater,
   ShieldQuestion,
   Compass,
+  Club,
   Crown,
   Sparkles,
   ScrollText,
@@ -67,6 +68,7 @@ const GameIcon = (gamecode: string) => {
   if (gamecode === "connect-the-letters") return <Type className="w-6 h-6" />;
   if (gamecode === "ghost-tears") return <Ghost className="w-6 h-6" />;
   if (gamecode === "name-the-song") return <Mic className="w-6 h-6" />;
+  if (gamecode === "blackjack") return <Club className="w-6 h-6" />;
   return <Gamepad2 className="w-6 h-6" />;
 };
 
@@ -93,6 +95,7 @@ const GameColor = (gamecode: string) => {
   if (gamecode === "connect-the-letters") return "from-fuchsia-600 to-cyan-700";
   if (gamecode === "ghost-tears") return "from-indigo-700 to-cyan-700";
   if (gamecode === "name-the-song") return "from-fuchsia-600 to-pink-700";
+  if (gamecode === "blackjack") return "from-emerald-700 to-teal-900";
   return "from-teal-500 to-cyan-500";
 };
 

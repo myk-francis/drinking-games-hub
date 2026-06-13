@@ -273,6 +273,30 @@ type RideTheBusState = {
   lastResult: RideTheBusLastResult;
 };
 
+type BlackjackSuit = "HEARTS" | "DIAMONDS" | "CLUBS" | "SPADES";
+type BlackjackRoundPhase = "PLAYER_TURNS" | "DEALER_TURN" | "ROUND_RESULT";
+type BlackjackPlayerResult = "BLACKJACK" | "WIN" | "LOSE" | "PUSH" | "BUST";
+type BlackjackCard = {
+  rank: number;
+  suit: BlackjackSuit;
+};
+
+type BlackjackState = {
+  status: "PLAYING" | "ENDED";
+  roundNumber: number;
+  phase: BlackjackRoundPhase;
+  playerOrder: string[];
+  currentPlayerId: string | null;
+  dealerHand: BlackjackCard[];
+  deck: BlackjackCard[];
+  handsByPlayerId: Record<string, BlackjackCard[]>;
+  stoodPlayerIds: string[];
+  bustedPlayerIds: string[];
+  finishedPlayerIds: string[];
+  resultByPlayerId: Record<string, BlackjackPlayerResult | null>;
+  hiddenDealerCard: boolean;
+};
+
 type JokerLoopCardTemplate = {
   word: string;
   icon: string;
@@ -1572,6 +1596,352 @@ function chooseRideTheBusRider(state: RideTheBusState): string | null {
   return chosenPlayerId;
 }
 
+const BLACKJACK_SUITS: BlackjackSuit[] = [
+  "HEARTS",
+  "DIAMONDS",
+  "CLUBS",
+  "SPADES",
+];
+
+function createBlackjackDeck(): BlackjackCard[] {
+  return shuffleArray(
+    BLACKJACK_SUITS.flatMap((suit) =>
+      Array.from({ length: 13 }, (_, index) => ({
+        rank: index + 1,
+        suit,
+      })),
+    ),
+  );
+}
+
+function getBlackjackCardValue(card: BlackjackCard): number {
+  if (card.rank === 1) return 11;
+  if (card.rank >= 10) return 10;
+  return card.rank;
+}
+
+function getBlackjackHandTotal(cards: BlackjackCard[]): number {
+  let total = 0;
+  let aces = 0;
+
+  for (const card of cards) {
+    total += getBlackjackCardValue(card);
+    if (card.rank === 1) {
+      aces += 1;
+    }
+  }
+
+  while (total > 21 && aces > 0) {
+    total -= 10;
+    aces -= 1;
+  }
+
+  return total;
+}
+
+function isBlackjackNatural(cards: BlackjackCard[]): boolean {
+  return cards.length === 2 && getBlackjackHandTotal(cards) === 21;
+}
+
+function drawBlackjackCard(state: BlackjackState): BlackjackCard {
+  if (state.deck.length === 0) {
+    throw new Error("The blackjack deck is empty");
+  }
+
+  const nextCard = state.deck[0];
+  state.deck = state.deck.slice(1);
+  return nextCard;
+}
+
+function getNextBlackjackPlayerId(
+  state: BlackjackState,
+  fromPlayerId: string,
+): string | null {
+  const startIndex = state.playerOrder.indexOf(fromPlayerId);
+  const normalizedStartIndex = startIndex >= 0 ? startIndex : -1;
+
+  for (let step = 1; step <= state.playerOrder.length; step += 1) {
+    const nextIndex = (normalizedStartIndex + step) % state.playerOrder.length;
+    const nextPlayerId = state.playerOrder[nextIndex];
+    const hand = state.handsByPlayerId[nextPlayerId] ?? [];
+    if (hand.length > 0 && !state.finishedPlayerIds.includes(nextPlayerId)) {
+      return nextPlayerId;
+    }
+  }
+
+  return null;
+}
+
+function resolveBlackjackRound(state: BlackjackState): {
+  pointPlayerIds: string[];
+  drinkPlayerIds: string[];
+} {
+  state.phase = "DEALER_TURN";
+  state.hiddenDealerCard = false;
+
+  while (getBlackjackHandTotal(state.dealerHand) < 17) {
+    state.dealerHand.push(drawBlackjackCard(state));
+  }
+
+  const dealerTotal = getBlackjackHandTotal(state.dealerHand);
+  const dealerBust = dealerTotal > 21;
+  const dealerBlackjack = isBlackjackNatural(state.dealerHand);
+  const pointPlayerIds: string[] = [];
+  const drinkPlayerIds: string[] = [];
+
+  for (const playerId of state.playerOrder) {
+    const hand = state.handsByPlayerId[playerId] ?? [];
+    if (hand.length === 0) {
+      state.resultByPlayerId[playerId] = null;
+      continue;
+    }
+
+    const total = getBlackjackHandTotal(hand);
+    const natural = isBlackjackNatural(hand);
+
+    if (total > 21) {
+      state.resultByPlayerId[playerId] = "BUST";
+      drinkPlayerIds.push(playerId);
+      continue;
+    }
+
+    if (natural && !dealerBlackjack) {
+      state.resultByPlayerId[playerId] = "BLACKJACK";
+      pointPlayerIds.push(playerId);
+      continue;
+    }
+
+    if (dealerBust) {
+      state.resultByPlayerId[playerId] = "WIN";
+      pointPlayerIds.push(playerId);
+      continue;
+    }
+
+    if (dealerBlackjack && !natural) {
+      state.resultByPlayerId[playerId] = "LOSE";
+      drinkPlayerIds.push(playerId);
+      continue;
+    }
+
+    if (total > dealerTotal) {
+      state.resultByPlayerId[playerId] = "WIN";
+      pointPlayerIds.push(playerId);
+    } else if (total < dealerTotal) {
+      state.resultByPlayerId[playerId] = "LOSE";
+      drinkPlayerIds.push(playerId);
+    } else {
+      state.resultByPlayerId[playerId] = "PUSH";
+    }
+  }
+
+  state.phase = "ROUND_RESULT";
+  state.currentPlayerId = null;
+
+  return {
+    pointPlayerIds,
+    drinkPlayerIds,
+  };
+}
+
+function createInitialBlackjackState(
+  playerIds: string[],
+  previousRoundNumber?: number,
+): {
+  state: BlackjackState;
+  pointPlayerIds: string[];
+  drinkPlayerIds: string[];
+} {
+  const deck = createBlackjackDeck();
+  const handsByPlayerId = Object.fromEntries(
+    playerIds.map((playerId) => [playerId, [] as BlackjackCard[]]),
+  );
+  const state: BlackjackState = {
+    status: "PLAYING",
+    roundNumber: Math.max(1, (previousRoundNumber ?? 0) + 1),
+    phase: "PLAYER_TURNS",
+    playerOrder: [...playerIds],
+    currentPlayerId: playerIds[0] ?? null,
+    dealerHand: [],
+    deck,
+    handsByPlayerId,
+    stoodPlayerIds: [],
+    bustedPlayerIds: [],
+    finishedPlayerIds: [],
+    resultByPlayerId: Object.fromEntries(
+      playerIds.map((playerId) => [playerId, null]),
+    ),
+    hiddenDealerCard: true,
+  };
+
+  for (let pass = 0; pass < 2; pass += 1) {
+    for (const playerId of playerIds) {
+      state.handsByPlayerId[playerId]?.push(drawBlackjackCard(state));
+    }
+    state.dealerHand.push(drawBlackjackCard(state));
+  }
+
+  for (const playerId of playerIds) {
+    const hand = state.handsByPlayerId[playerId] ?? [];
+    if (isBlackjackNatural(hand)) {
+      state.stoodPlayerIds.push(playerId);
+      state.finishedPlayerIds.push(playerId);
+    }
+  }
+
+  state.currentPlayerId =
+    playerIds.find((playerId) => !state.finishedPlayerIds.includes(playerId)) ??
+    null;
+
+  if (!state.currentPlayerId && playerIds.length > 0) {
+    return {
+      state,
+      ...resolveBlackjackRound(state),
+    };
+  }
+
+  return {
+    state,
+    pointPlayerIds: [],
+    drinkPlayerIds: [],
+  };
+}
+
+function parseBlackjackCard(raw: unknown): BlackjackCard | null {
+  if (!raw || typeof raw !== "object") return null;
+  const card = raw as Partial<BlackjackCard>;
+  if (
+    typeof card.rank !== "number" ||
+    !Number.isInteger(card.rank) ||
+    card.rank < 1 ||
+    card.rank > 13
+  ) {
+    return null;
+  }
+  if (
+    card.suit !== "HEARTS" &&
+    card.suit !== "DIAMONDS" &&
+    card.suit !== "CLUBS" &&
+    card.suit !== "SPADES"
+  ) {
+    return null;
+  }
+
+  return {
+    rank: card.rank,
+    suit: card.suit,
+  };
+}
+
+function parseBlackjackState(
+  raw: string | null,
+  playerIds: string[],
+): BlackjackState {
+  const fallback = createInitialBlackjackState(playerIds, 0).state;
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<BlackjackState>;
+    const normalizedOrder = [
+      ...(Array.isArray(parsed.playerOrder)
+        ? parsed.playerOrder.filter((playerId): playerId is string =>
+            playerIds.includes(playerId),
+          )
+        : []),
+      ...playerIds.filter(
+        (playerId) =>
+          !(
+            Array.isArray(parsed.playerOrder) &&
+            parsed.playerOrder.includes(playerId)
+          ),
+      ),
+    ];
+
+    const dealerHand = Array.isArray(parsed.dealerHand)
+      ? parsed.dealerHand
+          .map((card) => parseBlackjackCard(card))
+          .filter((card): card is BlackjackCard => card !== null)
+      : [];
+    const deck = Array.isArray(parsed.deck)
+      ? parsed.deck
+          .map((card) => parseBlackjackCard(card))
+          .filter((card): card is BlackjackCard => card !== null)
+      : [];
+
+    const handsByPlayerId: Record<string, BlackjackCard[]> = {};
+    for (const playerId of normalizedOrder) {
+      const rawHand =
+        parsed.handsByPlayerId && typeof parsed.handsByPlayerId === "object"
+          ? (parsed.handsByPlayerId as Record<string, unknown>)[playerId]
+          : [];
+      handsByPlayerId[playerId] = Array.isArray(rawHand)
+        ? rawHand
+            .map((card) => parseBlackjackCard(card))
+            .filter((card): card is BlackjackCard => card !== null)
+        : [];
+    }
+
+    const normalizePlayerIdList = (value: unknown) =>
+      Array.isArray(value)
+        ? value.filter(
+            (playerId): playerId is string =>
+              typeof playerId === "string" && normalizedOrder.includes(playerId),
+          )
+        : [];
+
+    const resultByPlayerId: Record<string, BlackjackPlayerResult | null> = {};
+    for (const playerId of normalizedOrder) {
+      const rawResult =
+        parsed.resultByPlayerId && typeof parsed.resultByPlayerId === "object"
+          ? (parsed.resultByPlayerId as Record<string, unknown>)[playerId]
+          : null;
+      resultByPlayerId[playerId] =
+        rawResult === "BLACKJACK" ||
+        rawResult === "WIN" ||
+        rawResult === "LOSE" ||
+        rawResult === "PUSH" ||
+        rawResult === "BUST"
+          ? rawResult
+          : null;
+    }
+
+    const currentPlayerId =
+      typeof parsed.currentPlayerId === "string" &&
+      normalizedOrder.includes(parsed.currentPlayerId)
+        ? parsed.currentPlayerId
+        : normalizedOrder.find(
+            (playerId) =>
+              handsByPlayerId[playerId].length > 0 &&
+              !normalizePlayerIdList(parsed.finishedPlayerIds).includes(playerId),
+          ) ?? null;
+
+    return {
+      status: parsed.status === "ENDED" ? "ENDED" : "PLAYING",
+      roundNumber:
+        typeof parsed.roundNumber === "number" &&
+        Number.isFinite(parsed.roundNumber) &&
+        parsed.roundNumber > 0
+          ? Math.floor(parsed.roundNumber)
+          : 1,
+      phase:
+        parsed.phase === "DEALER_TURN" || parsed.phase === "ROUND_RESULT"
+          ? parsed.phase
+          : "PLAYER_TURNS",
+      playerOrder: normalizedOrder,
+      currentPlayerId,
+      dealerHand,
+      deck,
+      handsByPlayerId,
+      stoodPlayerIds: normalizePlayerIdList(parsed.stoodPlayerIds),
+      bustedPlayerIds: normalizePlayerIdList(parsed.bustedPlayerIds),
+      finishedPlayerIds: normalizePlayerIdList(parsed.finishedPlayerIds),
+      resultByPlayerId,
+      hiddenDealerCard: parsed.hiddenDealerCard !== false,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 function getNextPlayerWithCards(
   state: JokerLoopState,
   fromPlayerId: string,
@@ -2146,6 +2516,31 @@ async function syncRoomStateAfterPlayerAdded(
       return;
     }
 
+    case "blackjack": {
+      const state = parseBlackjackState(room.currentAnswer, nextPlayerIds);
+      state.playerOrder = nextPlayerIds;
+      state.handsByPlayerId[newPlayer.id] = state.handsByPlayerId[newPlayer.id] ?? [];
+      state.resultByPlayerId[newPlayer.id] = state.resultByPlayerId[newPlayer.id] ?? null;
+      state.stoodPlayerIds = state.stoodPlayerIds.filter(
+        (playerId) => playerId !== newPlayer.id,
+      );
+      state.bustedPlayerIds = state.bustedPlayerIds.filter(
+        (playerId) => playerId !== newPlayer.id,
+      );
+      state.finishedPlayerIds = state.finishedPlayerIds.filter(
+        (playerId) => playerId !== newPlayer.id,
+      );
+
+      await tx.room.update({
+        where: { id: room.id },
+        data: {
+          currentAnswer: JSON.stringify(state),
+          currentPlayerId: state.currentPlayerId,
+        },
+      });
+      return;
+    }
+
     case "guess-the-number": {
       const state = parseGuessTheNumberState(
         room.currentAnswer,
@@ -2693,6 +3088,12 @@ export const gamesRouter = createTRPCRouter({
         ) {
           throw new Error("Ride the Bus requires at least 2 players.");
         }
+        if (
+          input.selectedGame === "blackjack" &&
+          (input.players?.length || 0) < 1
+        ) {
+          throw new Error("Blackjack requires at least 1 player.");
+        }
 
         if (input.selectedGame === "triviyay") {
           if (!input.teamsInfo || input.teamsInfo.length < 1) {
@@ -2825,6 +3226,9 @@ export const gamesRouter = createTRPCRouter({
           let roomCurrentAnswer: string | null = null;
           let jokerLoopCurrentPlayerId: string | null = null;
           let rideTheBusCurrentPlayerId: string | null = null;
+          let blackjackCurrentPlayerId: string | null = null;
+          let blackjackPointPlayerIds: string[] = [];
+          let blackjackDrinkPlayerIds: string[] = [];
 
           if (input.selectedGame === "truth-or-drink") {
             currentQuestionId =
@@ -2939,6 +3343,15 @@ export const gamesRouter = createTRPCRouter({
             roomCurrentAnswer = JSON.stringify(rideTheBusState);
             rideTheBusCurrentPlayerId = rideTheBusState.currentPlayerId;
           }
+          if (input.selectedGame === "blackjack") {
+            const playerIds = createdRoom.players.map((player) => player.id);
+            const blackjackSetup = createInitialBlackjackState(playerIds);
+            const blackjackState = blackjackSetup.state;
+            roomCurrentAnswer = JSON.stringify(blackjackState);
+            blackjackCurrentPlayerId = blackjackState.currentPlayerId;
+            blackjackPointPlayerIds = blackjackSetup.pointPlayerIds;
+            blackjackDrinkPlayerIds = blackjackSetup.drinkPlayerIds;
+          }
 
           const createdRoomId = createdRoom.id;
           await prisma.room.update({
@@ -2949,6 +3362,8 @@ export const gamesRouter = createTRPCRouter({
                   ? jokerLoopCurrentPlayerId
                   : input.selectedGame === "ride-the-bus"
                     ? rideTheBusCurrentPlayerId
+                  : input.selectedGame === "blackjack"
+                    ? blackjackCurrentPlayerId
                   : randomCurrentPlayerId,
               previousPlayersIds: [],
               currentQuestionId: currentQuestionId,
@@ -2963,11 +3378,44 @@ export const gamesRouter = createTRPCRouter({
               currentRound:
                 input.selectedGame === "who-am-i" ||
                 input.selectedGame === "name-the-song" ||
-                input.selectedGame === "guess-the-movie"
+                input.selectedGame === "guess-the-movie" ||
+                input.selectedGame === "blackjack"
                   ? 1
                   : undefined,
             },
           });
+
+          if (blackjackPointPlayerIds.length > 0) {
+            await prisma.player.updateMany({
+              where: {
+                roomId: createdRoomId,
+                id: {
+                  in: blackjackPointPlayerIds,
+                },
+              },
+              data: {
+                points: {
+                  increment: 1,
+                },
+              },
+            });
+          }
+
+          if (blackjackDrinkPlayerIds.length > 0) {
+            await prisma.player.updateMany({
+              where: {
+                roomId: createdRoomId,
+                id: {
+                  in: blackjackDrinkPlayerIds,
+                },
+              },
+              data: {
+                drinks: {
+                  increment: 1,
+                },
+              },
+            });
+          }
 
           return createdRoom;
         }
@@ -7979,6 +8427,342 @@ export const gamesRouter = createTRPCRouter({
 
       return {
         roundNumber: nextState.roundNumber,
+      };
+    }),
+
+  blackjackHit: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "blackjack") {
+        throw new Error("This room is not Blackjack");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+      if (!room.players.some((player) => player.id === input.playerId)) {
+        throw new Error("Player not found in room");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parseBlackjackState(room.currentAnswer, playerIds);
+
+      if (state.phase !== "PLAYER_TURNS") {
+        throw new Error("Wait for the next round to start");
+      }
+      if (!state.currentPlayerId || state.currentPlayerId !== input.playerId) {
+        throw new Error("It is not your turn");
+      }
+
+      const hand = [...(state.handsByPlayerId[input.playerId] ?? [])];
+      if (hand.length === 0) {
+        throw new Error("You are joining on the next round");
+      }
+
+      hand.push(drawBlackjackCard(state));
+      state.handsByPlayerId[input.playerId] = hand;
+
+      const total = getBlackjackHandTotal(hand);
+      let pointPlayerIds: string[] = [];
+      let drinkPlayerIds: string[] = [];
+
+      if (total >= 21) {
+        if (!state.finishedPlayerIds.includes(input.playerId)) {
+          state.finishedPlayerIds.push(input.playerId);
+        }
+
+        if (total > 21) {
+          if (!state.bustedPlayerIds.includes(input.playerId)) {
+            state.bustedPlayerIds.push(input.playerId);
+          }
+        } else if (!state.stoodPlayerIds.includes(input.playerId)) {
+          state.stoodPlayerIds.push(input.playerId);
+        }
+
+        const nextPlayerId = getNextBlackjackPlayerId(state, input.playerId);
+        if (nextPlayerId) {
+          state.currentPlayerId = nextPlayerId;
+        } else {
+          const roundResolution = resolveBlackjackRound(state);
+          pointPlayerIds = roundResolution.pointPlayerIds;
+          drinkPlayerIds = roundResolution.drinkPlayerIds;
+        }
+      }
+
+      await prisma.$transaction(async (tx) => {
+        if (pointPlayerIds.length > 0) {
+          await tx.player.updateMany({
+            where: {
+              roomId: input.roomId,
+              id: {
+                in: pointPlayerIds,
+              },
+            },
+            data: {
+              points: {
+                increment: 1,
+              },
+            },
+          });
+        }
+
+        if (drinkPlayerIds.length > 0) {
+          await tx.player.updateMany({
+            where: {
+              roomId: input.roomId,
+              id: {
+                in: drinkPlayerIds,
+              },
+            },
+            data: {
+              drinks: {
+                increment: 1,
+              },
+            },
+          });
+        }
+
+        await tx.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentPlayerId: state.currentPlayerId,
+            currentAnswer: JSON.stringify(state),
+          },
+        });
+      });
+
+      return {
+        playerId: input.playerId,
+        total,
+        currentPlayerId: state.currentPlayerId,
+        phase: state.phase as BlackjackRoundPhase,
+        pointPlayerIds,
+        drinkPlayerIds,
+        resultByPlayerId: state.resultByPlayerId,
+      };
+    }),
+
+  blackjackStand: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "blackjack") {
+        throw new Error("This room is not Blackjack");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+      if (!room.players.some((player) => player.id === input.playerId)) {
+        throw new Error("Player not found in room");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parseBlackjackState(room.currentAnswer, playerIds);
+
+      if (state.phase !== "PLAYER_TURNS") {
+        throw new Error("Wait for the next round to start");
+      }
+      if (!state.currentPlayerId || state.currentPlayerId !== input.playerId) {
+        throw new Error("It is not your turn");
+      }
+
+      if ((state.handsByPlayerId[input.playerId] ?? []).length === 0) {
+        throw new Error("You are joining on the next round");
+      }
+
+      if (!state.stoodPlayerIds.includes(input.playerId)) {
+        state.stoodPlayerIds.push(input.playerId);
+      }
+      if (!state.finishedPlayerIds.includes(input.playerId)) {
+        state.finishedPlayerIds.push(input.playerId);
+      }
+
+      let pointPlayerIds: string[] = [];
+      let drinkPlayerIds: string[] = [];
+      const nextPlayerId = getNextBlackjackPlayerId(state, input.playerId);
+      if (nextPlayerId) {
+        state.currentPlayerId = nextPlayerId;
+      } else {
+        const roundResolution = resolveBlackjackRound(state);
+        pointPlayerIds = roundResolution.pointPlayerIds;
+        drinkPlayerIds = roundResolution.drinkPlayerIds;
+      }
+
+      await prisma.$transaction(async (tx) => {
+        if (pointPlayerIds.length > 0) {
+          await tx.player.updateMany({
+            where: {
+              roomId: input.roomId,
+              id: {
+                in: pointPlayerIds,
+              },
+            },
+            data: {
+              points: {
+                increment: 1,
+              },
+            },
+          });
+        }
+
+        if (drinkPlayerIds.length > 0) {
+          await tx.player.updateMany({
+            where: {
+              roomId: input.roomId,
+              id: {
+                in: drinkPlayerIds,
+              },
+            },
+            data: {
+              drinks: {
+                increment: 1,
+              },
+            },
+          });
+        }
+
+        await tx.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentPlayerId: state.currentPlayerId,
+            currentAnswer: JSON.stringify(state),
+          },
+        });
+      });
+
+      return {
+        playerId: input.playerId,
+        currentPlayerId: state.currentPlayerId,
+        phase: state.phase as BlackjackRoundPhase,
+        pointPlayerIds,
+        drinkPlayerIds,
+        resultByPlayerId: state.resultByPlayerId,
+      };
+    }),
+
+  blackjackNextRound: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "blackjack") {
+        throw new Error("This room is not Blackjack");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+      if (!room.players.some((player) => player.id === input.playerId)) {
+        throw new Error("Player not found in room");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const currentState = parseBlackjackState(room.currentAnswer, playerIds);
+      if (currentState.phase !== "ROUND_RESULT") {
+        throw new Error("Finish the current round first");
+      }
+
+      const nextRoundSetup = createInitialBlackjackState(
+        playerIds,
+        currentState.roundNumber,
+      );
+      const nextState = nextRoundSetup.state;
+
+      await prisma.$transaction(async (tx) => {
+        if (nextRoundSetup.pointPlayerIds.length > 0) {
+          await tx.player.updateMany({
+            where: {
+              roomId: input.roomId,
+              id: {
+                in: nextRoundSetup.pointPlayerIds,
+              },
+            },
+            data: {
+              points: {
+                increment: 1,
+              },
+            },
+          });
+        }
+
+        if (nextRoundSetup.drinkPlayerIds.length > 0) {
+          await tx.player.updateMany({
+            where: {
+              roomId: input.roomId,
+              id: {
+                in: nextRoundSetup.drinkPlayerIds,
+              },
+            },
+            data: {
+              drinks: {
+                increment: 1,
+              },
+            },
+          });
+        }
+
+        await tx.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentPlayerId: nextState.currentPlayerId,
+            currentAnswer: JSON.stringify(nextState),
+            currentRound: nextState.roundNumber,
+          },
+        });
+      });
+
+      return {
+        roundNumber: nextState.roundNumber,
+        currentPlayerId: nextState.currentPlayerId,
       };
     }),
 

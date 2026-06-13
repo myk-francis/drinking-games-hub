@@ -164,6 +164,38 @@ export type RideTheBusRoomState = {
   lastResult: RideTheBusLastResult;
 };
 
+export type BlackjackSuit = "HEARTS" | "DIAMONDS" | "CLUBS" | "SPADES";
+export type BlackjackCard = {
+  rank: number;
+  suit: BlackjackSuit;
+};
+export type BlackjackRoundPhase =
+  | "PLAYER_TURNS"
+  | "DEALER_TURN"
+  | "ROUND_RESULT";
+export type BlackjackPlayerResult =
+  | "BLACKJACK"
+  | "WIN"
+  | "LOSE"
+  | "PUSH"
+  | "BUST";
+
+export type BlackjackRoomState = {
+  status: "PLAYING" | "ENDED";
+  roundNumber: number;
+  phase: BlackjackRoundPhase;
+  playerOrder: string[];
+  currentPlayerId: string | null;
+  dealerHand: BlackjackCard[];
+  deck: BlackjackCard[];
+  handsByPlayerId: Record<string, BlackjackCard[]>;
+  stoodPlayerIds: string[];
+  bustedPlayerIds: string[];
+  finishedPlayerIds: string[];
+  resultByPlayerId: Record<string, BlackjackPlayerResult | null>;
+  hiddenDealerCard: boolean;
+};
+
 export type JokerLoopCard = {
   id: string;
   word: string;
@@ -882,6 +914,134 @@ export function parseRideTheBusState(
         parsed.lastResult === "ESCAPED"
           ? parsed.lastResult
           : null,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+export function parseBlackjackState(
+  raw: string | null | undefined,
+): BlackjackRoomState {
+  const fallback: BlackjackRoomState = {
+    status: "PLAYING",
+    roundNumber: 1,
+    phase: "PLAYER_TURNS",
+    playerOrder: [],
+    currentPlayerId: null,
+    dealerHand: [],
+    deck: [],
+    handsByPlayerId: {},
+    stoodPlayerIds: [],
+    bustedPlayerIds: [],
+    finishedPlayerIds: [],
+    resultByPlayerId: {},
+    hiddenDealerCard: true,
+  };
+
+  const parseCard = (value: unknown): BlackjackCard | null => {
+    if (!value || typeof value !== "object") return null;
+    const card = value as Partial<BlackjackCard>;
+    if (
+      typeof card.rank !== "number" ||
+      !Number.isInteger(card.rank) ||
+      card.rank < 1 ||
+      card.rank > 13
+    ) {
+      return null;
+    }
+    if (
+      card.suit !== "HEARTS" &&
+      card.suit !== "DIAMONDS" &&
+      card.suit !== "CLUBS" &&
+      card.suit !== "SPADES"
+    ) {
+      return null;
+    }
+    return {
+      rank: card.rank,
+      suit: card.suit,
+    };
+  };
+
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<BlackjackRoomState>;
+    const playerOrder = Array.isArray(parsed.playerOrder)
+      ? parsed.playerOrder.filter(
+          (playerId): playerId is string => typeof playerId === "string",
+        )
+      : [];
+
+    const handsByPlayerId =
+      parsed.handsByPlayerId && typeof parsed.handsByPlayerId === "object"
+        ? Object.fromEntries(
+            Object.entries(parsed.handsByPlayerId).map(([playerId, hand]) => [
+              playerId,
+              Array.isArray(hand)
+                ? hand
+                    .map((card) => parseCard(card))
+                    .filter((card): card is BlackjackCard => card !== null)
+                : [],
+            ]),
+          )
+        : {};
+
+    const parsePlayerIdList = (value: unknown) =>
+      Array.isArray(value)
+        ? value.filter(
+            (playerId): playerId is string => typeof playerId === "string",
+          )
+        : [];
+
+    const resultByPlayerId =
+      parsed.resultByPlayerId && typeof parsed.resultByPlayerId === "object"
+        ? Object.fromEntries(
+            Object.entries(parsed.resultByPlayerId).map(([playerId, result]) => [
+              playerId,
+              result === "BLACKJACK" ||
+              result === "WIN" ||
+              result === "LOSE" ||
+              result === "PUSH" ||
+              result === "BUST"
+                ? result
+                : null,
+            ]),
+          )
+        : {};
+
+    return {
+      status: parsed.status === "ENDED" ? "ENDED" : "PLAYING",
+      roundNumber:
+        typeof parsed.roundNumber === "number" &&
+        Number.isFinite(parsed.roundNumber) &&
+        parsed.roundNumber > 0
+          ? parsed.roundNumber
+          : 1,
+      phase:
+        parsed.phase === "DEALER_TURN" || parsed.phase === "ROUND_RESULT"
+          ? parsed.phase
+          : "PLAYER_TURNS",
+      playerOrder,
+      currentPlayerId:
+        typeof parsed.currentPlayerId === "string" ? parsed.currentPlayerId : null,
+      dealerHand: Array.isArray(parsed.dealerHand)
+        ? parsed.dealerHand
+            .map((card) => parseCard(card))
+            .filter((card): card is BlackjackCard => card !== null)
+        : [],
+      deck: Array.isArray(parsed.deck)
+        ? parsed.deck
+            .map((card) => parseCard(card))
+            .filter((card): card is BlackjackCard => card !== null)
+        : [],
+      handsByPlayerId,
+      stoodPlayerIds: parsePlayerIdList(parsed.stoodPlayerIds),
+      bustedPlayerIds: parsePlayerIdList(parsed.bustedPlayerIds),
+      finishedPlayerIds: parsePlayerIdList(parsed.finishedPlayerIds),
+      resultByPlayerId,
+      hiddenDealerCard: parsed.hiddenDealerCard !== false,
     };
   } catch {
     return fallback;
