@@ -2,6 +2,7 @@ import {
   ArrowUpRight,
   Brain,
   Bus,
+  Club,
   ClipboardPaste,
   Compass,
   Crown,
@@ -161,6 +162,11 @@ export const GAME_CONFIG: Record<string, GameConfig> = {
     color: "from-cyan-600 to-blue-800",
     icon: Bus,
     minPlayers: 2,
+  },
+  blackjack: {
+    color: "from-emerald-700 to-teal-900",
+    icon: Club,
+    minPlayers: 1,
   },
 };
 
