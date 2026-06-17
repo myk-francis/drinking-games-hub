@@ -369,6 +369,114 @@ type TopPlayerEntry = {
   ratio: number;
 };
 
+function GameEndedWinners({
+  winners,
+  selectedGame,
+}: {
+  winners: TopPlayerEntry[];
+  selectedGame: string;
+}) {
+  if (winners.length === 0) {
+    return null;
+  }
+
+  const pointsLabel =
+    selectedGame === "most-likely" || selectedGame === "paranoia"
+      ? "Votes"
+      : "Points";
+  const championRatio = winners[0]?.ratio ?? 0;
+
+  return (
+    <motion.section
+      className="mb-6 overflow-hidden rounded-3xl border border-amber-300/30 bg-gradient-to-br from-amber-400/20 via-yellow-200/10 to-cyan-300/15 p-5 shadow-[0_18px_60px_rgba(251,191,36,0.18)] backdrop-blur-sm sm:p-6"
+      initial={{ opacity: 0, y: 20, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-amber-200/30 bg-black/20 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-100">
+            <Trophy className="h-3.5 w-3.5" />
+            Winners Circle
+          </div>
+          <h2 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
+            Best points-to-drinks ratio
+          </h2>
+          <p className="mt-1 text-sm text-white/75">
+            {winners.length === 1
+              ? "This player had the cleanest run of the night."
+              : "These players tied for the sharpest ratio tonight."}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-cyan-200/20 bg-black/20 px-4 py-3 text-left sm:text-right">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100/70">
+            Winning ratio
+          </div>
+          <div className="text-3xl font-black text-cyan-100">
+            {championRatio.toFixed(2)}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {winners.map((winner, index) => (
+          <motion.div
+            key={winner.id}
+            className="relative overflow-hidden rounded-2xl border border-white/15 bg-black/25 p-4"
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{
+              delay: 0.08 + index * 0.06,
+              duration: 0.3,
+              ease: "easeOut",
+            }}
+          >
+            <div className="absolute right-3 top-3 rounded-full bg-amber-300/15 px-2.5 py-1 text-xs font-bold text-amber-100">
+              #{index + 1}
+            </div>
+            <div className="mb-4 flex items-center gap-3 pr-12">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-200/35 bg-amber-300/15 text-2xl">
+                {index === 0 ? "👑" : "🏆"}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-lg font-bold text-white">{winner.name}</p>
+                <p className="text-sm text-white/65">Efficiency champion</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2">
+                <div className="text-[11px] uppercase tracking-[0.16em] text-emerald-100/70">
+                  {pointsLabel}
+                </div>
+                <div className="mt-1 text-lg font-bold text-emerald-200">
+                  {winner.points}
+                </div>
+              </div>
+              <div className="rounded-xl border border-orange-300/20 bg-orange-400/10 px-3 py-2">
+                <div className="text-[11px] uppercase tracking-[0.16em] text-orange-100/70">
+                  Drinks
+                </div>
+                <div className="mt-1 text-lg font-bold text-orange-200">
+                  {winner.drinks}
+                </div>
+              </div>
+              <div className="rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2">
+                <div className="text-[11px] uppercase tracking-[0.16em] text-cyan-100/70">
+                  Ratio
+                </div>
+                <div className="mt-1 text-lg font-bold text-cyan-100">
+                  {winner.ratio.toFixed(2)}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </motion.section>
+  );
+}
+
 function TopPlayersView({
   topPlayers,
   selectedGame,
@@ -1960,6 +2068,31 @@ export default function RoomPage() {
     return gameWideTopPlayers as TopPlayerEntry[];
   }, [gameWideTopPlayers]);
 
+  const gameEndedWinners = React.useMemo<TopPlayerEntry[]>(() => {
+    const rankedPlayers = players
+      .map((player) => ({
+        id: player.id,
+        name: player.name,
+        points: Math.max(0, player.points ?? 0),
+        drinks: Math.max(0, player.drinks ?? 0),
+        ratio: Math.max(0, player.points ?? 0) / Math.max(1, player.drinks ?? 0),
+      }))
+      .filter((player) => player.points > 0 || player.drinks > 0)
+      .sort((a, b) => {
+        if (b.ratio !== a.ratio) return b.ratio - a.ratio;
+        if (b.points !== a.points) return b.points - a.points;
+        if (a.drinks !== b.drinks) return a.drinks - b.drinks;
+        return a.name.localeCompare(b.name);
+      });
+
+    const bestRatio = rankedPlayers[0]?.ratio;
+    if (bestRatio === undefined) {
+      return [];
+    }
+
+    return rankedPlayers.filter((player) => player.ratio === bestRatio);
+  }, [players]);
+
   const typedRoomReactions = React.useMemo<RoomReaction[]>(() => {
     return roomReactions as RoomReaction[];
   }, [roomReactions]);
@@ -3035,6 +3168,10 @@ export default function RoomPage() {
                 Game Status: {totalPoints} Drinks : {quote}
               </h1>
             </div>
+            <GameEndedWinners
+              winners={gameEndedWinners}
+              selectedGame={selectedGame}
+            />
             {selectedGame === "triviyay" && (
               <>
                 <div className="flex flex-row items-center justify-around flex-wrap bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center border border-white/20 my-4">
