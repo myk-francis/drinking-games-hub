@@ -9516,7 +9516,7 @@ export const gamesRouter = createTRPCRouter({
       const maxTotalBet = stack + currentStreetBet;
       const betAmount = Math.min(maxTotalBet, input.amount);
       if (betAmount < minBet) {
-        throw new Error(`Minimum opening bet is ${minBet}.`);
+        throw new Error(`Minimum bet total is ${minBet}.`);
       }
       if (betAmount > maxTotalBet) {
         throw new Error("You cannot bet more chips than you have.");
@@ -9541,7 +9541,7 @@ export const gamesRouter = createTRPCRouter({
       state.currentBet = betAmount;
       state.lastActionByPlayerId[input.playerId] = "BET";
       state.lastActionPlayerId = input.playerId;
-      state.lastActionAmount = posted;
+      state.lastActionAmount = betAmount;
       state.actedPlayerIds = [input.playerId];
       if (state.stackByPlayerId[input.playerId] === 0) {
         state.allInPlayerIds = Array.from(

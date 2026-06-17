@@ -710,6 +710,52 @@ function getPokerActionLabel(action: PokerPlayerAction): string {
   return "Waiting";
 }
 
+const POKER_HAND_RANKINGS = [
+  "Royal Flush",
+  "Straight Flush",
+  "Four of a Kind",
+  "Full House",
+  "Flush",
+  "Straight",
+  "Three of a Kind",
+  "Two Pair",
+  "Pair",
+  "High Card",
+];
+
+function getPokerMinimumAggressiveBetTotal({
+  currentBet,
+  currentStreetBet,
+  stack,
+  betStep,
+  bigBlindAmount,
+}: {
+  currentBet: number;
+  currentStreetBet: number;
+  stack: number;
+  betStep: number;
+  bigBlindAmount: number;
+}): number {
+  const minimumTarget =
+    currentBet > 0
+      ? currentBet + betStep
+      : Math.max(betStep, Math.ceil(bigBlindAmount / betStep) * betStep);
+
+  return Math.min(stack + currentStreetBet, minimumTarget);
+}
+
+function getPokerActionSummary(action: PokerPlayerAction, amount: number | null): string {
+  if (action === "BET") {
+    return amount && amount > 0 ? `Bet ${amount}` : "Bet";
+  }
+  if (action === "CALL") {
+    return amount && amount > 0 ? `Called ${amount}` : "Called";
+  }
+  if (action === "CHECK") return "Checked";
+  if (action === "FOLD") return "Folded";
+  return "Waiting for the first action";
+}
+
 function getBlackjackResultBadgeClasses(result: BlackjackPlayerResult | null): string {
   if (result === "BLACKJACK" || result === "WIN") {
     return "border-emerald-300/30 bg-emerald-500/15 text-emerald-100";
@@ -1535,6 +1581,10 @@ export default function RoomPage() {
   const pokerCall = useMutation(
     trpc.games.pokerCall.mutationOptions({
       onSuccess: (data) => {
+        if (data.gameEnded) {
+          toast.success("The table is down to one funded player. Poker has ended.");
+          return;
+        }
         if (data.phase === "SHOWDOWN") {
           toast.success("Hand finished. Check the showdown results below.");
           return;
@@ -1552,6 +1602,11 @@ export default function RoomPage() {
   const pokerBet = useMutation(
     trpc.games.pokerBet.mutationOptions({
       onSuccess: (data) => {
+        if (data.gameEnded) {
+          setPokerBetPickerOpen(false);
+          toast.success("That move ended the poker game. One player has all the chips left.");
+          return;
+        }
         if (data.phase === "SHOWDOWN") {
           toast.success("Bet placed and hand resolved.");
           return;
@@ -1570,6 +1625,10 @@ export default function RoomPage() {
   const pokerFold = useMutation(
     trpc.games.pokerFold.mutationOptions({
       onSuccess: (data) => {
+        if (data.gameEnded) {
+          toast.success("Poker ended automatically. Only one player still has chips.");
+          return;
+        }
         if (data.phase === "SHOWDOWN") {
           toast.success("Player folded and the hand ended.");
           return;
@@ -1587,6 +1646,10 @@ export default function RoomPage() {
   const pokerNextRound = useMutation(
     trpc.games.pokerNextRound.mutationOptions({
       onSuccess: (data) => {
+        if (data.gameEnded) {
+          toast.success("Poker is over. Only one player has chips left.");
+          return;
+        }
         const nextPlayerName =
           players.find((player) => player.id === data.currentPlayerId)?.name ||
           "first player";
@@ -1758,6 +1821,7 @@ export default function RoomPage() {
   );
   const [pokerBetPickerOpen, setPokerBetPickerOpen] = React.useState(false);
   const [pokerBetDraft, setPokerBetDraft] = React.useState(0);
+  const [showPokerHandRankings, setShowPokerHandRankings] = React.useState(false);
   const [winningTeams, setWinningTeams] = React.useState<string[]>([]);
   const [forfited, setForfited] = React.useState<boolean>(false);
   const selectedActualPlayer = React.useMemo(
@@ -1942,31 +2006,35 @@ export default function RoomPage() {
     }
 
     const myStack = actualPlayer ? pokerState.stackByPlayerId[actualPlayer] ?? 0 : 0;
-    const roundedMinimum =
-      myStack <= 0
+    const currentStreetBet = actualPlayer
+      ? pokerState.playerBets[actualPlayer] ?? 0
+      : 0;
+    const maxTotalBet = myStack + currentStreetBet;
+    const minimumAggressiveBet =
+      myStack <= 0 || maxTotalBet <= pokerState.currentBet
         ? 0
-        : Math.min(
-            myStack,
-            Math.max(
-              pokerState.betStep,
-              Math.ceil(pokerState.bigBlindAmount / pokerState.betStep) *
-                pokerState.betStep,
-            ),
-          );
+        : getPokerMinimumAggressiveBetTotal({
+            currentBet: pokerState.currentBet,
+            currentStreetBet,
+            stack: myStack,
+            betStep: pokerState.betStep,
+            bigBlindAmount: pokerState.bigBlindAmount,
+          });
 
-    if (pokerState.phase === "SHOWDOWN" || pokerState.currentBet > 0 || myStack <= 0) {
+    if (pokerState.phase === "SHOWDOWN" || myStack <= 0 || minimumAggressiveBet <= 0) {
       setPokerBetPickerOpen(false);
     }
 
     setPokerBetDraft((currentDraft) => {
       if (myStack <= 0) return 0;
-      if (currentDraft <= 0 || currentDraft > myStack) {
-        return roundedMinimum;
+      if (minimumAggressiveBet <= 0) return 0;
+      if (currentDraft <= 0 || currentDraft > maxTotalBet) {
+        return minimumAggressiveBet;
       }
       return Math.max(
-        roundedMinimum,
+        minimumAggressiveBet,
         Math.min(
-          myStack,
+          maxTotalBet,
           Math.round(currentDraft / pokerState.betStep) * pokerState.betStep,
         ),
       );
@@ -1977,6 +2045,7 @@ export default function RoomPage() {
     pokerState.bigBlindAmount,
     pokerState.currentBet,
     pokerState.phase,
+    pokerState.playerBets,
     pokerState.roundNumber,
     pokerState.stackByPlayerId,
     selectedGame,
@@ -5727,21 +5796,25 @@ export default function RoomPage() {
                 pokerState.currentBet - (pokerState.playerBets[actualPlayer] ?? 0),
               )
             : 0;
+          const myCurrentStreetBet = actualPlayer
+            ? pokerState.playerBets[actualPlayer] ?? 0
+            : 0;
           const myStack = actualPlayer
             ? pokerState.stackByPlayerId[actualPlayer] ?? 0
             : 0;
           const isPokerSpectator = myStack <= 0 && myPokerHand.length === 0;
-          const minimumOpenBet =
-            myStack <= 0
+          const maxMyTotalBet = myStack + myCurrentStreetBet;
+          const minimumAggressiveBet =
+            myStack <= 0 || maxMyTotalBet <= pokerState.currentBet
               ? 0
-              : Math.min(
-                  myStack,
-                  Math.max(
-                    pokerState.betStep,
-                    Math.ceil(pokerState.bigBlindAmount / pokerState.betStep) *
-                      pokerState.betStep,
-                  ),
-                );
+              : getPokerMinimumAggressiveBetTotal({
+                  currentBet: pokerState.currentBet,
+                  currentStreetBet: myCurrentStreetBet,
+                  stack: myStack,
+                  betStep: pokerState.betStep,
+                  bigBlindAmount: pokerState.bigBlindAmount,
+                });
+          const canAggressivelyBet = minimumAggressiveBet > pokerState.currentBet;
           const pokerCommunitySlots = Array.from({ length: 5 }, (_, index) =>
             pokerState.communityCards[index] ?? null,
           );
@@ -5754,6 +5827,20 @@ export default function RoomPage() {
                   )
                   .join(", ")
               : "Waiting for showdown";
+          const lastActionPlayerName = pokerState.lastActionPlayerId
+            ? players.find((player) => player.id === pokerState.lastActionPlayerId)?.name ||
+              "Player"
+            : null;
+          const lastActionType = pokerState.lastActionPlayerId
+            ? pokerState.lastActionByPlayerId[pokerState.lastActionPlayerId] ?? "NONE"
+            : "NONE";
+          const lastActionSummary =
+            lastActionPlayerName && lastActionType !== "NONE"
+              ? `${lastActionPlayerName} ${getPokerActionSummary(
+                  lastActionType,
+                  pokerState.lastActionAmount,
+                ).toLowerCase()}`
+              : "Waiting for the first real move.";
 
           return (
             <div className="w-full">
@@ -5786,12 +5873,53 @@ export default function RoomPage() {
 
               <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.2fr_1fr]">
                 <div className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="rounded-xl border border-cyan-300/20 bg-cyan-500/10 p-4 backdrop-blur-sm">
+                      <p className="text-xs uppercase tracking-[0.2em] text-cyan-100/65">
+                        Your Stack
+                      </p>
+                      <p className="mt-3 text-3xl font-black text-cyan-50">{myStack}</p>
+                      <p className="mt-2 text-sm text-cyan-100/75">
+                        {isPokerSpectator
+                          ? "You are watching the rest of the action."
+                          : "Chips you can still play this game."}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-amber-300/20 bg-amber-500/10 p-4 backdrop-blur-sm">
+                      <p className="text-xs uppercase tracking-[0.2em] text-amber-100/65">
+                        To Call
+                      </p>
+                      <p className="mt-3 text-3xl font-black text-amber-50">
+                        {Math.min(toCall, myStack)}
+                      </p>
+                      <p className="mt-2 text-sm text-amber-100/75">
+                        {toCall === 0
+                          ? "You can check if it gets to you."
+                          : `Current street bet: ${pokerState.currentBet}`}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                      <p className="text-xs uppercase tracking-[0.2em] text-white/50">
+                        Last Action
+                      </p>
+                      <p className="mt-3 text-lg font-bold text-white">{lastActionSummary}</p>
+                      <p className="mt-2 text-sm text-white/70">
+                        Latest decision made at the table.
+                      </p>
+                    </div>
+                  </div>
+
                   <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs uppercase tracking-[0.2em] text-white/50">
-                          Table
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-xs uppercase tracking-[0.2em] text-white/50">
+                            Table
+                          </p>
+                          <Badge className="bg-rose-800">
+                            {getPokerPhaseLabel(pokerState.phase)}
+                          </Badge>
+                        </div>
                         <p className="mt-2 text-sm text-white/80">
                           App dealer active. Button: {dealerButtonName}
                         </p>
@@ -5884,14 +6012,13 @@ export default function RoomPage() {
                               pokerBet.isPending ||
                               pokerFold.isPending ||
                               myPokerHand.length === 0 ||
-                              pokerState.currentBet > 0 ||
-                              myStack <= 0
+                              !canAggressivelyBet
                             }
                             className="w-full bg-amber-600 py-6 text-base hover:bg-amber-700"
                           >
                             {pokerBetPickerOpen
                               ? "Hide Bet"
-                              : `Bet ${minimumOpenBet}`}
+                              : `${pokerState.currentBet > 0 ? "Raise" : "Bet"} ${minimumAggressiveBet}`}
                           </Button>
                           <Button
                             onClick={() =>
@@ -5914,20 +6041,22 @@ export default function RoomPage() {
                         </div>
                       )}
 
-                      {!isPokerShowdown && pokerBetPickerOpen && pokerState.currentBet === 0 && (
+                      {!isPokerShowdown && pokerBetPickerOpen && canAggressivelyBet && (
                         <div className="mt-4 rounded-xl border border-amber-300/25 bg-amber-500/10 p-4">
                           <p className="text-sm text-amber-50">
-                            Choose your opening bet. Step size is {pokerState.betStep}.
+                            {pokerState.currentBet > 0
+                              ? `Choose your raise total. Minimum is ${minimumAggressiveBet} and step size is ${pokerState.betStep}.`
+                              : `Choose your opening bet. Minimum is ${minimumAggressiveBet} and step size is ${pokerState.betStep}.`}
                           </p>
                           <div className="mt-3 flex items-center gap-3">
                             <Button
                               type="button"
                               onClick={() =>
                                 setPokerBetDraft((value) =>
-                                  Math.max(minimumOpenBet, value - pokerState.betStep),
+                                  Math.max(minimumAggressiveBet, value - pokerState.betStep),
                                 )
                               }
-                              disabled={pokerBetDraft <= minimumOpenBet}
+                              disabled={pokerBetDraft <= minimumAggressiveBet}
                               className="min-w-12 bg-slate-700 px-4 hover:bg-slate-800"
                             >
                               -
@@ -5939,10 +6068,10 @@ export default function RoomPage() {
                               type="button"
                               onClick={() =>
                                 setPokerBetDraft((value) =>
-                                  Math.min(myStack, value + pokerState.betStep),
+                                  Math.min(maxMyTotalBet, value + pokerState.betStep),
                                 )
                               }
-                              disabled={pokerBetDraft >= myStack}
+                              disabled={pokerBetDraft >= maxMyTotalBet}
                               className="min-w-12 bg-slate-700 px-4 hover:bg-slate-800"
                             >
                               +
@@ -5960,18 +6089,18 @@ export default function RoomPage() {
                               }
                               disabled={
                                 pokerBet.isPending ||
-                                pokerBetDraft < minimumOpenBet ||
-                                pokerBetDraft > myStack
+                                pokerBetDraft < minimumAggressiveBet ||
+                                pokerBetDraft > maxMyTotalBet
                               }
                               className="w-full bg-amber-600 hover:bg-amber-700"
                             >
-                              Confirm Bet
+                              Confirm {pokerState.currentBet > 0 ? "Raise" : "Bet"}
                             </Button>
                             <Button
                               type="button"
                               onClick={() => {
                                 setPokerBetPickerOpen(false);
-                                setPokerBetDraft(minimumOpenBet);
+                                setPokerBetDraft(minimumAggressiveBet);
                               }}
                               className="w-full bg-slate-700 hover:bg-slate-800"
                             >
@@ -6083,6 +6212,33 @@ export default function RoomPage() {
                           </div>
                         );
                       })}
+                    </div>
+                    <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="w-full"
+                        onClick={() => setShowPokerHandRankings((open) => !open)}
+                      >
+                        {showPokerHandRankings ? "Hide Hand Rankings" : "Show Hand Rankings"}
+                      </Button>
+                      {showPokerHandRankings && (
+                        <div className="mt-3 rounded-lg border border-white/10 bg-black/25 p-3">
+                          <p className="text-sm font-semibold text-white">
+                            Hand strength from highest to lowest
+                          </p>
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            {POKER_HAND_RANKINGS.map((handName, index) => (
+                              <div
+                                key={handName}
+                                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/85"
+                              >
+                                {index + 1}. {handName}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
