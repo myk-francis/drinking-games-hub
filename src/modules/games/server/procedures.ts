@@ -330,6 +330,8 @@ type PokerState = {
   foldedPlayerIds: string[];
   allInPlayerIds: string[];
   lastActionByPlayerId: Record<string, PokerPlayerAction>;
+  lastActionPlayerId: string | null;
+  lastActionAmount: number | null;
   winnerPlayerIds: string[];
   handLabelByPlayerId: Record<string, string | null>;
 };
@@ -2078,6 +2080,27 @@ function getPokerActionablePlayerIds(state: PokerState): string[] {
   );
 }
 
+function getPokerPlayersWithChips(state: PokerState): string[] {
+  return state.playerOrder.filter((playerId) => (state.stackByPlayerId[playerId] ?? 0) > 0);
+}
+
+function getPokerMinimumAggressiveBetTotal(
+  state: PokerState,
+  playerId: string,
+): number {
+  const stack = state.stackByPlayerId[playerId] ?? 0;
+  const currentStreetBet = state.playerBets[playerId] ?? 0;
+  const minimumTarget =
+    state.currentBet > 0
+      ? state.currentBet + state.betStep
+      : Math.max(
+          state.betStep,
+          Math.ceil(state.bigBlindAmount / state.betStep) * state.betStep,
+        );
+
+  return Math.min(stack + currentStreetBet, minimumTarget);
+}
+
 function postPokerForcedBet(
   state: PokerState,
   playerId: string | null,
@@ -2659,6 +2682,15 @@ function parsePokerState(raw: string | null, playerIds: string[]): PokerState {
       foldedPlayerIds: parsePlayerIdList(parsed.foldedPlayerIds),
       allInPlayerIds: parsePlayerIdList(parsed.allInPlayerIds),
       lastActionByPlayerId,
+      lastActionPlayerId:
+        typeof parsed.lastActionPlayerId === "string" &&
+        playerOrder.includes(parsed.lastActionPlayerId)
+          ? parsed.lastActionPlayerId
+          : null,
+      lastActionAmount:
+        typeof parsed.lastActionAmount === "number" && Number.isFinite(parsed.lastActionAmount)
+          ? parsed.lastActionAmount
+          : null,
       winnerPlayerIds: parsePlayerIdList(parsed.winnerPlayerIds),
       handLabelByPlayerId,
     };
@@ -2735,6 +2767,8 @@ function createInitialPokerState(
     lastActionByPlayerId: Object.fromEntries(
       playerIds.map((playerId) => [playerId, "NONE" as PokerPlayerAction]),
     ),
+    lastActionPlayerId: null,
+    lastActionAmount: null,
     winnerPlayerIds: [],
     handLabelByPlayerId: Object.fromEntries(
       playerIds.map((playerId) => [playerId, null]),
@@ -9356,6 +9390,8 @@ export const gamesRouter = createTRPCRouter({
         (state.totalContributionsByPlayerId[input.playerId] ?? 0) + posted;
       state.pot += posted;
       state.lastActionByPlayerId[input.playerId] = toCall === 0 ? "CHECK" : "CALL";
+      state.lastActionPlayerId = input.playerId;
+      state.lastActionAmount = posted;
       state.actedPlayerIds = Array.from(
         new Set([...state.actedPlayerIds, input.playerId]),
       );
@@ -9367,6 +9403,12 @@ export const gamesRouter = createTRPCRouter({
 
       state.currentPlayerId = getPokerNextActionPlayerId(state, input.playerId);
       const roundResolution = advancePokerStateAfterAction(state);
+      const phaseAfterAction = state.phase as PokerPhase;
+      const gameEnded =
+        phaseAfterAction === "SHOWDOWN" && getPokerPlayersWithChips(state).length < 2;
+      if (gameEnded) {
+        state.status = "ENDED";
+      }
 
       await prisma.$transaction(async (tx) => {
         if (roundResolution.pointPlayerIds.length > 0) {
@@ -9404,8 +9446,14 @@ export const gamesRouter = createTRPCRouter({
         await tx.room.update({
           where: { id: input.roomId },
           data: {
-            currentPlayerId: state.currentPlayerId,
+            currentPlayerId: gameEnded ? null : state.currentPlayerId,
             currentAnswer: JSON.stringify(state),
+            ...(gameEnded
+              ? {
+                  gameEnded: true,
+                  gameEndedAt: new Date(),
+                }
+              : {}),
           },
         });
       });
@@ -9417,6 +9465,7 @@ export const gamesRouter = createTRPCRouter({
         pot: state.pot,
         currentBet: state.currentBet,
         winnerPlayerIds: state.winnerPlayerIds,
+        gameEnded,
       };
     }),
 
@@ -9457,34 +9506,42 @@ export const gamesRouter = createTRPCRouter({
       if (state.currentPlayerId !== input.playerId) {
         throw new Error("It is not your turn");
       }
-      if (state.currentBet > 0) {
-        throw new Error("There is already a live bet. Call or fold.");
-      }
-
       const stack = state.stackByPlayerId[input.playerId] ?? 0;
-      const minBet = Math.min(stack, state.bigBlindAmount);
+      const currentStreetBet = state.playerBets[input.playerId] ?? 0;
+      const minBet = getPokerMinimumAggressiveBetTotal(state, input.playerId);
       if (stack <= 0) {
         throw new Error("You have no chips left to bet");
       }
 
-      const betAmount = Math.min(stack, input.amount);
+      const maxTotalBet = stack + currentStreetBet;
+      const betAmount = Math.min(maxTotalBet, input.amount);
       if (betAmount < minBet) {
         throw new Error(`Minimum opening bet is ${minBet}.`);
       }
-      if (betAmount !== stack && betAmount % state.betStep !== 0) {
+      if (betAmount > maxTotalBet) {
+        throw new Error("You cannot bet more chips than you have.");
+      }
+      if (betAmount !== maxTotalBet && betAmount % state.betStep !== 0) {
         throw new Error(`Bet must move in steps of ${state.betStep}.`);
       }
       if (betAmount <= 0) {
         throw new Error("You have no chips left to bet");
       }
 
-      state.stackByPlayerId[input.playerId] = stack - betAmount;
+      const posted = betAmount - currentStreetBet;
+      if (posted <= 0) {
+        throw new Error("Choose a larger bet amount.");
+      }
+
+      state.stackByPlayerId[input.playerId] = stack - posted;
       state.playerBets[input.playerId] = betAmount;
       state.totalContributionsByPlayerId[input.playerId] =
-        (state.totalContributionsByPlayerId[input.playerId] ?? 0) + betAmount;
-      state.pot += betAmount;
+        (state.totalContributionsByPlayerId[input.playerId] ?? 0) + posted;
+      state.pot += posted;
       state.currentBet = betAmount;
       state.lastActionByPlayerId[input.playerId] = "BET";
+      state.lastActionPlayerId = input.playerId;
+      state.lastActionAmount = posted;
       state.actedPlayerIds = [input.playerId];
       if (state.stackByPlayerId[input.playerId] === 0) {
         state.allInPlayerIds = Array.from(
@@ -9494,6 +9551,12 @@ export const gamesRouter = createTRPCRouter({
 
       state.currentPlayerId = getPokerNextActionPlayerId(state, input.playerId);
       const roundResolution = advancePokerStateAfterAction(state);
+      const phaseAfterAction = state.phase as PokerPhase;
+      const gameEnded =
+        phaseAfterAction === "SHOWDOWN" && getPokerPlayersWithChips(state).length < 2;
+      if (gameEnded) {
+        state.status = "ENDED";
+      }
 
       await prisma.$transaction(async (tx) => {
         if (roundResolution.pointPlayerIds.length > 0) {
@@ -9531,8 +9594,14 @@ export const gamesRouter = createTRPCRouter({
         await tx.room.update({
           where: { id: input.roomId },
           data: {
-            currentPlayerId: state.currentPlayerId,
+            currentPlayerId: gameEnded ? null : state.currentPlayerId,
             currentAnswer: JSON.stringify(state),
+            ...(gameEnded
+              ? {
+                  gameEnded: true,
+                  gameEndedAt: new Date(),
+                }
+              : {}),
           },
         });
       });
@@ -9543,6 +9612,7 @@ export const gamesRouter = createTRPCRouter({
         pot: state.pot,
         currentBet: state.currentBet,
         winnerPlayerIds: state.winnerPlayerIds,
+        gameEnded,
       };
     }),
 
@@ -9590,9 +9660,17 @@ export const gamesRouter = createTRPCRouter({
         new Set([...state.actedPlayerIds, input.playerId]),
       );
       state.lastActionByPlayerId[input.playerId] = "FOLD";
+      state.lastActionPlayerId = input.playerId;
+      state.lastActionAmount = 0;
 
       state.currentPlayerId = getPokerNextActionPlayerId(state, input.playerId);
       const roundResolution = advancePokerStateAfterAction(state);
+      const phaseAfterAction = state.phase as PokerPhase;
+      const gameEnded =
+        phaseAfterAction === "SHOWDOWN" && getPokerPlayersWithChips(state).length < 2;
+      if (gameEnded) {
+        state.status = "ENDED";
+      }
 
       await prisma.$transaction(async (tx) => {
         if (roundResolution.pointPlayerIds.length > 0) {
@@ -9630,8 +9708,14 @@ export const gamesRouter = createTRPCRouter({
         await tx.room.update({
           where: { id: input.roomId },
           data: {
-            currentPlayerId: state.currentPlayerId,
+            currentPlayerId: gameEnded ? null : state.currentPlayerId,
             currentAnswer: JSON.stringify(state),
+            ...(gameEnded
+              ? {
+                  gameEnded: true,
+                  gameEndedAt: new Date(),
+                }
+              : {}),
           },
         });
       });
@@ -9640,6 +9724,7 @@ export const gamesRouter = createTRPCRouter({
         currentPlayerId: state.currentPlayerId,
         phase: state.phase as PokerPhase,
         winnerPlayerIds: state.winnerPlayerIds,
+        gameEnded,
       };
     }),
 
@@ -9681,7 +9766,23 @@ export const gamesRouter = createTRPCRouter({
         (playerId) => (state.stackByPlayerId[playerId] ?? 0) > 0,
       );
       if (playersWithChips.length < 2) {
-        throw new Error("At least two players need chips to start another hand");
+        state.status = "ENDED";
+
+        await prisma.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentPlayerId: null,
+            currentAnswer: JSON.stringify(state),
+            gameEnded: true,
+            gameEndedAt: new Date(),
+          },
+        });
+
+        return {
+          roundNumber: state.roundNumber,
+          currentPlayerId: null,
+          gameEnded: true,
+        };
       }
 
       const nextSetup = createInitialPokerState(
@@ -9704,6 +9805,7 @@ export const gamesRouter = createTRPCRouter({
       return {
         roundNumber: nextSetup.state.roundNumber,
         currentPlayerId: nextSetup.state.currentPlayerId,
+        gameEnded: false,
       };
     }),
 

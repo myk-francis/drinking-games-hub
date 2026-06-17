@@ -234,6 +234,8 @@ export type PokerRoomState = {
   foldedPlayerIds: string[];
   allInPlayerIds: string[];
   lastActionByPlayerId: Record<string, PokerPlayerAction>;
+  lastActionPlayerId: string | null;
+  lastActionAmount: number | null;
   winnerPlayerIds: string[];
   handLabelByPlayerId: Record<string, string | null>;
 };
@@ -1118,6 +1120,8 @@ export function parsePokerState(
     foldedPlayerIds: [],
     allInPlayerIds: [],
     lastActionByPlayerId: {},
+    lastActionPlayerId: null,
+    lastActionAmount: null,
     winnerPlayerIds: [],
     handLabelByPlayerId: {},
   };
@@ -1283,6 +1287,12 @@ export function parsePokerState(
       foldedPlayerIds: parsePlayerIdList(parsed.foldedPlayerIds),
       allInPlayerIds: parsePlayerIdList(parsed.allInPlayerIds),
       lastActionByPlayerId: actionRecord as Record<string, PokerPlayerAction>,
+      lastActionPlayerId:
+        typeof parsed.lastActionPlayerId === "string" ? parsed.lastActionPlayerId : null,
+      lastActionAmount:
+        typeof parsed.lastActionAmount === "number" && Number.isFinite(parsed.lastActionAmount)
+          ? parsed.lastActionAmount
+          : null,
       winnerPlayerIds: parsePlayerIdList(parsed.winnerPlayerIds),
       handLabelByPlayerId,
     };
