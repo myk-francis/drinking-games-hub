@@ -127,4 +127,4 @@ npm run dev
 
 - The README previously listed only part of the game catalog; the list above reflects the current project state
 - Game content is database-backed, so local development depends on your migrated database containing the expected records
-- Some game modes depend on seeded or migrated `Game` and `Question` data from Prisma migrations
+- Some game modes depend on seeded or migrated `Game` and `Question` data from Prisma migrations and tables.
