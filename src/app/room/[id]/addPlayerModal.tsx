@@ -11,6 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import React from "react";
 
+const roomPickerDialogClassName =
+  "left-4 right-4 top-4 bottom-4 w-auto max-w-none translate-x-0 translate-y-0 overflow-y-auto rounded-[1.75rem] border-white/10 bg-zinc-950/96 p-5 text-white shadow-2xl sm:left-[50%] sm:right-auto sm:top-[50%] sm:bottom-auto sm:w-full sm:max-w-md sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:p-6";
+
 export default function AddPlayerModal({
   newPlayer,
   setNewPlayer,
@@ -38,7 +41,7 @@ any) {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <Dialog open={openAddPlayerModal} onOpenChange={setOpenAddPlayerModal}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className={roomPickerDialogClassName}>
             <DialogHeader>
               <DialogTitle>Pick Team</DialogTitle>
             </DialogHeader>
@@ -60,8 +63,8 @@ any) {
                         className={`rounded-full px-4 py-2 text-sm font-medium transition-all
                       ${
                         isSelected
-                          ? "bg-green-600 text-white scale-105"
-                          : "bg-white/20 hover:bg-white/30"
+                          ? "scale-105 bg-green-600 text-white"
+                          : "bg-white/20 text-white hover:bg-white/30"
                       }
                     `}
                       >
@@ -86,8 +89,8 @@ any) {
                         className={`rounded-full px-4 py-2 text-sm font-medium transition-all
                         ${
                           isSelected
-                            ? "bg-green-600 text-white scale-105"
-                            : "bg-white/20 hover:bg-white/30"
+                            ? "scale-105 bg-green-600 text-white"
+                            : "bg-white/20 text-white hover:bg-white/30"
                         }`}
                       >
                         {player.name}
@@ -119,7 +122,7 @@ any) {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <Dialog open={openAddPlayerModal} onOpenChange={setOpenAddPlayerModal}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className={roomPickerDialogClassName}>
             <DialogHeader>
               <DialogTitle>Add Player</DialogTitle>
             </DialogHeader>
@@ -142,8 +145,8 @@ any) {
                         className={`rounded-full px-4 py-2 text-sm font-medium transition-all
                       ${
                         isSelected
-                          ? "bg-green-600 text-white scale-105"
-                          : "bg-white/20 hover:bg-white/30"
+                          ? "scale-105 bg-green-600 text-white"
+                          : "bg-white/20 text-white hover:bg-white/30"
                       }
                     `}
                       >
@@ -183,7 +186,7 @@ any) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4">
         <Dialog open={openAddPlayerModal} onOpenChange={setOpenAddPlayerModal}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className={roomPickerDialogClassName}>
             <DialogHeader>
               <DialogTitle>Choose a player</DialogTitle>
               <DialogDescription>
