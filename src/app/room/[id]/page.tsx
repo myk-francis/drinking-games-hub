@@ -3218,17 +3218,17 @@ export default function RoomPage() {
     drinks: number | null;
     player: string;
   }) => (
-    <div className="w-full min-w-0 bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center border border-white/20">
-      <div className="font-bold text-lg text-white mb-1 truncate" title={player}>
+    <div className="w-full min-w-0 rounded-xl border border-white/20 bg-white/10 p-3 text-center backdrop-blur-sm sm:rounded-lg sm:p-4">
+      <div className="mb-1 truncate text-base font-bold text-white sm:text-lg" title={player}>
         {player}
       </div>
-      <div className="text-lg sm:text-2xl font-bold text-emerald-400 mb-1 whitespace-nowrap leading-tight">
+      <div className="mb-1 text-base font-bold leading-tight whitespace-nowrap text-emerald-400 sm:text-2xl">
         {points || 0}{" "}
         {selectedGame === "most-likely" || selectedGame === "paranoia"
           ? "votes"
           : "pts"}
       </div>
-      <div className="text-sm text-orange-300">{drinks || 0} drinks</div>
+      <div className="text-xs text-orange-300 sm:text-sm">{drinks || 0} drinks</div>
     </div>
   );
 
@@ -3508,7 +3508,7 @@ export default function RoomPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white">
+    <div className="min-h-screen overflow-x-hidden bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white">
       {actualPlayer === "" && selectedGame !== "codenames" && (
         <UserConfirmModal
           players={players}
@@ -3618,7 +3618,7 @@ export default function RoomPage() {
       )}
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-6">
+      <div className="mx-auto w-full max-w-6xl px-3 py-4 sm:px-4 sm:py-6">
         {/* Header */}
         <RoomHeader
           gameName={game?.name || ""}
@@ -3637,9 +3637,9 @@ export default function RoomPage() {
         />
 
         {/* Game Content */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-8 mb-6 border border-white/20">
+        <div className="mb-6 overflow-hidden rounded-2xl border border-white/20 bg-white/10 p-3 backdrop-blur-sm sm:p-5 lg:p-8">
           {showQRCode ? (
-            <div className="wfull mt-6  flex flex-row justify-center items-center">
+            <div className="mt-4 flex w-full items-center justify-center sm:mt-6">
               <QRCodeCanvas
                 value={normalizeUrl(
                   typeof window !== "undefined" ? window.location.href : "",
@@ -3919,12 +3919,12 @@ const RoomHeader = React.memo(function RoomHeader({
   currentRound: number;
 }) {
   return (
-    <div className="text-center mb-6">
-      <h1 className="text-4xl font-bold mb-2">🎮 {gameName}</h1>
+    <div className="mb-5 text-center sm:mb-6">
+      <h1 className="mb-2 text-3xl font-bold sm:text-4xl">🎮 {gameName}</h1>
       {rounds === 0 || selectedGame === "truth-or-drink" ? (
-        <p className="text-white/70">Round in progress</p>
+        <p className="text-sm text-white/70 sm:text-base">Round in progress</p>
       ) : (
-        <p className="text-white/70">
+        <p className="text-sm text-white/70 sm:text-base">
           Round {currentRound || 1} of {rounds}
         </p>
       )}
@@ -3955,25 +3955,25 @@ const RoomScoreboard = React.memo(function RoomScoreboard({
   }>;
 }) {
   return (
-    <div className="mb-8">
+    <div className="mb-6 sm:mb-8">
       {selectedGame === "triviyay" && (
-        <div className="flex flex-row items-center justify-around flex-wrap bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center border border-white/20 my-4">
+        <div className="my-4 flex flex-wrap items-center justify-around gap-3 rounded-xl border border-white/20 bg-white/10 p-3 text-center backdrop-blur-sm sm:p-4">
           {playingTeams.map((team) => (
-            <div key={team}>
-              <div className="font-bold text-lg text-white mb-1">
+            <div key={team} className="min-w-[9rem]">
+              <div className="mb-1 text-base font-bold text-white sm:text-lg">
                 Team: {team} ({teamStats[team]?.Count || 0})
               </div>
-              <div className="text-2xl font-bold text-emerald-400 mb-1">
+              <div className="mb-1 text-xl font-bold text-emerald-400 sm:text-2xl">
                 {teamStats[team]?.TotalPoints} pts
               </div>
-              <div className="text-sm text-orange-300">
+              <div className="text-xs text-orange-300 sm:text-sm">
                 {teamStats[team]?.TotalDrinks} drinks
               </div>
             </div>
           ))}
         </div>
       )}
-      <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5">
         {players.map((player) => (
           <PlayerScoreComponent
             key={player.id}
@@ -4013,11 +4013,11 @@ const RoomControls = React.memo(function RoomControls({
   actualPlayerName: string;
 }) {
   return (
-    <div className="flex w-full  gap-4 justify-center items-center">
-      <div>
+    <div className="flex w-full justify-center">
+      <div className="w-full max-w-md rounded-2xl border border-white/15 bg-white/8 p-3 backdrop-blur-sm sm:w-auto sm:max-w-none sm:border-0 sm:bg-transparent sm:p-0">
         <button
           onClick={onEndGame}
-          className="flex items-center w-40 gap-2 px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-3 font-semibold text-white transition-colors hover:bg-red-600 sm:w-40"
         >
           <Home className="w-5 h-5" />
           End Game
@@ -4026,7 +4026,7 @@ const RoomControls = React.memo(function RoomControls({
         {canAddPlayer && (
           <button
             onClick={onAddPlayer}
-            className="flex items-center w-40 mt-4 gap-2 px-6 py-3 bg-pink-500 hover:bg-pink-600 rounded-lg text-white font-semibold transition-colors"
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-pink-500 px-4 py-3 font-semibold text-white transition-colors hover:bg-pink-600 sm:mt-4 sm:w-40"
           >
             <UserPlus2 className="w-5 h-5" />
             Add Player
@@ -4036,7 +4036,7 @@ const RoomControls = React.memo(function RoomControls({
         {canChangeName && (
           <button
             onClick={onChangeName}
-            className="flex items-center justify-center w-full sm:w-40 mt-4 gap-2 px-6 py-3 bg-cyan-500 hover:bg-cyan-600 rounded-lg text-white font-semibold transition-colors"
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-500 px-4 py-3 font-semibold text-white transition-colors hover:bg-cyan-600 sm:mt-4 sm:w-40"
           >
             Change Name
           </button>
@@ -4044,7 +4044,7 @@ const RoomControls = React.memo(function RoomControls({
 
         <button
           onClick={onToggleQRCode}
-          className="flex items-center w-40 mt-4 gap-2 px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-green-500 px-4 py-3 font-semibold text-white transition-colors hover:bg-green-600 sm:mt-4 sm:w-40"
         >
           <QrCodeIcon className="w-5 h-5" />
           {showQRCode ? "Hide" : "Show"} QR
@@ -4054,13 +4054,13 @@ const RoomControls = React.memo(function RoomControls({
           <button
             onClick={onStopGameOverMusic}
             disabled={!canStopGameOverMusic}
-            className="flex items-center w-40 mt-4 gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-3 font-semibold text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-gray-500 sm:mt-4 sm:w-40"
           >
             Stop Music
           </button>
         )}
 
-        <p className="text-white/70 mt-4">
+        <p className="mt-4 text-center text-sm text-white/70 sm:text-left">
           {actualPlayerName
             ? `💋Player: ${actualPlayerName}💋`
             : "No Player Selected"}
