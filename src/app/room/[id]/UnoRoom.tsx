@@ -119,7 +119,7 @@ function UnoPlayingCard({
       onClick={onClick}
       disabled={disabled || !onClick}
       className={`group relative overflow-hidden rounded-[1.45rem] border-2 border-white/60 bg-gradient-to-br ${styles.card} ${
-        compact ? "h-20 w-[3.7rem] sm:h-28 sm:w-20" : "h-28 w-[4.8rem] sm:h-40 sm:w-28"
+        compact ? "h-[5.5rem] w-16 sm:h-28 sm:w-20" : "h-28 w-[4.9rem] min-[430px]:h-[7.5rem] min-[430px]:w-[5.25rem] sm:h-40 sm:w-28"
       } shadow-[0_18px_35px_rgba(15,23,42,0.35)] transition ${
         disabled || !onClick
           ? "cursor-not-allowed opacity-55"
@@ -442,8 +442,8 @@ export default function UnoRoom({
               No cards yet.
             </div>
           ) : (
-            <div className="-mx-4 mt-5 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
-              <div className="flex min-w-max snap-x snap-mandatory gap-2.5 pb-2 sm:gap-4 sm:pb-3">
+            <div className="mt-5">
+              <div className="flex flex-wrap justify-center gap-2.5 sm:justify-start sm:gap-4">
               {myHand.map((card) => {
                 const playable =
                   isMyTurn &&
@@ -452,7 +452,7 @@ export default function UnoRoom({
                   isPlayableCard(card, unoState);
 
                 return (
-                  <div key={card.id} className="shrink-0 snap-start">
+                  <div key={card.id} className="shrink-0">
                     <UnoPlayingCard
                       card={card}
                       emphasized={playable}
