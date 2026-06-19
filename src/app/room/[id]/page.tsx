@@ -1825,6 +1825,9 @@ export default function RoomPage() {
   const [pokerBetPickerOpen, setPokerBetPickerOpen] = React.useState(false);
   const [pokerBetDraft, setPokerBetDraft] = React.useState(0);
   const [showPokerHandRankings, setShowPokerHandRankings] = React.useState(false);
+  const [unoPendingWildCardId, setUnoPendingWildCardId] = React.useState<string | null>(
+    null,
+  );
   const [winningTeams, setWinningTeams] = React.useState<string[]>([]);
   const [forfited, setForfited] = React.useState<boolean>(false);
   const selectedActualPlayer = React.useMemo(
@@ -1941,6 +1944,26 @@ export default function RoomPage() {
   const unoState = React.useMemo(() => {
     return parseUnoState(room?.currentAnswer);
   }, [room?.currentAnswer]);
+
+  React.useEffect(() => {
+    if (selectedGame !== "uno") {
+      setUnoPendingWildCardId(null);
+      return;
+    }
+
+    if (!actualPlayer) {
+      setUnoPendingWildCardId(null);
+      return;
+    }
+
+    const myHand = unoState.handsByPlayerId[actualPlayer] ?? [];
+    if (
+      unoPendingWildCardId &&
+      !myHand.some((card) => card.id === unoPendingWildCardId)
+    ) {
+      setUnoPendingWildCardId(null);
+    }
+  }, [actualPlayer, selectedGame, unoPendingWildCardId, unoState.handsByPlayerId]);
   const [blackjackDealerRevealPending, setBlackjackDealerRevealPending] =
     React.useState(false);
   const previousBlackjackDealerStateRef = React.useRef<{
@@ -3457,8 +3480,10 @@ export default function RoomPage() {
         showPokerHandRankings,
         tabooForbiddenWords,
         unoDrawCard,
+        unoPendingWildCardId,
         unoPassTurn,
         unoPlayCard,
+        unoSetPendingWildCardId: setUnoPendingWildCardId,
         unoStart,
         unoState,
         timeLeft,

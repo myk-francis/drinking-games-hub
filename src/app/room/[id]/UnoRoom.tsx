@@ -20,7 +20,9 @@ type UnoRoomProps = {
     id: string;
     name: string;
   }[];
+  pendingWildCardId: string | null;
   roomId: string;
+  setPendingWildCardId: React.Dispatch<React.SetStateAction<string | null>>;
   startPending: boolean;
   turnActionPending: boolean;
   unoState: UnoRoomState;
@@ -98,11 +100,13 @@ function isPlayableCard(card: UnoCard, state: UnoRoomState): boolean {
 function UnoPlayingCard({
   card,
   compact = false,
+  emphasized = false,
   disabled = false,
   onClick,
 }: {
   card: UnoCard;
   compact?: boolean;
+  emphasized?: boolean;
   disabled?: boolean;
   onClick?: () => void;
 }) {
@@ -115,38 +119,40 @@ function UnoPlayingCard({
       onClick={onClick}
       disabled={disabled || !onClick}
       className={`group relative overflow-hidden rounded-[1.45rem] border-2 border-white/60 bg-gradient-to-br ${styles.card} ${
-        compact ? "h-28 w-20" : "h-40 w-28"
+        compact ? "h-24 w-[4.35rem] sm:h-28 sm:w-20" : "h-32 w-[5.65rem] sm:h-40 sm:w-28"
       } shadow-[0_18px_35px_rgba(15,23,42,0.35)] transition ${
         disabled || !onClick
           ? "cursor-not-allowed opacity-55"
-          : "cursor-pointer hover:-translate-y-1 hover:shadow-[0_22px_40px_rgba(15,23,42,0.45)]"
+          : emphasized
+            ? "cursor-pointer -translate-y-1 ring-2 ring-amber-200/85 shadow-[0_22px_40px_rgba(245,158,11,0.35)] hover:-translate-y-2"
+            : "cursor-pointer hover:-translate-y-1 hover:shadow-[0_22px_40px_rgba(15,23,42,0.45)]"
       }`}
       aria-label={`Play ${card.label}`}
     >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.28),_transparent_45%)]" />
-      <div className="absolute -left-8 top-7 h-14 w-40 -rotate-35 rounded-full opacity-95 blur-[1px] sm:h-16 sm:w-48">
+      <div className="absolute -left-8 top-5 h-12 w-36 -rotate-35 rounded-full opacity-95 blur-[1px] sm:top-7 sm:h-16 sm:w-48">
         <div className={`h-full w-full ${styles.stripe}`} />
       </div>
 
-      <div className="relative flex h-full flex-col justify-between p-2.5 sm:p-3">
-        <span className="text-left text-xs font-black tracking-[0.2em] text-white drop-shadow">
+      <div className="relative flex h-full flex-col justify-between p-2 sm:p-3">
+        <span className="text-left text-[10px] font-black tracking-[0.18em] text-white drop-shadow sm:text-xs">
           {glyph}
         </span>
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border-4 border-white/75 bg-black/10 shadow-inner sm:h-16 sm:w-16">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border-[3px] border-white/75 bg-black/10 shadow-inner sm:h-16 sm:w-16 sm:border-4">
           {card.kind === "WILD" || card.kind === "WILD_DRAW_FOUR" ? (
-            <div className="grid h-10 w-10 grid-cols-2 gap-1 rounded-full bg-zinc-950/70 p-1 sm:h-11 sm:w-11">
+            <div className="grid h-8 w-8 grid-cols-2 gap-1 rounded-full bg-zinc-950/70 p-1 sm:h-11 sm:w-11">
               <span className="rounded-full bg-red-400" />
               <span className="rounded-full bg-amber-300" />
               <span className="rounded-full bg-emerald-400" />
               <span className="rounded-full bg-sky-400" />
             </div>
           ) : (
-            <span className={`text-lg font-black sm:text-xl ${styles.text}`}>
+            <span className={`text-base font-black sm:text-xl ${styles.text}`}>
               {glyph}
             </span>
           )}
         </div>
-        <span className="self-end text-xs font-black tracking-[0.2em] text-white drop-shadow">
+        <span className="self-end text-[10px] font-black tracking-[0.18em] text-white drop-shadow sm:text-xs">
           {glyph}
         </span>
       </div>
@@ -165,16 +171,17 @@ export default function UnoRoom({
   onPlayCard,
   onStartRound,
   players,
+  pendingWildCardId,
   roomId,
+  setPendingWildCardId,
   startPending,
   turnActionPending,
   unoState,
 }: UnoRoomProps) {
-  const [pendingWildCardId, setPendingWildCardId] = React.useState<string | null>(
-    null,
+  const myHand = React.useMemo(
+    () => (actualPlayer ? (unoState.handsByPlayerId[actualPlayer] ?? []) : []),
+    [actualPlayer, unoState.handsByPlayerId],
   );
-
-  const myHand = actualPlayer ? (unoState.handsByPlayerId[actualPlayer] ?? []) : [];
   const topCard = unoState.discardPile[unoState.discardPile.length - 1] ?? null;
   const isMyTurn = actualPlayer !== "" && unoState.currentPlayerId === actualPlayer;
   const currentPlayerName =
@@ -183,18 +190,33 @@ export default function UnoRoom({
     ? UNO_COLOR_STYLES[unoState.activeColor]
     : UNO_COLOR_STYLES.WILD;
   const canStartRound = actualPlayer !== "" && roomId !== "";
+  const pendingWildCard =
+    pendingWildCardId ? myHand.find((card) => card.id === pendingWildCardId) ?? null : null;
+
+  React.useEffect(() => {
+    if (!pendingWildCardId) return;
+    const hasCard = myHand.some((card) => card.id === pendingWildCardId);
+    if (!hasCard || !isMyTurn) {
+      setPendingWildCardId(null);
+    }
+  }, [isMyTurn, myHand, pendingWildCardId, setPendingWildCardId]);
 
   const handlePlayCard = (card: UnoCard) => {
     if (card.kind === "WILD" || card.kind === "WILD_DRAW_FOUR") {
+      if (pendingWildCardId === card.id) {
+        setPendingWildCardId(null);
+        return;
+      }
       setPendingWildCardId(card.id);
       return;
     }
+    setPendingWildCardId(null);
     onPlayCard(card.id);
   };
 
   return (
     <div className="w-full">
-      <div className="mb-6 rounded-[2rem] border border-white/20 bg-[linear-gradient(140deg,rgba(190,24,93,0.18),rgba(15,23,42,0.8),rgba(2,132,199,0.18))] p-5 shadow-[0_25px_70px_rgba(15,23,42,0.28)] backdrop-blur-sm sm:p-6">
+      <div className="mb-4 rounded-[1.65rem] border border-white/20 bg-[linear-gradient(140deg,rgba(190,24,93,0.18),rgba(15,23,42,0.8),rgba(2,132,199,0.18))] p-4 shadow-[0_25px_70px_rgba(15,23,42,0.28)] backdrop-blur-sm sm:mb-6 sm:rounded-[2rem] sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -208,16 +230,16 @@ export default function UnoRoom({
                 Active color: {unoState.activeColor ?? "None"}
               </Badge>
             </div>
-            <h2 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
+            <h2 className="text-xl font-black tracking-tight text-white sm:text-3xl">
               Match color, number, or symbol
             </h2>
-            <p className="mt-2 max-w-2xl text-sm text-white/80 sm:text-base">
+            <p className="mt-2 max-w-2xl text-xs text-white/80 sm:text-base">
               First player out wins the round, scores the point, and everyone
               else drinks. Wild cards let you set the table color.
             </p>
           </div>
 
-          <div className="rounded-2xl border border-white/15 bg-black/25 px-4 py-3 text-sm text-white/80">
+          <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/15 bg-black/25 px-3 py-3 text-center text-xs text-white/80 sm:block sm:px-4 sm:text-sm sm:text-left">
             <p className="font-semibold text-white">
               {unoState.status === "LOBBY"
                 ? "Lobby open"
@@ -225,28 +247,28 @@ export default function UnoRoom({
                   ? "Round finished"
                   : `Turn: ${currentPlayerName}`}
             </p>
-            <p className="mt-1">
+            <p className="sm:mt-1">
               Draw pile: {unoState.drawPile.length} cards
             </p>
-            <p className="mt-1">
+            <p className="sm:mt-1">
               Direction: {unoState.direction === 1 ? "Clockwise" : "Counter-clockwise"}
             </p>
           </div>
         </div>
 
         {unoState.lastAction && (
-          <div className="mt-4 rounded-2xl border border-cyan-300/20 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-50">
+          <div className="mt-4 rounded-2xl border border-cyan-300/20 bg-cyan-500/10 px-4 py-3 text-xs text-cyan-50 sm:text-sm">
             {unoState.lastAction}
           </div>
         )}
       </div>
 
       {unoState.status === "LOBBY" && (
-        <div className="mb-6 rounded-[2rem] border border-white/20 bg-white/10 p-6 backdrop-blur-sm">
+        <div className="mb-4 rounded-[1.65rem] border border-white/20 bg-white/10 p-4 backdrop-blur-sm sm:mb-6 sm:rounded-[2rem] sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h3 className="text-xl font-bold text-white">Ready to deal?</h3>
-              <p className="mt-2 text-sm text-white/75">
+              <h3 className="text-lg font-bold text-white sm:text-xl">Ready to deal?</h3>
+              <p className="mt-2 text-xs text-white/75 sm:text-sm">
                 Start when everyone has joined. Each player will be dealt 7 cards
                 and the room will lock for late joins.
               </p>
@@ -267,15 +289,15 @@ export default function UnoRoom({
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[1.05fr_1.25fr]">
-        <div className="space-y-6">
-          <div className="rounded-[2rem] border border-white/20 bg-white/10 p-5 backdrop-blur-sm">
-            <div className="flex items-center justify-between gap-3">
+      <div className="grid gap-4 xl:grid-cols-[1.05fr_1.25fr] xl:gap-6">
+        <div className="space-y-4 xl:space-y-6">
+          <div className="rounded-[1.65rem] border border-white/20 bg-white/10 p-4 backdrop-blur-sm sm:rounded-[2rem] sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.26em] text-white/45">
                   Center pile
                 </p>
-                <p className="mt-2 text-sm text-white/75">
+                <p className="mt-2 text-xs text-white/75 sm:text-sm">
                   Follow the active color or symbol from the discard.
                 </p>
               </div>
@@ -286,24 +308,24 @@ export default function UnoRoom({
               )}
             </div>
 
-            <div className="mt-5 flex flex-wrap items-center gap-4">
-              <div className="rounded-[1.65rem] border border-dashed border-white/25 bg-black/20 p-3">
-                <div className="flex h-40 w-28 items-center justify-center rounded-[1.45rem] border border-white/20 bg-[linear-gradient(145deg,#0f172a,#111827,#1f2937)] text-white shadow-[0_18px_35px_rgba(15,23,42,0.35)]">
+            <div className="mt-4 flex items-center justify-center gap-3 sm:mt-5 sm:gap-4">
+              <div className="rounded-[1.2rem] border border-dashed border-white/25 bg-black/20 p-2.5 sm:rounded-[1.65rem] sm:p-3">
+                <div className="flex h-32 w-[5.65rem] items-center justify-center rounded-[1.15rem] border border-white/20 bg-[linear-gradient(145deg,#0f172a,#111827,#1f2937)] text-white shadow-[0_18px_35px_rgba(15,23,42,0.35)] sm:h-40 sm:w-28 sm:rounded-[1.45rem]">
                   <div className="text-center">
-                    <Hand className="mx-auto h-7 w-7" />
-                    <p className="mt-2 text-xs font-semibold uppercase tracking-[0.22em]">
+                    <Hand className="mx-auto h-6 w-6 sm:h-7 sm:w-7" />
+                    <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.22em] sm:text-xs">
                       Draw
                     </p>
-                    <p className="mt-1 text-lg font-black">{unoState.drawPile.length}</p>
+                    <p className="mt-1 text-base font-black sm:text-lg">{unoState.drawPile.length}</p>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-[1.65rem] border border-white/20 bg-black/20 p-3">
+              <div className="rounded-[1.2rem] border border-white/20 bg-black/20 p-2.5 sm:rounded-[1.65rem] sm:p-3">
                 {topCard ? (
                   <UnoPlayingCard card={topCard} />
                 ) : (
-                  <div className="flex h-40 w-28 items-center justify-center rounded-[1.45rem] border border-white/20 bg-white/5 text-sm text-white/55">
+                  <div className="flex h-32 w-[5.65rem] items-center justify-center rounded-[1.15rem] border border-white/20 bg-white/5 text-xs text-white/55 sm:h-40 sm:w-28 sm:rounded-[1.45rem] sm:text-sm">
                     Waiting to deal
                   </div>
                 )}
@@ -311,11 +333,11 @@ export default function UnoRoom({
             </div>
 
             {unoState.status === "PLAYING" && (
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:mt-5">
                 <Button
                   onClick={onDrawCard}
                   disabled={!isMyTurn || turnActionPending || !!unoState.drawnCardThisTurnId}
-                  className="bg-sky-500 text-white hover:bg-sky-600"
+                  className="h-11 bg-sky-500 text-white hover:bg-sky-600 sm:h-10"
                 >
                   Draw Card
                 </Button>
@@ -323,6 +345,7 @@ export default function UnoRoom({
                   onClick={onPassTurn}
                   disabled={!isMyTurn || turnActionPending || !unoState.drawnCardThisTurnId}
                   variant="secondary"
+                  className="h-11 sm:h-10"
                 >
                   Pass Turn
                 </Button>
@@ -331,14 +354,14 @@ export default function UnoRoom({
 
             {unoState.status === "ENDED" && (
               <div className="mt-5 rounded-2xl border border-emerald-300/20 bg-emerald-500/10 p-4">
-                <p className="text-sm text-emerald-50">
+                <p className="text-xs text-emerald-50 sm:text-sm">
                   Winner:{" "}
                   <span className="font-bold">
                     {players.find((player) => player.id === unoState.winnerPlayerId)?.name ??
                       "Unknown"}
                   </span>
                 </p>
-                <p className="mt-2 text-sm text-emerald-100/85">
+                <p className="mt-2 text-xs text-emerald-100/85 sm:text-sm">
                   Deal another round whenever the table is ready.
                 </p>
                 <Button
@@ -352,12 +375,12 @@ export default function UnoRoom({
             )}
           </div>
 
-          <div className="rounded-[2rem] border border-white/20 bg-white/10 p-5 backdrop-blur-sm">
+          <div className="rounded-[1.65rem] border border-white/20 bg-white/10 p-4 backdrop-blur-sm sm:rounded-[2rem] sm:p-5">
             <div className="flex items-center gap-2">
               <Circle className="h-4 w-4 text-cyan-200" />
               <h3 className="text-lg font-semibold text-white">Table order</h3>
             </div>
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
               {unoState.playerOrder.map((playerId) => {
                 const player = players.find((entry) => entry.id === playerId);
                 const cardCount = unoState.handsByPlayerId[playerId]?.length ?? 0;
@@ -380,7 +403,7 @@ export default function UnoRoom({
                         <p className="font-semibold text-white">
                           {player?.name ?? "Player"}
                         </p>
-                        <p className="text-sm text-white/60">
+                        <p className="text-xs text-white/60 sm:text-sm">
                           {isWinner
                             ? "Won the round"
                             : isCurrent
@@ -397,11 +420,11 @@ export default function UnoRoom({
           </div>
         </div>
 
-        <div className="rounded-[2rem] border border-white/20 bg-white/10 p-5 backdrop-blur-sm">
+        <div className="rounded-[1.65rem] border border-white/20 bg-white/10 p-4 backdrop-blur-sm sm:rounded-[2rem] sm:p-5">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h3 className="text-xl font-bold text-white">Your hand</h3>
-              <p className="mt-1 text-sm text-white/75">
+              <h3 className="text-lg font-bold text-white sm:text-xl">Your hand</h3>
+              <p className="mt-1 text-xs text-white/75 sm:text-sm">
                 {isMyTurn
                   ? "Playable cards glow and can be selected."
                   : unoState.status === "LOBBY"
@@ -419,7 +442,8 @@ export default function UnoRoom({
               No cards yet.
             </div>
           ) : (
-            <div className="mt-6 flex gap-4 overflow-x-auto pb-3">
+            <div className="-mx-4 mt-5 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
+              <div className="flex min-w-max gap-3 pb-2 sm:gap-4 sm:pb-3">
               {myHand.map((card) => {
                 const playable =
                   isMyTurn &&
@@ -431,26 +455,38 @@ export default function UnoRoom({
                   <div key={card.id} className="shrink-0">
                     <UnoPlayingCard
                       card={card}
+                      emphasized={playable}
                       disabled={!playable || turnActionPending}
                       onClick={playable ? () => handlePlayCard(card) : undefined}
                     />
                   </div>
                 );
               })}
+              </div>
             </div>
           )}
 
-          {pendingWildCardId && (
-            <div className="mt-6 rounded-[1.65rem] border border-white/20 bg-black/30 p-4">
-              <p className="text-sm font-semibold text-white">
-                Choose a color for your wild card
-              </p>
+          {pendingWildCard && (
+            <div className="mt-5 rounded-[1.65rem] border border-white/20 bg-black/30 p-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    Choose a color for your wild card
+                  </p>
+                  <p className="mt-1 text-xs text-white/65">
+                    Selected: {pendingWildCard.kind === "WILD_DRAW_FOUR" ? "Wild Draw Four" : "Wild"}
+                  </p>
+                </div>
+                <div className="shrink-0">
+                  <UnoPlayingCard card={pendingWildCard} compact />
+                </div>
+              </div>
               <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {(["RED", "YELLOW", "GREEN", "BLUE"] as const).map((color) => (
                   <Button
                     key={color}
                     onClick={() => {
-                      onPlayCard(pendingWildCardId, color);
+                      onPlayCard(pendingWildCard.id, color);
                       setPendingWildCardId(null);
                     }}
                     className={UNO_COLOR_STYLES[color].badge}
@@ -464,17 +500,17 @@ export default function UnoRoom({
                 onClick={() => setPendingWildCardId(null)}
                 className="mt-3 text-white hover:bg-white/10 hover:text-white"
               >
-                Cancel
+                Cancel color choice
               </Button>
             </div>
           )}
 
-          <div className="mt-6 rounded-[1.65rem] border border-white/15 bg-black/20 p-4">
+          <div className="mt-5 rounded-[1.65rem] border border-white/15 bg-black/20 p-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
               <RotateCcw className="h-4 w-4 text-cyan-200" />
               Turn rules in this build
             </div>
-            <ul className="mt-3 space-y-2 text-sm text-white/72">
+            <ul className="mt-3 space-y-2 text-xs text-white/72 sm:text-sm">
               <li>`Reverse` skips in 2-player games and flips direction with 3+.</li>
               <li>`Draw Two` and `Wild Draw Four` force the next player to draw and lose the turn.</li>
               <li>After drawing, you can play only the drawn card or pass.</li>

@@ -136,8 +136,10 @@ export default React.memo(function GameContentRenderer(props: any) {
     tabooPendingWord,
     tabooUsedWordIds,
     unoDrawCard,
+    unoPendingWildCardId,
     unoPassTurn,
     unoPlayCard,
+    unoSetPendingWildCardId,
     unoStart,
     unoState,
     timeLeft,
@@ -2691,7 +2693,9 @@ export default React.memo(function GameContentRenderer(props: any) {
               id: player.id,
               name: player.name,
             }))}
+            pendingWildCardId={unoPendingWildCardId}
             roomId={room?.id || ""}
+            setPendingWildCardId={unoSetPendingWildCardId}
             startPending={unoStart.isPending}
             turnActionPending={
               unoPlayCard.isPending || unoDrawCard.isPending || unoPassTurn.isPending
