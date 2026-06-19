@@ -6,7 +6,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
@@ -48,6 +47,9 @@ any) {
           <DialogContent className={roomPickerDialogClassName}>
             <DialogHeader>
               <DialogTitle>Choose a player</DialogTitle>
+              <p className="text-sm text-white/65">
+                Pick your player name to join this room view.
+              </p>
             </DialogHeader>
 
             <div className="space-y-6">
@@ -85,21 +87,22 @@ any) {
           <DialogContent className={roomPickerDialogClassName}>
             <DialogHeader>
               <DialogTitle>Choose a player</DialogTitle>
-              <DialogDescription>
-                <span className="flex flex-col space-y-2">
-                  {players.map((player: { id: string; name: string }) => (
-                    <Button
-                      key={player.id}
-                      variant="outline"
-                      className="min-h-11 justify-start border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"
-                      onClick={() => handleActualSelectPlayer(player.id)}
-                    >
-                      {player.name}
-                    </Button>
-                  ))}
-                </span>
-              </DialogDescription>
+              <p className="text-sm text-white/65">
+                Pick your player name to join this room view.
+              </p>
             </DialogHeader>
+            <div className="flex flex-col space-y-2">
+              {players.map((player: { id: string; name: string }) => (
+                <Button
+                  key={player.id}
+                  variant="outline"
+                  className="min-h-11 justify-start border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+                  onClick={() => handleActualSelectPlayer(player.id)}
+                >
+                  {player.name}
+                </Button>
+              ))}
+            </div>
           </DialogContent>
         </Dialog>
       </div>

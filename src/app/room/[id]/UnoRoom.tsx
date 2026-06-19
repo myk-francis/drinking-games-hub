@@ -119,7 +119,7 @@ function UnoPlayingCard({
       onClick={onClick}
       disabled={disabled || !onClick}
       className={`group relative overflow-hidden rounded-[1.45rem] border-2 border-white/60 bg-gradient-to-br ${styles.card} ${
-        compact ? "h-24 w-[4.35rem] sm:h-28 sm:w-20" : "h-32 w-[5.65rem] sm:h-40 sm:w-28"
+        compact ? "h-20 w-[3.7rem] sm:h-28 sm:w-20" : "h-28 w-[4.8rem] sm:h-40 sm:w-28"
       } shadow-[0_18px_35px_rgba(15,23,42,0.35)] transition ${
         disabled || !onClick
           ? "cursor-not-allowed opacity-55"
@@ -130,7 +130,7 @@ function UnoPlayingCard({
       aria-label={`Play ${card.label}`}
     >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.28),_transparent_45%)]" />
-      <div className="absolute -left-8 top-5 h-12 w-36 -rotate-35 rounded-full opacity-95 blur-[1px] sm:top-7 sm:h-16 sm:w-48">
+      <div className="absolute -left-7 top-4 h-10 w-30 -rotate-35 rounded-full opacity-95 blur-[1px] sm:-left-8 sm:top-7 sm:h-16 sm:w-48">
         <div className={`h-full w-full ${styles.stripe}`} />
       </div>
 
@@ -138,16 +138,16 @@ function UnoPlayingCard({
         <span className="text-left text-[10px] font-black tracking-[0.18em] text-white drop-shadow sm:text-xs">
           {glyph}
         </span>
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border-[3px] border-white/75 bg-black/10 shadow-inner sm:h-16 sm:w-16 sm:border-4">
+        <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full border-[3px] border-white/75 bg-black/10 shadow-inner sm:h-16 sm:w-16 sm:border-4">
           {card.kind === "WILD" || card.kind === "WILD_DRAW_FOUR" ? (
-            <div className="grid h-8 w-8 grid-cols-2 gap-1 rounded-full bg-zinc-950/70 p-1 sm:h-11 sm:w-11">
+            <div className="grid h-7 w-7 grid-cols-2 gap-1 rounded-full bg-zinc-950/70 p-1 sm:h-11 sm:w-11">
               <span className="rounded-full bg-red-400" />
               <span className="rounded-full bg-amber-300" />
               <span className="rounded-full bg-emerald-400" />
               <span className="rounded-full bg-sky-400" />
             </div>
           ) : (
-            <span className={`text-base font-black sm:text-xl ${styles.text}`}>
+            <span className={`text-sm font-black sm:text-xl ${styles.text}`}>
               {glyph}
             </span>
           )}
@@ -308,9 +308,9 @@ export default function UnoRoom({
               )}
             </div>
 
-            <div className="mt-4 flex items-center justify-center gap-3 sm:mt-5 sm:gap-4">
+            <div className="mt-4 grid grid-cols-2 justify-items-center gap-2 sm:mt-5 sm:flex sm:items-center sm:justify-center sm:gap-4">
               <div className="rounded-[1.2rem] border border-dashed border-white/25 bg-black/20 p-2.5 sm:rounded-[1.65rem] sm:p-3">
-                <div className="flex h-32 w-[5.65rem] items-center justify-center rounded-[1.15rem] border border-white/20 bg-[linear-gradient(145deg,#0f172a,#111827,#1f2937)] text-white shadow-[0_18px_35px_rgba(15,23,42,0.35)] sm:h-40 sm:w-28 sm:rounded-[1.45rem]">
+                <div className="flex h-28 w-[4.8rem] items-center justify-center rounded-[1.05rem] border border-white/20 bg-[linear-gradient(145deg,#0f172a,#111827,#1f2937)] text-white shadow-[0_18px_35px_rgba(15,23,42,0.35)] sm:h-40 sm:w-28 sm:rounded-[1.45rem]">
                   <div className="text-center">
                     <Hand className="mx-auto h-6 w-6 sm:h-7 sm:w-7" />
                     <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.22em] sm:text-xs">
@@ -325,7 +325,7 @@ export default function UnoRoom({
                 {topCard ? (
                   <UnoPlayingCard card={topCard} />
                 ) : (
-                  <div className="flex h-32 w-[5.65rem] items-center justify-center rounded-[1.15rem] border border-white/20 bg-white/5 text-xs text-white/55 sm:h-40 sm:w-28 sm:rounded-[1.45rem] sm:text-sm">
+                  <div className="flex h-28 w-[4.8rem] items-center justify-center rounded-[1.05rem] border border-white/20 bg-white/5 text-[11px] text-white/55 sm:h-40 sm:w-28 sm:rounded-[1.45rem] sm:text-sm">
                     Waiting to deal
                   </div>
                 )}
@@ -333,7 +333,7 @@ export default function UnoRoom({
             </div>
 
             {unoState.status === "PLAYING" && (
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:mt-5">
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:mt-5 sm:grid-cols-2">
                 <Button
                   onClick={onDrawCard}
                   disabled={!isMyTurn || turnActionPending || !!unoState.drawnCardThisTurnId}
@@ -380,7 +380,7 @@ export default function UnoRoom({
               <Circle className="h-4 w-4 text-cyan-200" />
               <h3 className="text-lg font-semibold text-white">Table order</h3>
             </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            <div className="mt-4 grid gap-3">
               {unoState.playerOrder.map((playerId) => {
                 const player = players.find((entry) => entry.id === playerId);
                 const cardCount = unoState.handsByPlayerId[playerId]?.length ?? 0;
@@ -443,7 +443,7 @@ export default function UnoRoom({
             </div>
           ) : (
             <div className="-mx-4 mt-5 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
-              <div className="flex min-w-max gap-3 pb-2 sm:gap-4 sm:pb-3">
+              <div className="flex min-w-max snap-x snap-mandatory gap-2.5 pb-2 sm:gap-4 sm:pb-3">
               {myHand.map((card) => {
                 const playable =
                   isMyTurn &&
@@ -452,7 +452,7 @@ export default function UnoRoom({
                   isPlayableCard(card, unoState);
 
                 return (
-                  <div key={card.id} className="shrink-0">
+                  <div key={card.id} className="shrink-0 snap-start">
                     <UnoPlayingCard
                       card={card}
                       emphasized={playable}
