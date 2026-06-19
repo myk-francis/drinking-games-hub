@@ -265,6 +265,39 @@ export type JokerLoopRoomState = {
   lastRoundClearedPlayerIds: string[];
 };
 
+export type UnoColor = "RED" | "YELLOW" | "GREEN" | "BLUE" | "WILD";
+export type UnoCardKind =
+  | "NUMBER"
+  | "SKIP"
+  | "REVERSE"
+  | "DRAW_TWO"
+  | "WILD"
+  | "WILD_DRAW_FOUR";
+
+export type UnoCard = {
+  id: string;
+  color: UnoColor;
+  kind: UnoCardKind;
+  value: number | null;
+  label: string;
+};
+
+export type UnoRoomState = {
+  status: "LOBBY" | "PLAYING" | "ENDED";
+  roundNumber: number;
+  playerOrder: string[];
+  currentPlayerId: string | null;
+  direction: 1 | -1;
+  drawPile: UnoCard[];
+  discardPile: UnoCard[];
+  handsByPlayerId: Record<string, UnoCard[]>;
+  activeColor: Exclude<UnoColor, "WILD"> | null;
+  pendingDrawAmount: number;
+  winnerPlayerId: string | null;
+  drawnCardThisTurnId: string | null;
+  lastAction: string | null;
+};
+
 export const NAME_THE_SONG_TIMER_SECONDS = 5;
 export const GUESS_THE_MOVIE_TIMER_SECONDS = 5;
 
@@ -1412,6 +1445,132 @@ export function parseJokerLoopState(
             (playerId): playerId is string => typeof playerId === "string",
           )
         : [],
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+export function parseUnoState(
+  raw: string | null | undefined,
+): UnoRoomState {
+  const fallback: UnoRoomState = {
+    status: "LOBBY",
+    roundNumber: 0,
+    playerOrder: [],
+    currentPlayerId: null,
+    direction: 1,
+    drawPile: [],
+    discardPile: [],
+    handsByPlayerId: {},
+    activeColor: null,
+    pendingDrawAmount: 0,
+    winnerPlayerId: null,
+    drawnCardThisTurnId: null,
+    lastAction: null,
+  };
+
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<UnoRoomState>;
+    const playerOrder = Array.isArray(parsed.playerOrder)
+      ? parsed.playerOrder.filter(
+          (playerId): playerId is string => typeof playerId === "string",
+        )
+      : [];
+
+    const parseUnoCard = (rawCard: unknown): UnoCard | null => {
+      if (!rawCard || typeof rawCard !== "object") return null;
+      const card = rawCard as Partial<UnoCard>;
+      const validColor =
+        card.color === "RED" ||
+        card.color === "YELLOW" ||
+        card.color === "GREEN" ||
+        card.color === "BLUE" ||
+        card.color === "WILD";
+      const validKind =
+        card.kind === "NUMBER" ||
+        card.kind === "SKIP" ||
+        card.kind === "REVERSE" ||
+        card.kind === "DRAW_TWO" ||
+        card.kind === "WILD" ||
+        card.kind === "WILD_DRAW_FOUR";
+
+      if (
+        typeof card.id !== "string" ||
+        !validColor ||
+        !validKind ||
+        (card.value !== null &&
+          card.value !== undefined &&
+          (typeof card.value !== "number" || !Number.isFinite(card.value))) ||
+        typeof card.label !== "string"
+      ) {
+        return null;
+      }
+
+      return {
+        id: card.id,
+        color: card.color as UnoColor,
+        kind: card.kind as UnoCardKind,
+        value: typeof card.value === "number" ? card.value : null,
+        label: card.label,
+      };
+    };
+
+    const parseUnoCardList = (rawCards: unknown): UnoCard[] =>
+      Array.isArray(rawCards)
+        ? rawCards
+            .map((card) => parseUnoCard(card))
+            .filter((card): card is UnoCard => card !== null)
+        : [];
+
+    const handsByPlayerId: Record<string, UnoCard[]> = {};
+    if (parsed.handsByPlayerId && typeof parsed.handsByPlayerId === "object") {
+      for (const [playerId, rawHand] of Object.entries(parsed.handsByPlayerId)) {
+        handsByPlayerId[playerId] = parseUnoCardList(rawHand);
+      }
+    }
+
+    return {
+      status:
+        parsed.status === "PLAYING" || parsed.status === "ENDED"
+          ? parsed.status
+          : "LOBBY",
+      roundNumber:
+        typeof parsed.roundNumber === "number" &&
+        Number.isFinite(parsed.roundNumber) &&
+        parsed.roundNumber >= 0
+          ? parsed.roundNumber
+          : 0,
+      playerOrder,
+      currentPlayerId:
+        typeof parsed.currentPlayerId === "string" ? parsed.currentPlayerId : null,
+      direction: parsed.direction === -1 ? -1 : 1,
+      drawPile: parseUnoCardList(parsed.drawPile),
+      discardPile: parseUnoCardList(parsed.discardPile),
+      handsByPlayerId,
+      activeColor:
+        parsed.activeColor === "RED" ||
+        parsed.activeColor === "YELLOW" ||
+        parsed.activeColor === "GREEN" ||
+        parsed.activeColor === "BLUE"
+          ? parsed.activeColor
+          : null,
+      pendingDrawAmount:
+        typeof parsed.pendingDrawAmount === "number" &&
+        Number.isFinite(parsed.pendingDrawAmount) &&
+        parsed.pendingDrawAmount >= 0
+          ? parsed.pendingDrawAmount
+          : 0,
+      winnerPlayerId:
+        typeof parsed.winnerPlayerId === "string" ? parsed.winnerPlayerId : null,
+      drawnCardThisTurnId:
+        typeof parsed.drawnCardThisTurnId === "string"
+          ? parsed.drawnCardThisTurnId
+          : null,
+      lastAction:
+        typeof parsed.lastAction === "string" ? parsed.lastAction : null,
     };
   } catch {
     return fallback;

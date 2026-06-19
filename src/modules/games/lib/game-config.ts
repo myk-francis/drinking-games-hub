@@ -2,6 +2,7 @@ import {
   ArrowUpRight,
   Brain,
   Bus,
+  Circle,
   Club,
   ClipboardPaste,
   Compass,
@@ -171,6 +172,11 @@ export const GAME_CONFIG: Record<string, GameConfig> = {
   poker: {
     color: "from-red-800 to-zinc-950",
     icon: Club,
+    minPlayers: 2,
+  },
+  uno: {
+    color: "from-red-600 via-amber-500 to-blue-700",
+    icon: Circle,
     minPlayers: 2,
   },
 };

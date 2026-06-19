@@ -364,6 +364,39 @@ type JokerLoopState = {
   lastRoundClearedPlayerIds: string[];
 };
 
+type UnoColor = "RED" | "YELLOW" | "GREEN" | "BLUE" | "WILD";
+type UnoCardKind =
+  | "NUMBER"
+  | "SKIP"
+  | "REVERSE"
+  | "DRAW_TWO"
+  | "WILD"
+  | "WILD_DRAW_FOUR";
+
+type UnoCard = {
+  id: string;
+  color: UnoColor;
+  kind: UnoCardKind;
+  value: number | null;
+  label: string;
+};
+
+type UnoState = {
+  status: "LOBBY" | "PLAYING" | "ENDED";
+  roundNumber: number;
+  playerOrder: string[];
+  currentPlayerId: string | null;
+  direction: 1 | -1;
+  drawPile: UnoCard[];
+  discardPile: UnoCard[];
+  handsByPlayerId: Record<string, UnoCard[]>;
+  activeColor: Exclude<UnoColor, "WILD"> | null;
+  pendingDrawAmount: number;
+  winnerPlayerId: string | null;
+  drawnCardThisTurnId: string | null;
+  lastAction: string | null;
+};
+
 function shuffleArray<T>(items: T[]): T[] {
   const next = [...items];
   for (let i = next.length - 1; i > 0; i -= 1) {
@@ -2864,6 +2897,328 @@ function removePairsFromHand(hand: JokerLoopCard[]): JokerLoopCard[] {
   return next;
 }
 
+function createUnoCardId(prefix: string): string {
+  return `${prefix}:${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function createUnoDeck(): UnoCard[] {
+  const colors: Exclude<UnoColor, "WILD">[] = ["RED", "YELLOW", "GREEN", "BLUE"];
+  const deck: UnoCard[] = [];
+
+  for (const color of colors) {
+    deck.push({
+      id: createUnoCardId(`${color}:0`),
+      color,
+      kind: "NUMBER",
+      value: 0,
+      label: "0",
+    });
+
+    for (let value = 1; value <= 9; value += 1) {
+      for (let copy = 0; copy < 2; copy += 1) {
+        deck.push({
+          id: createUnoCardId(`${color}:${value}:${copy}`),
+          color,
+          kind: "NUMBER",
+          value,
+          label: String(value),
+        });
+      }
+    }
+
+    for (const action of ["SKIP", "REVERSE", "DRAW_TWO"] as const) {
+      for (let copy = 0; copy < 2; copy += 1) {
+        deck.push({
+          id: createUnoCardId(`${color}:${action}:${copy}`),
+          color,
+          kind: action,
+          value: null,
+          label: action === "DRAW_TWO" ? "+2" : action === "REVERSE" ? "REV" : "SKIP",
+        });
+      }
+    }
+  }
+
+  for (let copy = 0; copy < 4; copy += 1) {
+    deck.push({
+      id: createUnoCardId(`WILD:${copy}`),
+      color: "WILD",
+      kind: "WILD",
+      value: null,
+      label: "WILD",
+    });
+    deck.push({
+      id: createUnoCardId(`WILD_DRAW_FOUR:${copy}`),
+      color: "WILD",
+      kind: "WILD_DRAW_FOUR",
+      value: null,
+      label: "+4",
+    });
+  }
+
+  return shuffleArray(deck);
+}
+
+function buildUnoLobbyState(playerIds: string[], roundNumber = 0): UnoState {
+  return {
+    status: "LOBBY",
+    roundNumber,
+    playerOrder: [...playerIds],
+    currentPlayerId: null,
+    direction: 1,
+    drawPile: [],
+    discardPile: [],
+    handsByPlayerId: Object.fromEntries(playerIds.map((playerId) => [playerId, []])),
+    activeColor: null,
+    pendingDrawAmount: 0,
+    winnerPlayerId: null,
+    drawnCardThisTurnId: null,
+    lastAction: null,
+  };
+}
+
+function parseUnoCard(raw: unknown): UnoCard | null {
+  if (!raw || typeof raw !== "object") return null;
+  const card = raw as Partial<UnoCard>;
+  const validColor =
+    card.color === "RED" ||
+    card.color === "YELLOW" ||
+    card.color === "GREEN" ||
+    card.color === "BLUE" ||
+    card.color === "WILD";
+  const validKind =
+    card.kind === "NUMBER" ||
+    card.kind === "SKIP" ||
+    card.kind === "REVERSE" ||
+    card.kind === "DRAW_TWO" ||
+    card.kind === "WILD" ||
+    card.kind === "WILD_DRAW_FOUR";
+
+  if (
+    typeof card.id !== "string" ||
+    !validColor ||
+    !validKind ||
+    (card.value !== null &&
+      card.value !== undefined &&
+      (typeof card.value !== "number" || !Number.isFinite(card.value))) ||
+    typeof card.label !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    id: card.id,
+    color: card.color as UnoColor,
+    kind: card.kind as UnoCardKind,
+    value: typeof card.value === "number" ? card.value : null,
+    label: card.label,
+  };
+}
+
+function parseUnoState(raw: string | null, playerIds: string[]): UnoState {
+  const fallback = buildUnoLobbyState(playerIds);
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<UnoState>;
+    const playerOrder = [
+      ...(Array.isArray(parsed.playerOrder)
+        ? parsed.playerOrder.filter((playerId): playerId is string =>
+            playerIds.includes(playerId),
+          )
+        : []),
+      ...playerIds.filter(
+        (playerId) =>
+          !(Array.isArray(parsed.playerOrder) && parsed.playerOrder.includes(playerId)),
+      ),
+    ];
+
+    const parseCardList = (rawCards: unknown): UnoCard[] =>
+      Array.isArray(rawCards)
+        ? rawCards
+            .map((card) => parseUnoCard(card))
+            .filter((card): card is UnoCard => card !== null)
+        : [];
+
+    const handsByPlayerId: Record<string, UnoCard[]> = {};
+    for (const playerId of playerOrder) {
+      const rawHand =
+        parsed.handsByPlayerId &&
+        typeof parsed.handsByPlayerId === "object" &&
+        Array.isArray((parsed.handsByPlayerId as Record<string, unknown>)[playerId])
+          ? ((parsed.handsByPlayerId as Record<string, unknown>)[playerId] as unknown[])
+          : [];
+      handsByPlayerId[playerId] = parseCardList(rawHand);
+    }
+
+    return {
+      status:
+        parsed.status === "PLAYING" || parsed.status === "ENDED"
+          ? parsed.status
+          : "LOBBY",
+      roundNumber:
+        typeof parsed.roundNumber === "number" &&
+        Number.isFinite(parsed.roundNumber) &&
+        parsed.roundNumber >= 0
+          ? parsed.roundNumber
+          : 0,
+      playerOrder,
+      currentPlayerId:
+        typeof parsed.currentPlayerId === "string" &&
+        playerOrder.includes(parsed.currentPlayerId)
+          ? parsed.currentPlayerId
+          : null,
+      direction: parsed.direction === -1 ? -1 : 1,
+      drawPile: parseCardList(parsed.drawPile),
+      discardPile: parseCardList(parsed.discardPile),
+      handsByPlayerId,
+      activeColor:
+        parsed.activeColor === "RED" ||
+        parsed.activeColor === "YELLOW" ||
+        parsed.activeColor === "GREEN" ||
+        parsed.activeColor === "BLUE"
+          ? parsed.activeColor
+          : null,
+      pendingDrawAmount:
+        typeof parsed.pendingDrawAmount === "number" &&
+        Number.isFinite(parsed.pendingDrawAmount) &&
+        parsed.pendingDrawAmount >= 0
+          ? parsed.pendingDrawAmount
+          : 0,
+      winnerPlayerId:
+        typeof parsed.winnerPlayerId === "string" &&
+        playerOrder.includes(parsed.winnerPlayerId)
+          ? parsed.winnerPlayerId
+          : null,
+      drawnCardThisTurnId:
+        typeof parsed.drawnCardThisTurnId === "string"
+          ? parsed.drawnCardThisTurnId
+          : null,
+      lastAction: typeof parsed.lastAction === "string" ? parsed.lastAction : null,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function drawUnoCard(state: UnoState): UnoCard {
+  if (state.drawPile.length === 0) {
+    const topDiscard = state.discardPile[state.discardPile.length - 1] ?? null;
+    const recyclable = state.discardPile.slice(0, -1);
+    if (!topDiscard || recyclable.length === 0) {
+      throw new Error("The Uno deck is empty");
+    }
+    state.drawPile = shuffleArray(recyclable);
+    state.discardPile = [topDiscard];
+  }
+
+  const nextCard = state.drawPile.pop();
+  if (!nextCard) {
+    throw new Error("The Uno deck is empty");
+  }
+  return nextCard;
+}
+
+function drawUnoCards(state: UnoState, playerId: string, amount: number): UnoCard[] {
+  const hand = state.handsByPlayerId[playerId] ?? [];
+  const drawn: UnoCard[] = [];
+  for (let index = 0; index < amount; index += 1) {
+    const nextCard = drawUnoCard(state);
+    hand.push(nextCard);
+    drawn.push(nextCard);
+  }
+  state.handsByPlayerId[playerId] = hand;
+  return drawn;
+}
+
+function getNextUnoPlayerId(
+  state: Pick<UnoState, "playerOrder" | "direction">,
+  fromPlayerId: string,
+  steps = 1,
+): string | null {
+  const playerCount = state.playerOrder.length;
+  if (playerCount === 0) return null;
+  const startIndex = state.playerOrder.indexOf(fromPlayerId);
+  if (startIndex === -1) return null;
+
+  const nextIndex =
+    (((startIndex + state.direction * steps) % playerCount) + playerCount) %
+    playerCount;
+  return state.playerOrder[nextIndex] ?? null;
+}
+
+function isUnoCardPlayable(
+  card: UnoCard,
+  state: Pick<UnoState, "activeColor" | "discardPile">,
+): boolean {
+  if (card.kind === "WILD" || card.kind === "WILD_DRAW_FOUR") {
+    return true;
+  }
+
+  const topCard = state.discardPile[state.discardPile.length - 1] ?? null;
+  if (!topCard) {
+    return true;
+  }
+
+  if (state.activeColor && card.color === state.activeColor) {
+    return true;
+  }
+
+  if (card.kind === "NUMBER" && topCard.kind === "NUMBER") {
+    return card.value === topCard.value;
+  }
+
+  return card.kind === topCard.kind;
+}
+
+function createStartedUnoState(playerIds: string[], previousRoundNumber: number): UnoState {
+  if (playerIds.length < 2) {
+    throw new Error("Uno needs at least 2 players.");
+  }
+
+  const deck = createUnoDeck();
+  const handsByPlayerId: Record<string, UnoCard[]> = Object.fromEntries(
+    playerIds.map((playerId) => [playerId, [] as UnoCard[]]),
+  );
+
+  for (let round = 0; round < 7; round += 1) {
+    for (const playerId of playerIds) {
+      const nextCard = deck.pop();
+      if (!nextCard) {
+        throw new Error("Could not deal the opening Uno hands.");
+      }
+      handsByPlayerId[playerId].push(nextCard);
+    }
+  }
+
+  let openingCard = deck.pop() ?? null;
+  while (openingCard && openingCard.kind !== "NUMBER" && deck.length > 0) {
+    deck.unshift(openingCard);
+    openingCard = deck.pop() ?? null;
+  }
+
+  if (!openingCard) {
+    throw new Error("Could not draw an opening Uno discard.");
+  }
+
+  return {
+    status: "PLAYING",
+    roundNumber: previousRoundNumber + 1,
+    playerOrder: [...playerIds],
+    currentPlayerId: playerIds[0] ?? null,
+    direction: 1,
+    drawPile: deck,
+    discardPile: [openingCard],
+    handsByPlayerId,
+    activeColor:
+      openingCard.color === "WILD" ? "RED" : (openingCard.color as Exclude<UnoColor, "WILD">),
+    pendingDrawAmount: 0,
+    winnerPlayerId: null,
+    drawnCardThisTurnId: null,
+    lastAction: "Cards dealt. Match the color, number, or symbol.",
+  };
+}
+
 function buildJokerLoopState(playerIds: string[]): JokerLoopState {
   const pairCount = Math.floor((playerIds.length * JOKER_LOOP_CARDS_PER_PLAYER) / 2);
   if (pairCount > JOKER_LOOP_CARD_TEMPLATES.length) {
@@ -3416,6 +3771,21 @@ async function syncRoomStateAfterPlayerAdded(
       state.foldedPlayerIds = state.foldedPlayerIds.filter((playerId) => playerId !== newPlayer.id);
       state.allInPlayerIds = state.allInPlayerIds.filter((playerId) => playerId !== newPlayer.id);
       state.winnerPlayerIds = state.winnerPlayerIds.filter((playerId) => playerId !== newPlayer.id);
+
+      await tx.room.update({
+        where: { id: room.id },
+        data: {
+          currentAnswer: JSON.stringify(state),
+          currentPlayerId: state.currentPlayerId,
+        },
+      });
+      return;
+    }
+
+    case "uno": {
+      const state = parseUnoState(room.currentAnswer, nextPlayerIds);
+      state.playerOrder = nextPlayerIds;
+      state.handsByPlayerId[newPlayer.id] = state.handsByPlayerId[newPlayer.id] ?? [];
 
       await tx.room.update({
         where: { id: room.id },
@@ -3987,6 +4357,12 @@ export const gamesRouter = createTRPCRouter({
         ) {
           throw new Error("Poker requires at least 2 players.");
         }
+        if (
+          input.selectedGame === "uno" &&
+          (input.players?.length || 0) < 2
+        ) {
+          throw new Error("Uno requires at least 2 players.");
+        }
 
         if (input.selectedGame === "triviyay") {
           if (!input.teamsInfo || input.teamsInfo.length < 1) {
@@ -4123,6 +4499,7 @@ export const gamesRouter = createTRPCRouter({
           let blackjackPointPlayerIds: string[] = [];
           let blackjackDrinkPlayerIds: string[] = [];
           let pokerCurrentPlayerId: string | null = null;
+          let unoCurrentPlayerId: string | null = null;
 
           if (input.selectedGame === "truth-or-drink") {
             currentQuestionId =
@@ -4258,6 +4635,12 @@ export const gamesRouter = createTRPCRouter({
             roomCurrentAnswer = JSON.stringify(pokerSetup.state);
             pokerCurrentPlayerId = pokerSetup.state.currentPlayerId;
           }
+          if (input.selectedGame === "uno") {
+            const playerIds = createdRoom.players.map((player) => player.id);
+            const unoState = buildUnoLobbyState(playerIds);
+            roomCurrentAnswer = JSON.stringify(unoState);
+            unoCurrentPlayerId = unoState.currentPlayerId;
+          }
 
           const createdRoomId = createdRoom.id;
           await prisma.room.update({
@@ -4272,6 +4655,8 @@ export const gamesRouter = createTRPCRouter({
                     ? blackjackCurrentPlayerId
                   : input.selectedGame === "poker"
                     ? pokerCurrentPlayerId
+                  : input.selectedGame === "uno"
+                    ? unoCurrentPlayerId
                   : randomCurrentPlayerId,
               previousPlayersIds: [],
               currentQuestionId: currentQuestionId,
@@ -6397,6 +6782,9 @@ export const gamesRouter = createTRPCRouter({
         if (!room) {
           throw new Error("Room not found");
         }
+        if (room.game.code === "uno" && room.startedAt) {
+          throw new Error("You cannot add players after Uno has started.");
+        }
 
         await prisma.$transaction(async (tx) => {
           const newPlayer = await tx.player.create({
@@ -6449,6 +6837,9 @@ export const gamesRouter = createTRPCRouter({
 
         if (!room) {
           throw new Error("Room not found");
+        }
+        if (room.game.code === "uno" && room.startedAt) {
+          throw new Error("You cannot add players after Uno has started.");
         }
 
         await prisma.$transaction(async (tx) => {
@@ -9806,6 +10197,407 @@ export const gamesRouter = createTRPCRouter({
         roundNumber: nextSetup.state.roundNumber,
         currentPlayerId: nextSetup.state.currentPlayerId,
         gameEnded: false,
+      };
+    }),
+
+  unoStart: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "uno") {
+        throw new Error("This room is not Uno");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      if (!playerIds.includes(input.playerId)) {
+        throw new Error("Player not found in room");
+      }
+      if (playerIds.length < 2) {
+        throw new Error("Uno requires at least 2 players.");
+      }
+
+      const currentState = parseUnoState(room.currentAnswer, playerIds);
+      if (currentState.status === "PLAYING") {
+        throw new Error("Uno is already in progress.");
+      }
+
+      const nextState = createStartedUnoState(playerIds, currentState.roundNumber);
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentPlayerId: nextState.currentPlayerId,
+          currentAnswer: JSON.stringify(nextState),
+          currentRound: nextState.roundNumber,
+          gameEnded: false,
+          gameEndedAt: null,
+          startedAt: room.startedAt ?? new Date(),
+        },
+      });
+
+      return {
+        roundNumber: nextState.roundNumber,
+        currentPlayerId: nextState.currentPlayerId,
+      };
+    }),
+
+  unoPlayCard: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        cardId: z.string().min(1),
+        chosenColor: z.enum(["RED", "YELLOW", "GREEN", "BLUE"]).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "uno") {
+        throw new Error("This room is not Uno");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parseUnoState(room.currentAnswer, playerIds);
+      if (state.status !== "PLAYING") {
+        throw new Error("Start Uno before playing cards.");
+      }
+      if (state.currentPlayerId !== input.playerId) {
+        throw new Error("It is not your turn.");
+      }
+
+      const hand = [...(state.handsByPlayerId[input.playerId] ?? [])];
+      const cardIndex = hand.findIndex((card) => card.id === input.cardId);
+      if (cardIndex === -1) {
+        throw new Error("Card not found in your hand.");
+      }
+      const card = hand[cardIndex];
+      if (state.drawnCardThisTurnId && state.drawnCardThisTurnId !== card.id) {
+        throw new Error("After drawing, you may only play the drawn card.");
+      }
+      if (!isUnoCardPlayable(card, state)) {
+        throw new Error("That card cannot be played right now.");
+      }
+      if (
+        (card.kind === "WILD" || card.kind === "WILD_DRAW_FOUR") &&
+        !input.chosenColor
+      ) {
+        throw new Error("Choose a color for your wild card.");
+      }
+
+      hand.splice(cardIndex, 1);
+      state.handsByPlayerId[input.playerId] = hand;
+      state.discardPile = [...state.discardPile, card];
+      state.activeColor =
+        card.color === "WILD"
+          ? input.chosenColor ?? "RED"
+          : (card.color as Exclude<UnoColor, "WILD">);
+      state.drawnCardThisTurnId = null;
+      state.pendingDrawAmount = 0;
+      state.winnerPlayerId = null;
+
+      const currentPlayerName =
+        room.players.find((player) => player.id === input.playerId)?.name ?? "Player";
+      const nextPlayerId = getNextUnoPlayerId(state, input.playerId, 1);
+      if (!nextPlayerId) {
+        throw new Error("Could not determine the next Uno player.");
+      }
+      const nextPlayerName =
+        room.players.find((player) => player.id === nextPlayerId)?.name ?? "Player";
+
+      if (hand.length === 0) {
+        state.status = "ENDED";
+        state.currentPlayerId = input.playerId;
+        state.winnerPlayerId = input.playerId;
+        state.lastAction = `${currentPlayerName} played their last card and won the round.`;
+
+        await prisma.$transaction(async (tx) => {
+          await tx.player.update({
+            where: {
+              id: input.playerId,
+            },
+            data: {
+              points: {
+                increment: 1,
+              },
+            },
+          });
+
+          await tx.player.updateMany({
+            where: {
+              roomId: input.roomId,
+              id: {
+                not: input.playerId,
+              },
+            },
+            data: {
+              drinks: {
+                increment: 1,
+              },
+            },
+          });
+
+          await tx.room.update({
+            where: { id: input.roomId },
+            data: {
+              currentPlayerId: state.currentPlayerId,
+              currentAnswer: JSON.stringify(state),
+              gameEnded: true,
+              gameEndedAt: new Date(),
+            },
+          });
+        });
+
+        return {
+          status: state.status,
+          currentPlayerId: state.currentPlayerId,
+          winnerPlayerId: state.winnerPlayerId,
+          activeColor: state.activeColor,
+        };
+      }
+
+      let resolvedCurrentPlayerId: string = nextPlayerId;
+      let lastAction = `${currentPlayerName} played ${card.label}. ${nextPlayerName} is up.`;
+
+      if (card.kind === "SKIP") {
+        const skippedTurnPlayerId = getNextUnoPlayerId(state, input.playerId, 2);
+        if (!skippedTurnPlayerId) {
+          throw new Error("Could not skip to the next Uno player.");
+        }
+        resolvedCurrentPlayerId = skippedTurnPlayerId;
+        const skippedName = nextPlayerName;
+        const resumeName =
+          room.players.find((player) => player.id === resolvedCurrentPlayerId)?.name ??
+          "Player";
+        lastAction = `${currentPlayerName} played Skip. ${skippedName} loses a turn. ${resumeName} is up.`;
+      } else if (card.kind === "REVERSE") {
+        if (state.playerOrder.length === 2) {
+          const reversedTurnPlayerId = getNextUnoPlayerId(state, input.playerId, 2);
+          if (!reversedTurnPlayerId) {
+            throw new Error("Could not reverse the Uno turn.");
+          }
+          resolvedCurrentPlayerId = reversedTurnPlayerId;
+          const resumeName =
+            room.players.find((player) => player.id === resolvedCurrentPlayerId)?.name ??
+            "Player";
+          lastAction = `${currentPlayerName} played Reverse. In a 2-player game it acts like Skip. ${resumeName} goes again.`;
+        } else {
+          state.direction = state.direction === 1 ? -1 : 1;
+          const reversedTurnPlayerId = getNextUnoPlayerId(state, input.playerId, 1);
+          if (!reversedTurnPlayerId) {
+            throw new Error("Could not reverse the Uno turn.");
+          }
+          resolvedCurrentPlayerId = reversedTurnPlayerId;
+          const resumeName =
+            room.players.find((player) => player.id === resolvedCurrentPlayerId)?.name ??
+            "Player";
+          lastAction = `${currentPlayerName} reversed play. ${resumeName} is up.`;
+        }
+      } else if (card.kind === "DRAW_TWO") {
+        drawUnoCards(state, nextPlayerId, 2);
+        state.pendingDrawAmount = 2;
+        const drawTwoTurnPlayerId = getNextUnoPlayerId(state, input.playerId, 2);
+        if (!drawTwoTurnPlayerId) {
+          throw new Error("Could not resolve the Draw Two turn.");
+        }
+        resolvedCurrentPlayerId = drawTwoTurnPlayerId;
+        const resumeName =
+          room.players.find((player) => player.id === resolvedCurrentPlayerId)?.name ??
+          "Player";
+        lastAction = `${currentPlayerName} played Draw Two. ${nextPlayerName} draws 2 and is skipped. ${resumeName} is up.`;
+      } else if (card.kind === "WILD") {
+        lastAction = `${currentPlayerName} played Wild and chose ${state.activeColor}. ${nextPlayerName} is up.`;
+      } else if (card.kind === "WILD_DRAW_FOUR") {
+        drawUnoCards(state, nextPlayerId, 4);
+        state.pendingDrawAmount = 4;
+        const drawFourTurnPlayerId = getNextUnoPlayerId(state, input.playerId, 2);
+        if (!drawFourTurnPlayerId) {
+          throw new Error("Could not resolve the Wild Draw Four turn.");
+        }
+        resolvedCurrentPlayerId = drawFourTurnPlayerId;
+        const resumeName =
+          room.players.find((player) => player.id === resolvedCurrentPlayerId)?.name ??
+          "Player";
+        lastAction = `${currentPlayerName} played Wild Draw Four, chose ${state.activeColor}, and forced ${nextPlayerName} to draw 4. ${resumeName} is up.`;
+      }
+
+      state.currentPlayerId = resolvedCurrentPlayerId;
+      state.lastAction = lastAction;
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentPlayerId: state.currentPlayerId,
+          currentAnswer: JSON.stringify(state),
+        },
+      });
+
+      return {
+        status: state.status,
+        currentPlayerId: state.currentPlayerId,
+        winnerPlayerId: state.winnerPlayerId,
+        activeColor: state.activeColor,
+      };
+    }),
+
+  unoDrawCard: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "uno") {
+        throw new Error("This room is not Uno");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parseUnoState(room.currentAnswer, playerIds);
+      if (state.status !== "PLAYING") {
+        throw new Error("Start Uno before drawing cards.");
+      }
+      if (state.currentPlayerId !== input.playerId) {
+        throw new Error("It is not your turn.");
+      }
+      if (state.drawnCardThisTurnId) {
+        throw new Error("You already drew a card this turn.");
+      }
+
+      const [drawnCard] = drawUnoCards(state, input.playerId, 1);
+      if (!drawnCard) {
+        throw new Error("Could not draw an Uno card.");
+      }
+
+      const currentPlayerName =
+        room.players.find((player) => player.id === input.playerId)?.name ?? "Player";
+      const isPlayable = isUnoCardPlayable(drawnCard, state);
+      if (isPlayable) {
+        state.drawnCardThisTurnId = drawnCard.id;
+        state.lastAction = `${currentPlayerName} drew ${drawnCard.label}. They may play it or pass.`;
+      } else {
+        state.drawnCardThisTurnId = null;
+        state.currentPlayerId = getNextUnoPlayerId(state, input.playerId, 1);
+        state.lastAction = `${currentPlayerName} drew and could not play. Turn passed on.`;
+      }
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentPlayerId: state.currentPlayerId,
+          currentAnswer: JSON.stringify(state),
+        },
+      });
+
+      return {
+        currentPlayerId: state.currentPlayerId,
+        drawnCard,
+        canPlayDrawnCard: isPlayable,
+      };
+    }),
+
+  unoPassTurn: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "uno") {
+        throw new Error("This room is not Uno");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = parseUnoState(room.currentAnswer, playerIds);
+      if (state.status !== "PLAYING") {
+        throw new Error("Start Uno before passing turns.");
+      }
+      if (state.currentPlayerId !== input.playerId) {
+        throw new Error("It is not your turn.");
+      }
+      if (!state.drawnCardThisTurnId) {
+        throw new Error("Draw a card before passing.");
+      }
+
+      const currentPlayerName =
+        room.players.find((player) => player.id === input.playerId)?.name ?? "Player";
+      state.drawnCardThisTurnId = null;
+      state.currentPlayerId = getNextUnoPlayerId(state, input.playerId, 1);
+      state.lastAction = `${currentPlayerName} passed after drawing.`;
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentPlayerId: state.currentPlayerId,
+          currentAnswer: JSON.stringify(state),
+        },
+      });
+
+      return {
+        currentPlayerId: state.currentPlayerId,
       };
     }),
 

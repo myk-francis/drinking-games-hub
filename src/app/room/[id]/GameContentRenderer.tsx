@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 import PokerRoom from "./PokerRoom";
+import UnoRoom from "./UnoRoom";
 
 export default React.memo(function GameContentRenderer(props: any) {
   const {
@@ -28,13 +29,8 @@ export default React.memo(function GameContentRenderer(props: any) {
     codenamesSelectedCardId,
     codenamesStart,
     codenamesState,
-    connectLettersGuess,
     connectLettersNextRound,
-    connectLettersPlayerPick,
-    connectLettersRedraw,
     connectLettersRedrawCooldown,
-    connectLettersRequestChallenge,
-    connectLettersResolveChallenge,
     connectLettersSecondsLeft,
     connectLettersState,
     currentQuestion,
@@ -42,27 +38,21 @@ export default React.memo(function GameContentRenderer(props: any) {
     getBlackjackCardLabel,
     getBlackjackRoundExplanation,
     ghostTearsJudge,
-    ghostTearsPickWord,
     ghostTearsRestart,
-    ghostTearsStartChallenge,
     ghostTearsState,
     ghostTearsChallenge,
     ghostTearsForfeit,
     ghostTearsPickLetter,
     guessNumberSetPlayerNumber,
     guessNumberState,
-    guessTheMovieAnswerDraft,
     guessTheMovieBuzz,
     guessTheMovieJudge,
     guessTheMovieQuestion,
     guessTheMovieSecondsLeft,
     guessTheMovieState,
-    handleGuessTheMovieAnswerChange,
-    handleNameTheSongAnswerChange,
     handleStart,
     handleStop,
     isRunning,
-    jokerHolderName,
     jokerLoopHighlightedIndex,
     jokerLoopNextRound,
     jokerLoopPickCard,
@@ -76,24 +66,20 @@ export default React.memo(function GameContentRenderer(props: any) {
     memoryChainNextPlayer,
     memoryChainSequence,
     memoryChainState,
-    nameTheSongAnswerDraft,
     nameTheSongBuzz,
     nameTheSongJudge,
     nameTheSongQuestion,
     nameTheSongSecondsLeft,
     nameTheSongState,
-    nextCard,
     nextCatherineCard,
     nextCharadeCard,
     nextCardCategory,
     nextCardPOD,
     nextQuestion,
-    nextQuestionParanoia,
     nextRound,
     nextTruthLieCard,
     nextWouldRatherQuestion,
     OptionsColors,
-    pendingMissActive,
     paranoiaNextCard,
     paranoiaReveal,
     paranoiaVote,
@@ -108,16 +94,12 @@ export default React.memo(function GameContentRenderer(props: any) {
     pokerState,
     questionTypePickACard,
     revealTruthLie,
-    revealMostLikelyResult,
-    revealParanoiaResult,
     rideTheBusGuess,
     rideTheBusState,
     room,
     secretPickerOpenStart,
     selectedGame,
     SelectedOption,
-    selectedGuessTheMovieGuess,
-    selectedNameTheSongGuess,
     setForfited,
     setClicked,
     setCodenamesSelectedCardId,
@@ -129,25 +111,20 @@ export default React.memo(function GameContentRenderer(props: any) {
     setShowPokerHandRankings,
     setWinningTeams,
     showPokerHandRankings,
-    tabooAdvanceWord,
     tabooForbiddenWords,
-    tabooGuesserOpen,
-    tabooPendingWord,
-    tabooUsedWordIds,
+    unoDrawCard,
+    unoPendingWildCardId,
+    unoPassTurn,
+    unoPlayCard,
+    unoSetPendingWildCardId,
+    unoStart,
+    unoState,
     timeLeft,
-    teamVote,
-    truthOrLieNextPair,
-    truthOrLiePendingPair,
-    truthOrLieResolvePair,
     updatePlayerStatsPOD,
     updateRoom,
-    verbalCharadesNextPrompt,
-    verbalCharadesSubmit,
     vote,
     voteQuestion,
     voteTruthLie,
-    votePlayerMostLikely,
-    votePlayerParanoia,
     formatTime,
     generateCard,
     getBlackjackHandTotal,
@@ -2648,6 +2625,52 @@ export default React.memo(function GameContentRenderer(props: any) {
               </div>
             </div>
           </div>
+        );
+      }
+
+      case "uno": {
+        return (
+          <UnoRoom
+            actualPlayer={actualPlayer || ""}
+            onDrawCard={() =>
+              unoDrawCard.mutate({
+                roomId: room?.id || "",
+                playerId: actualPlayer || "",
+              })
+            }
+            onPassTurn={() =>
+              unoPassTurn.mutate({
+                roomId: room?.id || "",
+                playerId: actualPlayer || "",
+              })
+            }
+            onPlayCard={(cardId, chosenColor) =>
+              unoPlayCard.mutate({
+                roomId: room?.id || "",
+                playerId: actualPlayer || "",
+                cardId,
+                ...(chosenColor ? { chosenColor } : {}),
+              })
+            }
+            onStartRound={() =>
+              unoStart.mutate({
+                roomId: room?.id || "",
+                playerId: actualPlayer || "",
+              })
+            }
+            players={players.map((player) => ({
+              id: player.id,
+              name: player.name,
+            }))}
+            pendingWildCardId={unoPendingWildCardId}
+            roomId={room?.id || ""}
+            setPendingWildCardId={unoSetPendingWildCardId}
+            startPending={unoStart.isPending}
+            turnActionPending={
+              unoPlayCard.isPending || unoDrawCard.isPending || unoPassTurn.isPending
+            }
+            unoState={unoState}
+          />
         );
       }
 
