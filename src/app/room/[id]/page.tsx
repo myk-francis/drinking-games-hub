@@ -56,6 +56,7 @@ import {
   parseNameTheSongState,
   parsePokerState,
   parseRideTheBusState,
+  parseUnoState,
   parseWhoAmIState,
 } from "@/modules/games/lib/room-state";
 import type {
@@ -1597,6 +1598,71 @@ export default function RoomPage() {
       },
     }),
   );
+  const unoStart = useMutation(
+    trpc.games.unoStart.mutationOptions({
+      onSuccess: (data) => {
+        const nextPlayerName =
+          players.find((player) => player.id === data.currentPlayerId)?.name ||
+          "first player";
+        toast.success(`Uno round ${data.roundNumber} is live. ${nextPlayerName} starts.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not deal the Uno round.");
+      },
+    }),
+  );
+  const unoPlayCard = useMutation(
+    trpc.games.unoPlayCard.mutationOptions({
+      onSuccess: (data) => {
+        if (data.winnerPlayerId) {
+          const winnerName =
+            players.find((player) => player.id === data.winnerPlayerId)?.name ||
+            "Player";
+          toast.success(`${winnerName} went out and won the Uno round.`);
+          return;
+        }
+
+        const nextPlayerName =
+          players.find((player) => player.id === data.currentPlayerId)?.name ||
+          "next player";
+        toast.success(`${nextPlayerName} is up.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not play that Uno card.");
+      },
+    }),
+  );
+  const unoDrawCard = useMutation(
+    trpc.games.unoDrawCard.mutationOptions({
+      onSuccess: (data) => {
+        if (data.canPlayDrawnCard) {
+          toast.success(`You drew ${data.drawnCard.label}. You can play it or pass.`);
+          return;
+        }
+
+        const nextPlayerName =
+          players.find((player) => player.id === data.currentPlayerId)?.name ||
+          "next player";
+        toast.success(`No play on the draw. ${nextPlayerName} is up.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not draw an Uno card.");
+      },
+    }),
+  );
+  const unoPassTurn = useMutation(
+    trpc.games.unoPassTurn.mutationOptions({
+      onSuccess: (data) => {
+        const nextPlayerName =
+          players.find((player) => player.id === data.currentPlayerId)?.name ||
+          "next player";
+        toast.success(`Turn passed. ${nextPlayerName} is up.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not pass the Uno turn.");
+      },
+    }),
+  );
   const rideTheBusGuess = useMutation(
     trpc.games.rideTheBusGuess.mutationOptions({
       onSuccess: (data) => {
@@ -1871,6 +1937,9 @@ export default function RoomPage() {
   }, [room?.currentAnswer]);
   const pokerState = React.useMemo(() => {
     return parsePokerState(room?.currentAnswer);
+  }, [room?.currentAnswer]);
+  const unoState = React.useMemo(() => {
+    return parseUnoState(room?.currentAnswer);
   }, [room?.currentAnswer]);
   const [blackjackDealerRevealPending, setBlackjackDealerRevealPending] =
     React.useState(false);
@@ -2345,10 +2414,11 @@ export default function RoomPage() {
   );
 
   const canAddPlayers =
-    actualPlayer === players[0]?.id ||
-    selectedGame === "codenames" ||
-    selectedGame === "blackjack" ||
-    selectedGame === "poker";
+    (actualPlayer === players[0]?.id ||
+      selectedGame === "codenames" ||
+      selectedGame === "blackjack" ||
+      selectedGame === "poker") &&
+    !(selectedGame === "uno" && room?.startedAt);
 
   const handleChangePlayerName = React.useCallback(() => {
     if (!actualPlayer) {
@@ -3386,6 +3456,11 @@ export default function RoomPage() {
         setWhoAmINotesOpen,
         showPokerHandRankings,
         tabooForbiddenWords,
+        unoDrawCard,
+        unoPassTurn,
+        unoPlayCard,
+        unoStart,
+        unoState,
         timeLeft,
         updatePlayerStatsPOD,
         updateRoom,

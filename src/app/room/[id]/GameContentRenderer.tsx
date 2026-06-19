@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 import PokerRoom from "./PokerRoom";
+import UnoRoom from "./UnoRoom";
 
 export default React.memo(function GameContentRenderer(props: any) {
   const {
@@ -134,6 +135,11 @@ export default React.memo(function GameContentRenderer(props: any) {
     tabooGuesserOpen,
     tabooPendingWord,
     tabooUsedWordIds,
+    unoDrawCard,
+    unoPassTurn,
+    unoPlayCard,
+    unoStart,
+    unoState,
     timeLeft,
     teamVote,
     truthOrLieNextPair,
@@ -2648,6 +2654,50 @@ export default React.memo(function GameContentRenderer(props: any) {
               </div>
             </div>
           </div>
+        );
+      }
+
+      case "uno": {
+        return (
+          <UnoRoom
+            actualPlayer={actualPlayer || ""}
+            onDrawCard={() =>
+              unoDrawCard.mutate({
+                roomId: room?.id || "",
+                playerId: actualPlayer || "",
+              })
+            }
+            onPassTurn={() =>
+              unoPassTurn.mutate({
+                roomId: room?.id || "",
+                playerId: actualPlayer || "",
+              })
+            }
+            onPlayCard={(cardId, chosenColor) =>
+              unoPlayCard.mutate({
+                roomId: room?.id || "",
+                playerId: actualPlayer || "",
+                cardId,
+                ...(chosenColor ? { chosenColor } : {}),
+              })
+            }
+            onStartRound={() =>
+              unoStart.mutate({
+                roomId: room?.id || "",
+                playerId: actualPlayer || "",
+              })
+            }
+            players={players.map((player) => ({
+              id: player.id,
+              name: player.name,
+            }))}
+            roomId={room?.id || ""}
+            startPending={unoStart.isPending}
+            turnActionPending={
+              unoPlayCard.isPending || unoDrawCard.isPending || unoPassTurn.isPending
+            }
+            unoState={unoState}
+          />
         );
       }
 
