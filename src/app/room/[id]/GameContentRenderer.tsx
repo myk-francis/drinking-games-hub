@@ -194,11 +194,40 @@ export default React.memo(function GameContentRenderer(props: any) {
     badPeopleState?.status,
   ]);
 
+  const previousBadChoicesSnapshotRef = React.useRef({
+    actualPlayer,
+    turnPlayerId: room?.currentPlayerId ?? null,
+    roundNumber: badChoicesState?.roundNumber ?? 1,
+    status: badChoicesState?.status ?? "PLAYING",
+    activeCardId: badChoicesState?.activeCardId ?? null,
+  });
+
   React.useEffect(() => {
-    setBadChoicesSelectedCardId(null);
-    setBadChoicesSelectedTargetId("");
+    const previous = previousBadChoicesSnapshotRef.current;
+    const nextSnapshot = {
+      actualPlayer,
+      turnPlayerId: room?.currentPlayerId ?? null,
+      roundNumber: badChoicesState?.roundNumber ?? 1,
+      status: badChoicesState?.status ?? "PLAYING",
+      activeCardId: badChoicesState?.activeCardId ?? null,
+    };
+
+    const shouldResetSelection =
+      previous.actualPlayer !== nextSnapshot.actualPlayer ||
+      previous.turnPlayerId !== nextSnapshot.turnPlayerId ||
+      previous.roundNumber !== nextSnapshot.roundNumber ||
+      previous.status !== nextSnapshot.status ||
+      previous.activeCardId !== nextSnapshot.activeCardId;
+
+    if (shouldResetSelection) {
+      setBadChoicesSelectedCardId(null);
+      setBadChoicesSelectedTargetId("");
+    }
+
+    previousBadChoicesSnapshotRef.current = nextSnapshot;
   }, [
     actualPlayer,
+    room?.currentPlayerId,
     badChoicesState?.activeCardId,
     badChoicesState?.roundNumber,
     badChoicesState?.status,
