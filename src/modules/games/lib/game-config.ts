@@ -21,6 +21,7 @@ import {
   ScrollText,
   ShieldQuestion,
   Shuffle,
+  Skull,
   Sparkles,
   Theater,
   Type,
@@ -59,6 +60,11 @@ export const GAME_CONFIG: Record<string, GameConfig> = {
   paranoia: {
     color: "from-slate-600 to-rose-700",
     icon: Eye,
+  },
+  "bad-people": {
+    color: "from-zinc-700 to-red-700",
+    icon: Skull,
+    minPlayers: 3,
   },
   "rhyme-time": {
     color: "from-violet-500 to-fuchsia-600",

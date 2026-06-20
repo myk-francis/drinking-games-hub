@@ -26,6 +26,7 @@ import {
   Hash,
   Type,
   Ghost,
+  Skull,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -58,6 +59,7 @@ const GameIcon = (gamecode: string) => {
   if (gamecode === "truth-or-drink") return <FlaskConical className="w-6 h-6" />;
   if (gamecode === "most-likely") return <Users className="w-6 h-6" />;
   if (gamecode === "paranoia") return <Eye className="w-6 h-6" />;
+  if (gamecode === "bad-people") return <Skull className="w-6 h-6" />;
   if (gamecode === "rhyme-time") return <Mic className="w-6 h-6" />;
   if (gamecode === "higher-lower") return <ArrowUpRight className="w-6 h-6" />;
   if (gamecode === "verbal-charades") return <Theater className="w-6 h-6" />;
@@ -86,6 +88,7 @@ const GameColor = (gamecode: string) => {
   if (gamecode === "truth-or-drink") return "from-cyan-500 to-blue-700";
   if (gamecode === "most-likely") return "from-emerald-500 to-lime-600";
   if (gamecode === "paranoia") return "from-slate-600 to-rose-700";
+  if (gamecode === "bad-people") return "from-zinc-700 to-red-700";
   if (gamecode === "rhyme-time") return "from-violet-500 to-fuchsia-600";
   if (gamecode === "higher-lower") return "from-indigo-600 to-sky-500";
   if (gamecode === "verbal-charades") return "from-amber-500 to-orange-600";

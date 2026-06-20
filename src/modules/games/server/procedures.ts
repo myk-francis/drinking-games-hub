@@ -2,6 +2,7 @@ import { baseProcedure, createTRPCRouter } from "@/trpc/init";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { cookies } from "next/headers";
+import { parseBadPeopleState } from "@/modules/games/lib/room-state";
 import type { Prisma } from "../../../../prisma/generated/prisma/client";
 
 function generateUniqueCard(previousCards: number[]): number | null {
@@ -110,6 +111,26 @@ const JOKER_LOOP_CARD_TEMPLATES: JokerLoopCardTemplate[] = [
 
 type CodenamesTeam = (typeof CODENAMES_TEAM_VALUES)[number];
 type CodenamesAssignment = (typeof CODENAMES_ASSIGNMENT_VALUES)[number];
+
+type BadPeopleStatus =
+  | "DICTATOR_PICK"
+  | "PLAYERS_GUESS"
+  | "REVEALED"
+  | "ENDED";
+
+type BadPeopleState = {
+  status: BadPeopleStatus;
+  roundNumber: number;
+  playerOrder: string[];
+  dictatorPlayerId: string | null;
+  dictatorVotePlayerId: string | null;
+  guessesByPlayerId: Record<string, string>;
+  doubleDownUsedPlayerIds: string[];
+  doubleDownActivePlayerIds: string[];
+  revealedPlayerId: string | null;
+  winnerPlayerIds: string[];
+  scoreTarget: number;
+};
 
 type CodenamesState = {
   status: "LOBBY" | "PLAYING" | "ENDED";
@@ -3797,6 +3818,50 @@ async function syncRoomStateAfterPlayerAdded(
       return;
     }
 
+    case "bad-people": {
+      const state = getNormalizedBadPeopleState(
+        room.currentAnswer,
+        nextPlayerIds,
+        room.currentPlayerId,
+      );
+      state.winnerPlayerIds = state.winnerPlayerIds.filter((playerId) =>
+        nextPlayerIds.includes(playerId),
+      );
+      state.doubleDownUsedPlayerIds = state.doubleDownUsedPlayerIds.filter(
+        (playerId) => nextPlayerIds.includes(playerId),
+      );
+      state.doubleDownActivePlayerIds = state.doubleDownActivePlayerIds.filter(
+        (playerId) => nextPlayerIds.includes(playerId),
+      );
+      state.guessesByPlayerId = Object.fromEntries(
+        Object.entries(state.guessesByPlayerId).filter(
+          ([playerId, guessedPlayerId]) =>
+            nextPlayerIds.includes(playerId) && nextPlayerIds.includes(guessedPlayerId),
+        ),
+      );
+      if (!state.dictatorPlayerId || !nextPlayerIds.includes(state.dictatorPlayerId)) {
+        state.dictatorPlayerId = nextPlayerIds[0] ?? null;
+      }
+      if (
+        state.dictatorVotePlayerId &&
+        !nextPlayerIds.includes(state.dictatorVotePlayerId)
+      ) {
+        state.dictatorVotePlayerId = null;
+      }
+      if (state.revealedPlayerId && !nextPlayerIds.includes(state.revealedPlayerId)) {
+        state.revealedPlayerId = null;
+      }
+
+      await tx.room.update({
+        where: { id: room.id },
+        data: {
+          currentAnswer: JSON.stringify(state),
+          currentPlayerId: state.dictatorPlayerId,
+        },
+      });
+      return;
+    }
+
     case "guess-the-number": {
       const state = parseGuessTheNumberState(
         room.currentAnswer,
@@ -3892,6 +3957,48 @@ async function syncRoomStateAfterPlayerAdded(
     default:
       return;
   }
+}
+
+function createBadPeopleState(playerIds: string[], dictatorPlayerId: string | null) {
+  return {
+    status: "DICTATOR_PICK",
+    roundNumber: 1,
+    playerOrder: playerIds,
+    dictatorPlayerId,
+    dictatorVotePlayerId: null,
+    guessesByPlayerId: {},
+    doubleDownUsedPlayerIds: [],
+    doubleDownActivePlayerIds: [],
+    revealedPlayerId: null,
+    winnerPlayerIds: [],
+    scoreTarget: 7,
+  } satisfies BadPeopleState;
+}
+
+function getNextBadPeopleDictator(playerOrder: string[], currentDictatorId: string | null) {
+  if (playerOrder.length === 0) return null;
+  if (!currentDictatorId) return playerOrder[0] ?? null;
+  const currentIndex = playerOrder.indexOf(currentDictatorId);
+  if (currentIndex === -1) return playerOrder[0] ?? null;
+  return playerOrder[(currentIndex + 1) % playerOrder.length] ?? null;
+}
+
+function getNormalizedBadPeopleState(
+  raw: string | null,
+  playerIds: string[],
+  fallbackDictatorPlayerId: string | null,
+) {
+  const parsedState = parseBadPeopleState(raw) as BadPeopleState;
+  return {
+    ...parsedState,
+    playerOrder: playerIds,
+    dictatorPlayerId:
+      parsedState.dictatorPlayerId ??
+      fallbackDictatorPlayerId ??
+      playerIds[0] ??
+      null,
+    scoreTarget: parsedState.scoreTarget > 0 ? parsedState.scoreTarget : 7,
+  } satisfies BadPeopleState;
 }
 
 export const gamesRouter = createTRPCRouter({
@@ -4363,6 +4470,12 @@ export const gamesRouter = createTRPCRouter({
         ) {
           throw new Error("Uno requires at least 2 players.");
         }
+        if (
+          input.selectedGame === "bad-people" &&
+          (input.players?.length || 0) < 3
+        ) {
+          throw new Error("Bad People requires at least 3 players.");
+        }
 
         if (input.selectedGame === "triviyay") {
           if (!input.teamsInfo || input.teamsInfo.length < 1) {
@@ -4640,6 +4753,14 @@ export const gamesRouter = createTRPCRouter({
             const unoState = buildUnoLobbyState(playerIds);
             roomCurrentAnswer = JSON.stringify(unoState);
             unoCurrentPlayerId = unoState.currentPlayerId;
+          }
+          if (input.selectedGame === "bad-people") {
+            const playerIds = createdRoom.players.map((player) => player.id);
+            const badPeopleState = createBadPeopleState(
+              playerIds,
+              randomCurrentPlayerId,
+            );
+            roomCurrentAnswer = JSON.stringify(badPeopleState);
           }
 
           const createdRoomId = createdRoom.id;
@@ -6212,6 +6333,371 @@ export const gamesRouter = createTRPCRouter({
         });
         throw new Error("Failed to move to next paranoia card");
       }
+    }),
+
+  badPeopleDictatorVote: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        votedPlayerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "bad-people") {
+        throw new Error("This room is not Bad People");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = getNormalizedBadPeopleState(
+        room.currentAnswer,
+        playerIds,
+        room.currentPlayerId,
+      );
+      if (state.status !== "DICTATOR_PICK") {
+        throw new Error("The dictator has already made a pick this round");
+      }
+      if (state.dictatorPlayerId !== input.playerId || room.currentPlayerId !== input.playerId) {
+        throw new Error("Only the current dictator can make the secret pick");
+      }
+      if (!playerIds.includes(input.votedPlayerId)) {
+        throw new Error("Selected player is not in this room");
+      }
+
+      state.playerOrder = playerIds;
+      state.dictatorVotePlayerId = input.votedPlayerId;
+      state.revealedPlayerId = null;
+      state.guessesByPlayerId = {};
+      state.doubleDownActivePlayerIds = [];
+      state.status = "PLAYERS_GUESS";
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentAnswer: JSON.stringify(state),
+          questionAVotes: [],
+          questionBVotes: [],
+        },
+      });
+
+      return {
+        status: state.status,
+      };
+    }),
+
+  badPeopleGuess: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        guessedPlayerId: z.string().min(1),
+        useDoubleDown: z.boolean().optional().default(false),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "bad-people") {
+        throw new Error("This room is not Bad People");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = getNormalizedBadPeopleState(
+        room.currentAnswer,
+        playerIds,
+        room.currentPlayerId,
+      );
+      if (state.status !== "PLAYERS_GUESS") {
+        throw new Error("Wait for the dictator to make the secret pick first");
+      }
+      if (state.dictatorPlayerId === input.playerId) {
+        throw new Error("The dictator does not submit a guess");
+      }
+      if (!playerIds.includes(input.playerId)) {
+        throw new Error("Player not found in room");
+      }
+      if (!playerIds.includes(input.guessedPlayerId)) {
+        throw new Error("Selected player is not in this room");
+      }
+      if (state.guessesByPlayerId[input.playerId]) {
+        throw new Error("You already submitted your guess this round");
+      }
+      if (
+        input.useDoubleDown &&
+        state.doubleDownUsedPlayerIds.includes(input.playerId)
+      ) {
+        throw new Error("You already used your Double Down card");
+      }
+
+      state.playerOrder = playerIds;
+      state.guessesByPlayerId[input.playerId] = input.guessedPlayerId;
+      if (input.useDoubleDown) {
+        state.doubleDownActivePlayerIds = Array.from(
+          new Set([...state.doubleDownActivePlayerIds, input.playerId]),
+        );
+      }
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentAnswer: JSON.stringify(state),
+        },
+      });
+
+      return {
+        guessedPlayerId: input.guessedPlayerId,
+        usedDoubleDown: input.useDoubleDown,
+      };
+    }),
+
+  badPeopleReveal: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "bad-people") {
+        throw new Error("This room is not Bad People");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = getNormalizedBadPeopleState(
+        room.currentAnswer,
+        playerIds,
+        room.currentPlayerId,
+      );
+      if (state.status !== "PLAYERS_GUESS") {
+        throw new Error("This round is not ready to reveal");
+      }
+      if (state.dictatorPlayerId !== input.playerId || room.currentPlayerId !== input.playerId) {
+        throw new Error("Only the current dictator can reveal the round");
+      }
+      if (!state.dictatorVotePlayerId) {
+        throw new Error("The dictator must make a secret pick first");
+      }
+
+      const requiredGuessers = playerIds.filter(
+        (playerId) => playerId !== state.dictatorPlayerId,
+      );
+      const missingGuessers = requiredGuessers.filter(
+        (playerId) => !state.guessesByPlayerId[playerId],
+      );
+      if (missingGuessers.length > 0) {
+        throw new Error("Not all players have guessed yet");
+      }
+
+      const pointAwards = requiredGuessers
+        .filter(
+          (playerId) => state.guessesByPlayerId[playerId] === state.dictatorVotePlayerId,
+        )
+        .map((playerId) => ({
+          playerId,
+          points: state.doubleDownActivePlayerIds.includes(playerId) ? 2 : 1,
+        }));
+
+      const updatedPointMap = new Map(
+        room.players.map((player) => [player.id, player.points ?? 0]),
+      );
+      for (const award of pointAwards) {
+        updatedPointMap.set(
+          award.playerId,
+          (updatedPointMap.get(award.playerId) ?? 0) + award.points,
+        );
+      }
+
+      const winnerPlayerIds = playerIds.filter(
+        (playerId) => (updatedPointMap.get(playerId) ?? 0) >= state.scoreTarget,
+      );
+      const usedDoubleDownPlayerIds = Array.from(
+        new Set([
+          ...state.doubleDownUsedPlayerIds,
+          ...state.doubleDownActivePlayerIds,
+        ]),
+      );
+
+      state.status = winnerPlayerIds.length > 0 ? "ENDED" : "REVEALED";
+      state.revealedPlayerId = state.dictatorVotePlayerId;
+      state.winnerPlayerIds = winnerPlayerIds;
+      state.doubleDownUsedPlayerIds = usedDoubleDownPlayerIds;
+
+      await prisma.$transaction(async (tx) => {
+        for (const award of pointAwards) {
+          await tx.player.update({
+            where: { id: award.playerId },
+            data: {
+              points: {
+                increment: award.points,
+              },
+            },
+          });
+        }
+
+        await tx.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentAnswer: JSON.stringify(state),
+            gameEnded: winnerPlayerIds.length > 0,
+            gameEndedAt: winnerPlayerIds.length > 0 ? new Date() : null,
+            currentPlayerId:
+              winnerPlayerIds[0] ?? state.dictatorPlayerId ?? room.currentPlayerId,
+          },
+        });
+      });
+
+      return {
+        revealedPlayerId: state.revealedPlayerId,
+        winnerPlayerIds,
+        pointsAwarded: pointAwards,
+      };
+    }),
+
+  badPeopleNextRound: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        currentQuestionId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: {
+            include: {
+              questions: true,
+            },
+          },
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "bad-people") {
+        throw new Error("This room is not Bad People");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = getNormalizedBadPeopleState(
+        room.currentAnswer,
+        playerIds,
+        room.currentPlayerId,
+      );
+      if (state.status !== "REVEALED") {
+        throw new Error("Reveal the round before moving on");
+      }
+      if (state.dictatorPlayerId !== input.playerId || room.currentPlayerId !== input.playerId) {
+        throw new Error("Only the current dictator can start the next round");
+      }
+
+      const questions = room.game.questions.map((question) => question.id);
+      let previousQuestionsIds = room.previousQuestionsId || [];
+      const parsedCurrentQuestionId = Number.parseInt(input.currentQuestionId, 10);
+      const availableQuestionIds = questions.filter(
+        (questionId) => ![...previousQuestionsIds, parsedCurrentQuestionId].includes(questionId),
+      );
+      const nextQuestionId =
+        availableQuestionIds[
+          Math.floor(Math.random() * Math.max(availableQuestionIds.length, 1))
+        ] ??
+        room.game.questions[
+          Math.floor(Math.random() * Math.max(room.game.questions.length, 1))
+        ]?.id ??
+        null;
+
+      previousQuestionsIds =
+        availableQuestionIds.length > 0
+          ? [...previousQuestionsIds, parsedCurrentQuestionId]
+          : [];
+
+      const nextDictatorPlayerId = getNextBadPeopleDictator(
+        playerIds,
+        state.dictatorPlayerId,
+      );
+      const nextState: BadPeopleState = {
+        ...state,
+        status: "DICTATOR_PICK",
+        roundNumber: state.roundNumber + 1,
+        playerOrder: playerIds,
+        dictatorPlayerId: nextDictatorPlayerId,
+        dictatorVotePlayerId: null,
+        guessesByPlayerId: {},
+        doubleDownActivePlayerIds: [],
+        revealedPlayerId: null,
+        winnerPlayerIds: [],
+      };
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentPlayerId: nextDictatorPlayerId,
+          currentQuestionId: nextQuestionId,
+          previousQuestionsId: previousQuestionsIds,
+          currentAnswer: JSON.stringify(nextState),
+          currentRound: (room.currentRound ?? 0) + 1,
+        },
+      });
+
+      return {
+        currentPlayerId: nextDictatorPlayerId,
+        currentQuestionId: nextQuestionId,
+        roundNumber: nextState.roundNumber,
+      };
     }),
 
   nextWouldRatherQuestion: baseProcedure
