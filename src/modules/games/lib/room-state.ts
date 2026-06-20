@@ -50,6 +50,31 @@ export type BadChoicesRoomState = {
   lastResult: string | null;
 };
 
+export type SpinBottleMode =
+  | "CLASSIC"
+  | "PARTY"
+  | "FLIRTY"
+  | "SAFE"
+  | "CHAOTIC";
+
+export type SpinBottleStatus = "READY" | "AWAITING_ACTION";
+
+export type SpinBottleRoomState = {
+  status: SpinBottleStatus;
+  mode: SpinBottleMode;
+  roundNumber: number;
+  playerOrder: string[];
+  currentSpinnerPlayerId: string | null;
+  targetPlayerId: string | null;
+  direction: 1 | -1;
+  spinSequence: number;
+  spinStartedAt: string | null;
+  spinDurationMs: number;
+  finalAngle: number;
+  lastTargetPlayerId: string | null;
+  lastActionLabel: string | null;
+};
+
 export type CodenamesRoomState = {
   status: "LOBBY" | "PLAYING" | "ENDED";
   board: number[];
@@ -537,6 +562,82 @@ export function parseBadPeopleState(
         parsed.scoreTarget > 0
           ? parsed.scoreTarget
           : 7,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+export function parseSpinBottleState(
+  raw: string | null | undefined,
+): SpinBottleRoomState {
+  const fallback: SpinBottleRoomState = {
+    status: "READY",
+    mode: "CLASSIC",
+    roundNumber: 1,
+    playerOrder: [],
+    currentSpinnerPlayerId: null,
+    targetPlayerId: null,
+    direction: 1,
+    spinSequence: 0,
+    spinStartedAt: null,
+    spinDurationMs: 4200,
+    finalAngle: 0,
+    lastTargetPlayerId: null,
+    lastActionLabel: null,
+  };
+
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<SpinBottleRoomState>;
+    const parsePlayerId = (value: unknown) =>
+      typeof value === "string" ? value : null;
+
+    return {
+      status: parsed.status === "AWAITING_ACTION" ? "AWAITING_ACTION" : "READY",
+      mode:
+        parsed.mode === "PARTY" ||
+        parsed.mode === "FLIRTY" ||
+        parsed.mode === "SAFE" ||
+        parsed.mode === "CHAOTIC"
+          ? parsed.mode
+          : "CLASSIC",
+      roundNumber:
+        typeof parsed.roundNumber === "number" &&
+        Number.isFinite(parsed.roundNumber) &&
+        parsed.roundNumber > 0
+          ? parsed.roundNumber
+          : 1,
+      playerOrder: Array.isArray(parsed.playerOrder)
+        ? parsed.playerOrder.filter(
+            (playerId): playerId is string => typeof playerId === "string",
+          )
+        : [],
+      currentSpinnerPlayerId: parsePlayerId(parsed.currentSpinnerPlayerId),
+      targetPlayerId: parsePlayerId(parsed.targetPlayerId),
+      direction: parsed.direction === -1 ? -1 : 1,
+      spinSequence:
+        typeof parsed.spinSequence === "number" &&
+        Number.isFinite(parsed.spinSequence) &&
+        parsed.spinSequence >= 0
+          ? parsed.spinSequence
+          : 0,
+      spinStartedAt:
+        typeof parsed.spinStartedAt === "string" ? parsed.spinStartedAt : null,
+      spinDurationMs:
+        typeof parsed.spinDurationMs === "number" &&
+        Number.isFinite(parsed.spinDurationMs) &&
+        parsed.spinDurationMs >= 0
+          ? parsed.spinDurationMs
+          : 4200,
+      finalAngle:
+        typeof parsed.finalAngle === "number" && Number.isFinite(parsed.finalAngle)
+          ? parsed.finalAngle
+          : 0,
+      lastTargetPlayerId: parsePlayerId(parsed.lastTargetPlayerId),
+      lastActionLabel:
+        typeof parsed.lastActionLabel === "string" ? parsed.lastActionLabel : null,
     };
   } catch {
     return fallback;

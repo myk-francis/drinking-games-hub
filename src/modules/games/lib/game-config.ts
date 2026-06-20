@@ -71,6 +71,11 @@ export const GAME_CONFIG: Record<string, GameConfig> = {
     icon: ShieldQuestion,
     minPlayers: 3,
   },
+  "spin-the-bottle": {
+    color: "from-fuchsia-600 to-rose-700",
+    icon: FlaskConical,
+    minPlayers: 4,
+  },
   "rhyme-time": {
     color: "from-violet-500 to-fuchsia-600",
     icon: Mic,
