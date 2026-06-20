@@ -3596,7 +3596,7 @@ export default function RoomPage() {
       )}
 
       {/* Main Content */}
-      <div className="mx-auto w-full max-w-6xl px-3 py-4 sm:px-4 sm:py-6">
+      <div className="mx-auto w-full max-w-6xl overflow-x-hidden px-3 py-4 sm:px-4 sm:py-6">
         {/* Header */}
         <RoomHeader
           gameName={game?.name || ""}
@@ -3615,7 +3615,7 @@ export default function RoomPage() {
         />
 
         {/* Game Content */}
-        <div className="mb-6 overflow-hidden rounded-2xl border border-white/20 bg-white/10 p-3 backdrop-blur-sm sm:p-5 lg:p-8">
+        <div className="mb-6 w-full min-w-0 overflow-x-hidden rounded-2xl border border-white/20 bg-white/10 p-3 backdrop-blur-sm sm:p-5 lg:p-8">
           {showQRCode ? (
             <div className="mt-4 flex w-full items-center justify-center sm:mt-6">
               <QRCodeCanvas
@@ -3877,7 +3877,7 @@ const ReactionRainPanel = React.memo(function ReactionRainPanel({
   const canSendCustomEmoji = customEmoji.length > 0 && canSendReaction && !isPending;
 
   return (
-    <div className="relative mb-6 rounded-xl border border-white/20 bg-white/10 p-4 sm:p-5 backdrop-blur-sm">
+    <div className="relative mb-6 w-full min-w-0 overflow-x-hidden rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm sm:p-5">
       <div className="relative z-10">
         <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm font-semibold text-white">Quick Reactions</p>
@@ -3888,12 +3888,12 @@ const ReactionRainPanel = React.memo(function ReactionRainPanel({
           </p>
         </div>
 
-        <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div className="mb-3 min-w-0 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
-                className="h-10 w-full justify-between border-white/20 bg-black/20 text-white hover:bg-black/30 hover:text-white"
+                className="h-10 w-full min-w-0 justify-between border-white/20 bg-black/20 text-white hover:bg-black/30 hover:text-white"
               >
                 <span className="truncate">{selectedTargetLabel}</span>
                 <ChevronDown className="h-4 w-4 opacity-80" />
@@ -3939,7 +3939,7 @@ const ReactionRainPanel = React.memo(function ReactionRainPanel({
           ))}
         </div>
 
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="mt-3 min-w-0 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
           <Input
             value={customEmoji}
             onChange={(event) =>

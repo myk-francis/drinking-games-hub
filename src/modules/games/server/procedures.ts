@@ -4264,7 +4264,7 @@ function createSpinBottleState(
     direction: 1,
     spinSequence: 0,
     spinStartedAt: null,
-    spinDurationMs: 4200,
+    spinDurationMs: 5600,
     finalAngle: 0,
     lastTargetPlayerId: null,
     lastActionLabel: null,
@@ -7305,7 +7305,7 @@ export const gamesRouter = createTRPCRouter({
       state.targetPlayerId = targetPlayerId;
       state.spinSequence += 1;
       state.spinStartedAt = spinStartedAt;
-      state.spinDurationMs = 4200;
+      state.spinDurationMs = 5600;
       state.finalAngle = finalAngle;
       state.lastTargetPlayerId = targetPlayerId;
       state.lastActionLabel = null;
@@ -7365,8 +7365,8 @@ export const gamesRouter = createTRPCRouter({
       if (state.status !== "AWAITING_ACTION" || !state.targetPlayerId) {
         throw new Error("Spin the bottle first");
       }
-      if (state.currentSpinnerPlayerId !== input.playerId) {
-        throw new Error("Only the active spinner can choose the result");
+      if (state.targetPlayerId !== input.playerId) {
+        throw new Error("Only the landed-on player can choose the result");
       }
       if (!modeOption.actions.includes(input.actionLabel)) {
         throw new Error("That action does not belong to this mode");

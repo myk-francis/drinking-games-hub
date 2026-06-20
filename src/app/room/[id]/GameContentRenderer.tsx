@@ -2,6 +2,7 @@
 // @ts-nocheck
 "use client";
 
+import Image from "next/image";
 import React from "react";
 import { ChevronDown, Club, Film } from "lucide-react";
 import { toast } from "sonner";
@@ -816,15 +817,30 @@ export default React.memo(function GameContentRenderer(props: any) {
           actualPlayer === spinBottleState.currentSpinnerPlayerId &&
           spinBottleState.status === "READY";
         const canChooseSpinAction =
-          actualPlayer === spinBottleState.currentSpinnerPlayerId &&
+          actualPlayer === spinBottleState.targetPlayerId &&
           spinBottleState.status === "AWAITING_ACTION" &&
           !isSpinAnimating &&
           Boolean(spinBottleState.targetPlayerId);
-        const circleSize = orderedSpinPlayers.length > 6 ? 320 : 280;
-        const playerRingRadius = orderedSpinPlayers.length > 6 ? 128 : 110;
+        const circleSize = orderedSpinPlayers.length > 8 ? 372 : 336;
+        const outerRingInset = orderedSpinPlayers.length > 8 ? "18%" : "20%";
+        const innerRingInset = orderedSpinPlayers.length > 8 ? "28%" : "30%";
+        const playerLabelRadiusPercent = orderedSpinPlayers.length > 8 ? 44 : 43;
+        const angleStep = 360 / Math.max(orderedSpinPlayers.length, 1);
 
         return (
           <div className="w-full">
+            <style>{`
+              @keyframes spin-bottle-target-pulse {
+                0%, 100% {
+                  transform: translate(var(--label-x), var(--label-y)) translate(-50%, -50%) scale(1.02);
+                  text-shadow: 0 0 12px rgba(110, 231, 183, 0.35);
+                }
+                50% {
+                  transform: translate(var(--label-x), var(--label-y)) translate(-50%, -50%) scale(1.14);
+                  text-shadow: 0 0 22px rgba(110, 231, 183, 0.72);
+                }
+              }
+            `}</style>
             <div className="mb-6 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary">
@@ -841,26 +857,23 @@ export default React.memo(function GameContentRenderer(props: any) {
                 The server picks the target first, then every phone animates the
                 same spin toward that player.
               </p>
-              {spinBottleState.lastActionLabel && (
-                <p className="mt-3 text-sm text-amber-200">
-                  Last result: {lastTargetPlayerName} - {spinBottleState.lastActionLabel}
-                </p>
-              )}
             </div>
 
             <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-              <div className="rounded-[2rem] border border-white/20 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.16),rgba(17,24,39,0.08)_45%,rgba(17,24,39,0.28)_100%)] p-4 backdrop-blur-sm">
+              <div className="min-w-0 rounded-[2rem] border border-white/20 bg-[radial-gradient(circle_at_50%_35%,rgba(236,72,153,0.2),rgba(17,24,39,0.12)_45%,rgba(9,9,11,0.55)_100%)] p-3 backdrop-blur-sm sm:p-8 lg:p-12">
                 <div
-                  className="relative mx-auto"
-                  style={{ width: circleSize, height: circleSize }}
+                  className="relative mx-auto aspect-square w-full"
+                  style={{ maxWidth: `${circleSize}px` }}
                 >
-                  <div className="absolute inset-6 rounded-full border border-white/15 border-dashed" />
+                  <div className="absolute inset-[16%] rounded-full bg-[radial-gradient(circle,rgba(34,197,94,0.16),rgba(236,72,153,0.06)_45%,transparent_72%)] blur-2xl" />
+                  <div className="absolute rounded-full border border-dashed border-white/15" style={{ inset: outerRingInset }} />
+                  <div className="absolute rounded-full border border-white/8" style={{ inset: innerRingInset }} />
                   {orderedSpinPlayers.map((player, index) => {
                     const angle =
-                      (-90 + index * (360 / Math.max(orderedSpinPlayers.length, 1))) *
+                      (-90 + index * angleStep) *
                       (Math.PI / 180);
-                    const x = Math.cos(angle) * playerRingRadius;
-                    const y = Math.sin(angle) * playerRingRadius;
+                    const labelX = 50 + Math.cos(angle) * playerLabelRadiusPercent;
+                    const labelY = 50 + Math.sin(angle) * playerLabelRadiusPercent;
                     const isTarget =
                       player.id === spinBottleState.targetPlayerId &&
                       (isSpinAnimating || spinBottleState.status === "AWAITING_ACTION");
@@ -872,99 +885,136 @@ export default React.memo(function GameContentRenderer(props: any) {
                     return (
                       <div
                         key={player.id}
-                        className={`absolute left-1/2 top-1/2 w-24 -translate-x-1/2 -translate-y-1/2 rounded-2xl border px-3 py-2 text-center text-xs font-semibold shadow-lg transition-all sm:w-28 sm:text-sm ${
+                        className={`absolute left-1/2 top-1/2 w-20 text-center text-xs font-semibold leading-tight sm:w-24 sm:text-sm ${
                           isTarget
-                            ? "border-emerald-300/60 bg-emerald-500/25 text-emerald-50 scale-110"
+                            ? "[animation:spin-bottle-target-pulse_1.35s_ease-in-out_infinite]"
                             : isLastTarget
-                              ? "border-amber-300/45 bg-amber-500/15 text-amber-50"
+                              ? "scale-105"
                               : isSpinner
-                                ? "border-fuchsia-300/45 bg-fuchsia-500/15 text-white"
-                                : "border-white/15 bg-black/25 text-white/85"
+                                ? "scale-105"
+                                : "scale-100"
                         }`}
                         style={{
-                          transform: `translate(${x}px, ${y}px) translate(-50%, -50%)`,
+                          left: `${labelX}%`,
+                          top: `${labelY}%`,
+                          ["--label-x" as string]: "0px",
+                          ["--label-y" as string]: "0px",
+                          transform: "translate(-50%, -50%)",
                         }}
                       >
-                        {player.name}
+                        <div
+                          className={`max-w-full truncate ${
+                            isTarget
+                              ? "text-emerald-100"
+                              : isLastTarget
+                                ? "text-amber-100"
+                                : isSpinner
+                                  ? "text-fuchsia-100"
+                                  : "text-white/80"
+                          }`}
+                        >
+                          {player.name}
+                        </div>
                       </div>
                     );
                   })}
 
-                  <div className="absolute left-1/2 top-1/2 z-20 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/25 bg-zinc-950/90 shadow-[0_0_25px_rgba(255,255,255,0.15)]" />
-
-                  <div
-                    className="absolute left-1/2 top-1/2 z-10 h-28 w-28 -translate-x-1/2 -translate-y-1/2"
-                    style={{
-                      transform: `translate(-50%, -50%) rotate(${spinBottleRotation}deg)`,
-                      transition:
-                        spinBottleTransitionMs > 0
-                          ? `transform ${spinBottleTransitionMs}ms cubic-bezier(0.12, 0.86, 0.18, 1)`
-                          : "none",
-                    }}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      canCurrentPlayerSpin
+                        ? spinBottleSpin.mutate({
+                            roomId: room?.id || "",
+                            playerId: actualPlayer || "",
+                          })
+                        : undefined
+                    }
+                    disabled={!canCurrentPlayerSpin || spinBottleSpin.isPending}
+                    aria-label="Spin bottle"
+                    className="absolute left-1/2 top-1/2 z-10 flex h-[58%] w-[28%] -translate-x-1/2 -translate-y-1/2 items-center justify-center outline-none transition-transform duration-300 disabled:cursor-not-allowed"
                   >
-                    <svg viewBox="0 0 120 120" className="h-full w-full drop-shadow-[0_10px_24px_rgba(0,0,0,0.45)]">
-                      <g>
-                        <rect x="51" y="6" width="18" height="20" rx="6" fill="#f8fafc" />
-                        <rect x="46" y="20" width="28" height="14" rx="7" fill="#22d3ee" />
-                        <path
-                          d="M60 30 C88 38 103 54 110 60 C103 66 88 82 60 90 C32 82 17 66 10 60 C17 54 32 38 60 30Z"
-                          fill="#ec4899"
-                        />
-                        <path
-                          d="M60 42 C81 47 93 56 99 60 C93 64 81 73 60 78 C39 73 27 64 21 60 C27 56 39 47 60 42Z"
-                          fill="#fb7185"
-                          opacity="0.9"
-                        />
-                        <circle cx="104" cy="60" r="5" fill="#fef3c7" />
-                      </g>
-                    </svg>
-                  </div>
+                    <div
+                      className="relative flex h-full w-full items-center justify-center"
+                      style={{
+                        transform: `rotate(${spinBottleRotation}deg)`,
+                        transition:
+                          spinBottleTransitionMs > 0
+                            ? `transform ${spinBottleTransitionMs}ms cubic-bezier(0.12, 0.86, 0.18, 1)`
+                            : "none",
+                      }}
+                    >
+                      <Image
+                        src="/beer.png"
+                        alt="Beer bottle"
+                        fill
+                        sizes="(max-width: 768px) 28vw, 108px"
+                        className="pointer-events-none select-none object-contain drop-shadow-[0_14px_24px_rgba(0,0,0,0.5)]"
+                      />
+                      <div className="pointer-events-none absolute inset-[18%] rounded-[50%] bg-[radial-gradient(circle_at_50%_50%,rgba(94,234,212,0.06),rgba(94,234,212,0.02)_38%,rgba(17,24,39,0)_72%)] mix-blend-soft-light" />
+                    </div>
+                  </button>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+              <div className="min-w-0 space-y-4">
+                <div className="min-w-0 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
                   {isSpinAnimating ? (
                     <>
-                      <p className="text-sm uppercase tracking-[0.24em] text-fuchsia-200/80">
+                      <p className="break-words text-sm uppercase tracking-[0.24em] text-fuchsia-200/80">
                         Spinning
                       </p>
-                      <p className="mt-2 text-xl font-bold text-white">
+                      <p className="mt-2 break-words text-xl font-bold text-white">
                         {spinnerPlayerName} spun toward {targetPlayerName}
                       </p>
-                      <p className="mt-2 text-sm text-white/75">
+                      <p className="mt-2 break-words text-sm text-white/75">
                         All screens should land on the same player.
                       </p>
                     </>
                   ) : spinBottleState.status === "AWAITING_ACTION" &&
                     spinBottleState.targetPlayerId ? (
                     <>
-                      <p className="text-sm uppercase tracking-[0.24em] text-emerald-200/80">
+                      <p className="break-words text-sm uppercase tracking-[0.24em] text-emerald-200/80">
                         Landed On
                       </p>
-                      <p className="mt-2 text-2xl font-bold text-white">
+                      <p className="mt-2 break-words text-2xl font-bold text-white">
                         {targetPlayerName}
                       </p>
-                      <p className="mt-2 text-sm text-white/75">
-                        Pick what happens next for this spin.
+                      <p className="mt-2 break-words text-sm text-white/75">
+                        {actualPlayer === spinBottleState.targetPlayerId
+                          ? "You choose what happens next."
+                          : `${targetPlayerName} chooses what happens next.`}
                       </p>
                     </>
                   ) : (
                     <>
-                      <p className="text-sm uppercase tracking-[0.24em] text-cyan-200/80">
+                      <p className="break-words text-sm uppercase tracking-[0.24em] text-cyan-200/80">
                         Ready
                       </p>
-                      <p className="mt-2 text-xl font-bold text-white">
+                      <p className="mt-2 break-words text-xl font-bold text-white">
                         {spinnerPlayerName} is up
                       </p>
-                      <p className="mt-2 text-sm text-white/75">
+                      <p className="mt-2 break-words text-sm text-white/75">
                         Tap spin when everyone is ready.
                       </p>
                     </>
                   )}
                 </div>
 
-                <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                {spinBottleState.lastActionLabel && (
+                  <div className="min-w-0 rounded-xl border border-amber-300/30 bg-[linear-gradient(135deg,rgba(245,158,11,0.16),rgba(255,255,255,0.08))] p-4 backdrop-blur-sm">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-200/90">
+                      Chosen Outcome
+                    </p>
+                    <p className="mt-3 break-words text-xl font-bold text-white sm:text-2xl">
+                      {spinBottleState.lastActionLabel}
+                    </p>
+                    <p className="mt-2 break-words text-sm text-amber-100/85">
+                      Selected for {lastTargetPlayerName}
+                    </p>
+                  </div>
+                )}
+
+                <div className="min-w-0 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
                   <p className="text-sm font-semibold text-white">Mode outcomes</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {(spinBottleMode?.actions || []).map((action) => (
@@ -991,8 +1041,8 @@ export default React.memo(function GameContentRenderer(props: any) {
                 )}
 
                 {canChooseSpinAction && (
-                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
-                    <p className="text-sm font-semibold text-white">
+                  <div className="min-w-0 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <p className="break-words text-sm font-semibold text-white">
                       Choose the outcome for {targetPlayerName}
                     </p>
                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -1019,10 +1069,18 @@ export default React.memo(function GameContentRenderer(props: any) {
 
                 {!canCurrentPlayerSpin &&
                   !(canChooseSpinAction && !isSpinAnimating) && (
-                    <p className="text-sm text-white/70">
-                      {actualPlayer === spinBottleState.currentSpinnerPlayerId
+                    <p className="min-w-0 break-words text-sm text-white/70">
+                      {actualPlayer === spinBottleState.targetPlayerId &&
+                      spinBottleState.status === "AWAITING_ACTION" &&
+                      !isSpinAnimating
+                        ? "Your turn to choose the outcome."
+                        : actualPlayer === spinBottleState.currentSpinnerPlayerId
                         ? "Waiting for the bottle to settle."
-                        : `Waiting for ${spinnerPlayerName} to spin.`}
+                        : spinBottleState.status === "AWAITING_ACTION" &&
+                            spinBottleState.targetPlayerId &&
+                            !isSpinAnimating
+                          ? `Waiting for ${targetPlayerName} to choose the outcome.`
+                          : `Waiting for ${spinnerPlayerName} to spin.`}
                     </p>
                   )}
               </div>
