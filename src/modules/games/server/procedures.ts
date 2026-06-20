@@ -7381,7 +7381,7 @@ export const gamesRouter = createTRPCRouter({
       }
 
       const currentSpinnerPlayerId = state.currentSpinnerPlayerId;
-      let nextSpinnerPlayerId = state.targetPlayerId;
+      let nextSpinnerPlayerId: string | null = state.targetPlayerId;
       if (input.actionLabel === "Steal Turn") {
         nextSpinnerPlayerId = currentSpinnerPlayerId;
       }
@@ -7407,14 +7407,21 @@ export const gamesRouter = createTRPCRouter({
       state.roundNumber += 1;
 
       await prisma.$transaction(async (tx) => {
-        if (input.actionLabel === "Drink" && state.lastTargetPlayerId) {
+        if (state.lastTargetPlayerId) {
           await tx.player.update({
             where: { id: state.lastTargetPlayerId },
-            data: {
-              drinks: {
-                increment: 1,
-              },
-            },
+            data:
+              input.actionLabel === "Drink"
+                ? {
+                    drinks: {
+                      increment: 1,
+                    },
+                  }
+                : {
+                    points: {
+                      increment: 1,
+                    },
+                  },
           });
         }
 
