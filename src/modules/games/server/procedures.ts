@@ -2,7 +2,10 @@ import { baseProcedure, createTRPCRouter } from "@/trpc/init";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { cookies } from "next/headers";
-import { parseBadPeopleState } from "@/modules/games/lib/room-state";
+import {
+  parseBadChoicesState,
+  parseBadPeopleState,
+} from "@/modules/games/lib/room-state";
 import type { Prisma } from "../../../../prisma/generated/prisma/client";
 
 function generateUniqueCard(previousCards: number[]): number | null {
@@ -130,6 +133,35 @@ type BadPeopleState = {
   revealedPlayerId: string | null;
   winnerPlayerIds: string[];
   scoreTarget: number;
+};
+
+type BadChoicesCardType =
+  | "QUESTION"
+  | "SKIP"
+  | "DRAW_ONE"
+  | "DRAW_TWO"
+  | "ALL_PLAY";
+
+type BadChoicesPromptAnswer = "YES" | "NO";
+type BadChoicesStatus =
+  | "PLAYING"
+  | "AWAITING_TARGET_ANSWER"
+  | "AWAITING_ALL_PLAY_ANSWERS"
+  | "ENDED";
+
+type BadChoicesState = {
+  status: BadChoicesStatus;
+  roundNumber: number;
+  playerOrder: string[];
+  handsByPlayerId: Record<string, number[]>;
+  drawPile: number[];
+  discardPile: number[];
+  activeCardId: number | null;
+  activeTargetPlayerId: string | null;
+  allPlayAnswersByPlayerId: Record<string, BadChoicesPromptAnswer>;
+  pendingSkipCountsByPlayerId: Record<string, number>;
+  winnerPlayerId: string | null;
+  lastResult: string | null;
 };
 
 type CodenamesState = {
@@ -3818,6 +3850,25 @@ async function syncRoomStateAfterPlayerAdded(
       return;
     }
 
+    case "bad-choices": {
+      const state = getNormalizedBadChoicesState(room.currentAnswer, nextPlayerIds);
+      state.playerOrder = nextPlayerIds;
+      state.handsByPlayerId[newPlayer.id] = drawBadChoicesCards(state, 6);
+
+      await tx.room.update({
+        where: { id: room.id },
+        data: {
+          currentAnswer: JSON.stringify(state),
+          currentPlayerId:
+            room.currentPlayerId ??
+            getNextBadChoicesPlayerId(state, null) ??
+            nextPlayerIds[0] ??
+            null,
+        },
+      });
+      return;
+    }
+
     case "bad-people": {
       const state = getNormalizedBadPeopleState(
         room.currentAnswer,
@@ -3999,6 +4050,159 @@ function getNormalizedBadPeopleState(
       null,
     scoreTarget: parsedState.scoreTarget > 0 ? parsedState.scoreTarget : 7,
   } satisfies BadPeopleState;
+}
+
+function getBadChoicesCardType(answer: string | null | undefined): BadChoicesCardType {
+  if (answer === "SKIP") return "SKIP";
+  if (answer === "DRAW_ONE") return "DRAW_ONE";
+  if (answer === "DRAW_TWO") return "DRAW_TWO";
+  if (answer === "ALL_PLAY") return "ALL_PLAY";
+  return "QUESTION";
+}
+
+function createBadChoicesState(playerIds: string[]): BadChoicesState {
+  const handsByPlayerId: Record<string, number[]> = {};
+  const pendingSkipCountsByPlayerId: Record<string, number> = {};
+
+  for (const playerId of playerIds) {
+    handsByPlayerId[playerId] = [];
+    pendingSkipCountsByPlayerId[playerId] = 0;
+  }
+
+  return {
+    status: "PLAYING",
+    roundNumber: 1,
+    playerOrder: playerIds,
+    handsByPlayerId,
+    drawPile: [],
+    discardPile: [],
+    activeCardId: null,
+    activeTargetPlayerId: null,
+    allPlayAnswersByPlayerId: {},
+    pendingSkipCountsByPlayerId,
+    winnerPlayerId: null,
+    lastResult: null,
+  } satisfies BadChoicesState;
+}
+
+function refillBadChoicesDrawPile(state: BadChoicesState) {
+  if (state.drawPile.length > 0 || state.discardPile.length === 0) {
+    return;
+  }
+
+  state.drawPile = shuffleArray(state.discardPile);
+  state.discardPile = [];
+}
+
+function drawBadChoicesCards(state: BadChoicesState, count: number) {
+  const drawnCards: number[] = [];
+
+  for (let index = 0; index < count; index += 1) {
+    refillBadChoicesDrawPile(state);
+    const nextCardId = state.drawPile.shift() ?? null;
+    if (nextCardId === null) {
+      break;
+    }
+    drawnCards.push(nextCardId);
+  }
+
+  return drawnCards;
+}
+
+function initializeBadChoicesState(
+  playerIds: string[],
+  questionIds: number[],
+): BadChoicesState {
+  const state = createBadChoicesState(playerIds);
+  const deck = shuffleArray(questionIds);
+
+  for (const playerId of playerIds) {
+    state.handsByPlayerId[playerId] = deck.splice(0, 6);
+  }
+
+  state.drawPile = deck;
+  return state;
+}
+
+function getNextBadChoicesPlayerId(
+  state: BadChoicesState,
+  currentPlayerId: string | null,
+) {
+  if (state.playerOrder.length === 0) return null;
+  const currentIndex = currentPlayerId
+    ? state.playerOrder.indexOf(currentPlayerId)
+    : -1;
+
+  for (let step = 1; step <= state.playerOrder.length; step += 1) {
+    const candidate =
+      state.playerOrder[
+        ((currentIndex === -1 ? -1 : currentIndex) + step) %
+          state.playerOrder.length
+      ] ?? null;
+    if (!candidate) continue;
+
+    const skipCount = state.pendingSkipCountsByPlayerId[candidate] ?? 0;
+    if (skipCount > 0) {
+      state.pendingSkipCountsByPlayerId[candidate] = skipCount - 1;
+      continue;
+    }
+
+    return candidate;
+  }
+
+  return currentPlayerId ?? state.playerOrder[0] ?? null;
+}
+
+function getBadChoicesResponderIds(
+  state: BadChoicesState,
+  currentPlayerId: string | null,
+) {
+  return state.playerOrder.filter((playerId) => playerId !== currentPlayerId);
+}
+
+function badChoicesPlayerHasWon(
+  state: BadChoicesState,
+  playerId: string | null,
+) {
+  if (!playerId) return false;
+  return (state.handsByPlayerId[playerId] ?? []).length === 0;
+}
+
+function getNormalizedBadChoicesState(raw: string | null, playerIds: string[]) {
+  const parsedState = parseBadChoicesState(raw) as BadChoicesState;
+  const nextState: BadChoicesState = {
+    ...parsedState,
+    playerOrder: playerIds,
+    handsByPlayerId: { ...parsedState.handsByPlayerId },
+    allPlayAnswersByPlayerId: { ...parsedState.allPlayAnswersByPlayerId },
+    pendingSkipCountsByPlayerId: { ...parsedState.pendingSkipCountsByPlayerId },
+  };
+
+  for (const playerId of playerIds) {
+    nextState.handsByPlayerId[playerId] = nextState.handsByPlayerId[playerId] ?? [];
+    nextState.pendingSkipCountsByPlayerId[playerId] =
+      nextState.pendingSkipCountsByPlayerId[playerId] ?? 0;
+  }
+
+  for (const playerId of Object.keys(nextState.handsByPlayerId)) {
+    if (!playerIds.includes(playerId)) {
+      delete nextState.handsByPlayerId[playerId];
+    }
+  }
+
+  for (const playerId of Object.keys(nextState.pendingSkipCountsByPlayerId)) {
+    if (!playerIds.includes(playerId)) {
+      delete nextState.pendingSkipCountsByPlayerId[playerId];
+    }
+  }
+
+  for (const playerId of Object.keys(nextState.allPlayAnswersByPlayerId)) {
+    if (!playerIds.includes(playerId)) {
+      delete nextState.allPlayAnswersByPlayerId[playerId];
+    }
+  }
+
+  return nextState;
 }
 
 export const gamesRouter = createTRPCRouter({
@@ -4476,6 +4680,12 @@ export const gamesRouter = createTRPCRouter({
         ) {
           throw new Error("Bad People requires at least 3 players.");
         }
+        if (
+          input.selectedGame === "bad-choices" &&
+          (input.players?.length || 0) < 3
+        ) {
+          throw new Error("Bad Choices requires at least 3 players.");
+        }
 
         if (input.selectedGame === "triviyay") {
           if (!input.teamsInfo || input.teamsInfo.length < 1) {
@@ -4613,6 +4823,7 @@ export const gamesRouter = createTRPCRouter({
           let blackjackDrinkPlayerIds: string[] = [];
           let pokerCurrentPlayerId: string | null = null;
           let unoCurrentPlayerId: string | null = null;
+          let badChoicesCurrentPlayerId: string | null = null;
 
           if (input.selectedGame === "truth-or-drink") {
             currentQuestionId =
@@ -4762,6 +4973,19 @@ export const gamesRouter = createTRPCRouter({
             );
             roomCurrentAnswer = JSON.stringify(badPeopleState);
           }
+          if (input.selectedGame === "bad-choices") {
+            const playerIds = createdRoom.players.map((player) => player.id);
+            const questionIds = createdRoom.game.questions.map(
+              (question) => question.id,
+            );
+            const badChoicesState = initializeBadChoicesState(
+              playerIds,
+              questionIds,
+            );
+            roomCurrentAnswer = JSON.stringify(badChoicesState);
+            badChoicesCurrentPlayerId = randomCurrentPlayerId;
+            currentQuestionId = null;
+          }
 
           const createdRoomId = createdRoom.id;
           await prisma.room.update({
@@ -4778,6 +5002,8 @@ export const gamesRouter = createTRPCRouter({
                     ? pokerCurrentPlayerId
                   : input.selectedGame === "uno"
                     ? unoCurrentPlayerId
+                  : input.selectedGame === "bad-choices"
+                    ? badChoicesCurrentPlayerId
                   : randomCurrentPlayerId,
               previousPlayersIds: [],
               currentQuestionId: currentQuestionId,
@@ -4794,7 +5020,8 @@ export const gamesRouter = createTRPCRouter({
                 input.selectedGame === "name-the-song" ||
                 input.selectedGame === "guess-the-movie" ||
                 input.selectedGame === "blackjack" ||
-                input.selectedGame === "poker"
+                input.selectedGame === "poker" ||
+                input.selectedGame === "bad-choices"
                   ? 1
                   : undefined,
             },
@@ -6333,6 +6560,534 @@ export const gamesRouter = createTRPCRouter({
         });
         throw new Error("Failed to move to next paranoia card");
       }
+    }),
+
+  badChoicesPlayCard: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        cardId: z.number().int().positive(),
+        targetPlayerId: z.string().min(1).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: {
+            include: {
+              questions: true,
+            },
+          },
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "bad-choices") {
+        throw new Error("This room is not Bad Choices");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = getNormalizedBadChoicesState(room.currentAnswer, playerIds);
+      if (state.status !== "PLAYING") {
+        throw new Error("Finish the current card before playing a new one");
+      }
+      if (room.currentPlayerId !== input.playerId) {
+        throw new Error("It is not your turn");
+      }
+
+      const currentHand = state.handsByPlayerId[input.playerId] ?? [];
+      if (!currentHand.includes(input.cardId)) {
+        throw new Error("That card is not in your hand");
+      }
+
+      const card = room.game.questions.find((question) => question.id === input.cardId);
+      if (!card) {
+        throw new Error("Card not found");
+      }
+
+      const cardType = getBadChoicesCardType(card.answer);
+      const needsTarget =
+        cardType === "QUESTION" ||
+        cardType === "SKIP" ||
+        cardType === "DRAW_ONE" ||
+        cardType === "DRAW_TWO";
+
+      if (needsTarget) {
+        if (!input.targetPlayerId) {
+          throw new Error("Pick a target player first");
+        }
+        if (!playerIds.includes(input.targetPlayerId)) {
+          throw new Error("Target player is not in this room");
+        }
+        if (input.targetPlayerId === input.playerId) {
+          throw new Error("Choose another player");
+        }
+      }
+
+      state.handsByPlayerId[input.playerId] = currentHand.filter(
+        (cardId) => cardId !== input.cardId,
+      );
+
+      if (cardType === "QUESTION") {
+        state.status = "AWAITING_TARGET_ANSWER";
+        state.activeCardId = input.cardId;
+        state.activeTargetPlayerId = input.targetPlayerId ?? null;
+        state.allPlayAnswersByPlayerId = {};
+        state.lastResult = null;
+
+        await prisma.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentAnswer: JSON.stringify(state),
+            currentQuestionId: input.cardId,
+            currentPlayerId: input.playerId,
+          },
+        });
+
+        return {
+          status: state.status,
+          currentPlayerId: input.playerId,
+          targetPlayerId: state.activeTargetPlayerId,
+        };
+      }
+
+      if (cardType === "ALL_PLAY") {
+        state.status = "AWAITING_ALL_PLAY_ANSWERS";
+        state.activeCardId = input.cardId;
+        state.activeTargetPlayerId = null;
+        state.allPlayAnswersByPlayerId = {};
+        state.lastResult = null;
+
+        await prisma.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentAnswer: JSON.stringify(state),
+            currentQuestionId: input.cardId,
+            currentPlayerId: input.playerId,
+          },
+        });
+
+        return {
+          status: state.status,
+          currentPlayerId: input.playerId,
+          targetPlayerId: null,
+        };
+      }
+
+      state.discardPile.push(input.cardId);
+      state.activeCardId = null;
+      state.activeTargetPlayerId = null;
+      state.allPlayAnswersByPlayerId = {};
+      state.status = "PLAYING";
+
+      if (cardType === "SKIP") {
+        state.pendingSkipCountsByPlayerId[input.targetPlayerId ?? ""] =
+          (state.pendingSkipCountsByPlayerId[input.targetPlayerId ?? ""] ?? 0) + 1;
+        state.lastResult = "Skip card played.";
+      } else {
+        const drawCount = cardType === "DRAW_TWO" ? 2 : 1;
+        const targetCards = drawBadChoicesCards(state, drawCount);
+        state.handsByPlayerId[input.targetPlayerId ?? ""] = [
+          ...(state.handsByPlayerId[input.targetPlayerId ?? ""] ?? []),
+          ...targetCards,
+        ];
+        state.lastResult =
+          drawCount === 2
+            ? "Draw 2 card played."
+            : "Draw 1 card played.";
+      }
+
+      if (badChoicesPlayerHasWon(state, input.playerId)) {
+        state.status = "ENDED";
+        state.winnerPlayerId = input.playerId;
+
+        await prisma.$transaction(async (tx) => {
+          await tx.player.update({
+            where: { id: input.playerId },
+            data: {
+              points: {
+                increment: 1,
+              },
+            },
+          });
+
+          await tx.player.updateMany({
+            where: {
+              roomId: input.roomId,
+              id: {
+                not: input.playerId,
+              },
+            },
+            data: {
+              drinks: {
+                increment: 1,
+              },
+            },
+          });
+
+          await tx.room.update({
+            where: { id: input.roomId },
+            data: {
+              currentAnswer: JSON.stringify(state),
+              currentQuestionId: null,
+              currentPlayerId: input.playerId,
+              gameEnded: true,
+              gameEndedAt: new Date(),
+            },
+          });
+        });
+
+        return {
+          status: state.status,
+          currentPlayerId: input.playerId,
+          winnerPlayerId: input.playerId,
+        };
+      }
+
+      state.roundNumber += 1;
+      const nextPlayerId = getNextBadChoicesPlayerId(state, input.playerId);
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentAnswer: JSON.stringify(state),
+          currentQuestionId: null,
+          currentPlayerId: nextPlayerId,
+          currentRound: state.roundNumber,
+        },
+      });
+
+      return {
+        status: state.status,
+        currentPlayerId: nextPlayerId,
+        winnerPlayerId: null,
+      };
+    }),
+
+  badChoicesAnswer: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        answer: z.enum(["YES", "NO"]),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: {
+            include: {
+              questions: true,
+            },
+          },
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "bad-choices") {
+        throw new Error("This room is not Bad Choices");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = getNormalizedBadChoicesState(room.currentAnswer, playerIds);
+      const turnPlayerId = room.currentPlayerId;
+      const activeCardId = state.activeCardId;
+
+      if (!turnPlayerId || !activeCardId) {
+        throw new Error("There is no active Bad Choices card to resolve");
+      }
+
+      if (state.status === "AWAITING_TARGET_ANSWER") {
+        if (state.activeTargetPlayerId !== input.playerId) {
+          throw new Error("This question is waiting on a different player");
+        }
+
+        const pointIncrement = input.answer === "YES" ? 1 : 0;
+        const drinkIncrement = input.answer === "NO" ? 1 : 0;
+
+        if (input.answer === "YES") {
+          state.discardPile.push(activeCardId);
+          state.lastResult = "Target answered yes. +1 point.";
+        } else {
+          state.handsByPlayerId[turnPlayerId] = [
+            ...(state.handsByPlayerId[turnPlayerId] ?? []),
+            activeCardId,
+          ];
+          state.lastResult = "Target answered no. +1 drink.";
+        }
+
+        state.status = "PLAYING";
+        state.activeCardId = null;
+        state.activeTargetPlayerId = null;
+        state.allPlayAnswersByPlayerId = {};
+
+        if (
+          input.answer === "YES" &&
+          badChoicesPlayerHasWon(state, turnPlayerId)
+        ) {
+          state.status = "ENDED";
+          state.winnerPlayerId = turnPlayerId;
+
+          await prisma.$transaction(async (tx) => {
+            await tx.player.update({
+              where: { id: turnPlayerId },
+              data: {
+                points: {
+                  increment: pointIncrement + 1,
+                },
+                drinks:
+                  drinkIncrement > 0
+                    ? {
+                        increment: drinkIncrement,
+                      }
+                    : undefined,
+              },
+            });
+
+            await tx.player.updateMany({
+              where: {
+                roomId: input.roomId,
+                id: {
+                  not: turnPlayerId,
+                },
+              },
+              data: {
+                drinks: {
+                  increment: 1,
+                },
+              },
+            });
+
+            await tx.room.update({
+              where: { id: input.roomId },
+              data: {
+                currentAnswer: JSON.stringify(state),
+                currentQuestionId: null,
+                currentPlayerId: turnPlayerId,
+                gameEnded: true,
+                gameEndedAt: new Date(),
+              },
+            });
+          });
+
+          return {
+            status: state.status,
+            currentPlayerId: turnPlayerId,
+            winnerPlayerId: turnPlayerId,
+          };
+        }
+
+        state.roundNumber += 1;
+        const nextPlayerId = getNextBadChoicesPlayerId(state, turnPlayerId);
+
+        await prisma.$transaction(async (tx) => {
+          await tx.player.update({
+            where: { id: turnPlayerId },
+            data: {
+              points:
+                pointIncrement > 0
+                  ? {
+                      increment: pointIncrement,
+                    }
+                  : undefined,
+              drinks:
+                drinkIncrement > 0
+                  ? {
+                      increment: drinkIncrement,
+                    }
+                  : undefined,
+            },
+          });
+
+          await tx.room.update({
+            where: { id: input.roomId },
+            data: {
+              currentAnswer: JSON.stringify(state),
+              currentQuestionId: null,
+              currentPlayerId: nextPlayerId,
+              currentRound: state.roundNumber,
+            },
+          });
+        });
+
+        return {
+          status: state.status,
+          currentPlayerId: nextPlayerId,
+          winnerPlayerId: null,
+        };
+      }
+
+      if (state.status !== "AWAITING_ALL_PLAY_ANSWERS") {
+        throw new Error("This card is not waiting on answers");
+      }
+      if (input.playerId === turnPlayerId) {
+        throw new Error("The player who played the card does not answer this one");
+      }
+      if (!getBadChoicesResponderIds(state, turnPlayerId).includes(input.playerId)) {
+        throw new Error("You are not part of this All Play round");
+      }
+      if (state.allPlayAnswersByPlayerId[input.playerId]) {
+        throw new Error("You already answered this All Play card");
+      }
+
+      state.allPlayAnswersByPlayerId[input.playerId] = input.answer;
+
+      const responderIds = getBadChoicesResponderIds(state, turnPlayerId);
+      const everyoneAnswered = responderIds.every(
+        (playerId) => state.allPlayAnswersByPlayerId[playerId],
+      );
+
+      if (!everyoneAnswered) {
+        await prisma.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentAnswer: JSON.stringify(state),
+            currentQuestionId: activeCardId,
+            currentPlayerId: turnPlayerId,
+          },
+        });
+
+        return {
+          status: state.status,
+          currentPlayerId: turnPlayerId,
+          winnerPlayerId: null,
+        };
+      }
+
+      const yesCount = responderIds.filter(
+        (playerId) => state.allPlayAnswersByPlayerId[playerId] === "YES",
+      ).length;
+      const noCount = responderIds.length - yesCount;
+      const shouldDiscard = yesCount > noCount;
+      const pointIncrement = shouldDiscard ? 1 : 0;
+      const drinkIncrement = shouldDiscard ? 0 : 1;
+
+      if (shouldDiscard) {
+        state.discardPile.push(activeCardId);
+        state.lastResult = "All Play passed. +1 point.";
+      } else {
+        state.handsByPlayerId[turnPlayerId] = [
+          ...(state.handsByPlayerId[turnPlayerId] ?? []),
+          activeCardId,
+        ];
+        state.lastResult = "All Play failed. +1 drink.";
+      }
+
+      state.status = "PLAYING";
+      state.activeCardId = null;
+      state.activeTargetPlayerId = null;
+      state.allPlayAnswersByPlayerId = {};
+
+      if (shouldDiscard && badChoicesPlayerHasWon(state, turnPlayerId)) {
+        state.status = "ENDED";
+        state.winnerPlayerId = turnPlayerId;
+
+        await prisma.$transaction(async (tx) => {
+          await tx.player.update({
+            where: { id: turnPlayerId },
+            data: {
+              points: {
+                increment: pointIncrement + 1,
+              },
+              drinks:
+                drinkIncrement > 0
+                  ? {
+                      increment: drinkIncrement,
+                    }
+                  : undefined,
+            },
+          });
+
+          await tx.player.updateMany({
+            where: {
+              roomId: input.roomId,
+              id: {
+                not: turnPlayerId,
+              },
+            },
+            data: {
+              drinks: {
+                increment: 1,
+              },
+            },
+          });
+
+          await tx.room.update({
+            where: { id: input.roomId },
+            data: {
+              currentAnswer: JSON.stringify(state),
+              currentQuestionId: null,
+              currentPlayerId: turnPlayerId,
+              gameEnded: true,
+              gameEndedAt: new Date(),
+            },
+          });
+        });
+
+        return {
+          status: state.status,
+          currentPlayerId: turnPlayerId,
+          winnerPlayerId: turnPlayerId,
+        };
+      }
+
+      state.roundNumber += 1;
+      const nextPlayerId = getNextBadChoicesPlayerId(state, turnPlayerId);
+
+      await prisma.$transaction(async (tx) => {
+        await tx.player.update({
+          where: { id: turnPlayerId },
+          data: {
+            points:
+              pointIncrement > 0
+                ? {
+                    increment: pointIncrement,
+                  }
+                : undefined,
+            drinks:
+              drinkIncrement > 0
+                ? {
+                    increment: drinkIncrement,
+                  }
+                : undefined,
+          },
+        });
+
+        await tx.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentAnswer: JSON.stringify(state),
+            currentQuestionId: null,
+            currentPlayerId: nextPlayerId,
+            currentRound: state.roundNumber,
+          },
+        });
+      });
+
+      return {
+        status: state.status,
+        currentPlayerId: nextPlayerId,
+        winnerPlayerId: null,
+      };
     }),
 
   badPeopleDictatorVote: baseProcedure

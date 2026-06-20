@@ -66,6 +66,11 @@ export const GAME_CONFIG: Record<string, GameConfig> = {
     icon: Skull,
     minPlayers: 3,
   },
+  "bad-choices": {
+    color: "from-orange-600 to-red-700",
+    icon: ShieldQuestion,
+    minPlayers: 3,
+  },
   "rhyme-time": {
     color: "from-violet-500 to-fuchsia-600",
     icon: Mic,

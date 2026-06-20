@@ -15,6 +15,10 @@ import UnoRoom from "./UnoRoom";
 export default React.memo(function GameContentRenderer(props: any) {
   const {
     actualPlayer,
+    badChoicesAnswer,
+    badChoicesCards,
+    badChoicesPlayCard,
+    badChoicesState,
     actionButtonText,
     badPeopleDictatorVote,
     badPeopleGuess,
@@ -163,6 +167,22 @@ export default React.memo(function GameContentRenderer(props: any) {
 
   const teams = room?.playingTeams || [];
   const [badPeopleUseDoubleDown, setBadPeopleUseDoubleDown] = React.useState(false);
+  const [badChoicesSelectedCardId, setBadChoicesSelectedCardId] = React.useState(null);
+  const [badChoicesSelectedTargetId, setBadChoicesSelectedTargetId] = React.useState("");
+
+  const badChoicesCardMap = React.useMemo(
+    () => new Map((badChoicesCards || []).map((card) => [card.id, card])),
+    [badChoicesCards],
+  );
+
+  const getBadChoicesCardType = React.useCallback((card) => {
+    if (!card?.answer) return "QUESTION";
+    if (card.answer === "SKIP") return "SKIP";
+    if (card.answer === "DRAW_ONE") return "DRAW_ONE";
+    if (card.answer === "DRAW_TWO") return "DRAW_TWO";
+    if (card.answer === "ALL_PLAY") return "ALL_PLAY";
+    return "QUESTION";
+  }, []);
 
   React.useEffect(() => {
     setBadPeopleUseDoubleDown(false);
@@ -172,6 +192,45 @@ export default React.memo(function GameContentRenderer(props: any) {
     badPeopleState?.revealedPlayerId,
     badPeopleState?.roundNumber,
     badPeopleState?.status,
+  ]);
+
+  const previousBadChoicesSnapshotRef = React.useRef({
+    actualPlayer,
+    turnPlayerId: room?.currentPlayerId ?? null,
+    roundNumber: badChoicesState?.roundNumber ?? 1,
+    status: badChoicesState?.status ?? "PLAYING",
+    activeCardId: badChoicesState?.activeCardId ?? null,
+  });
+
+  React.useEffect(() => {
+    const previous = previousBadChoicesSnapshotRef.current;
+    const nextSnapshot = {
+      actualPlayer,
+      turnPlayerId: room?.currentPlayerId ?? null,
+      roundNumber: badChoicesState?.roundNumber ?? 1,
+      status: badChoicesState?.status ?? "PLAYING",
+      activeCardId: badChoicesState?.activeCardId ?? null,
+    };
+
+    const shouldResetSelection =
+      previous.actualPlayer !== nextSnapshot.actualPlayer ||
+      previous.turnPlayerId !== nextSnapshot.turnPlayerId ||
+      previous.roundNumber !== nextSnapshot.roundNumber ||
+      previous.status !== nextSnapshot.status ||
+      previous.activeCardId !== nextSnapshot.activeCardId;
+
+    if (shouldResetSelection) {
+      setBadChoicesSelectedCardId(null);
+      setBadChoicesSelectedTargetId("");
+    }
+
+    previousBadChoicesSnapshotRef.current = nextSnapshot;
+  }, [
+    actualPlayer,
+    room?.currentPlayerId,
+    badChoicesState?.activeCardId,
+    badChoicesState?.roundNumber,
+    badChoicesState?.status,
   ]);
 
   const currentTeamLeaderId = React.useCallback(() => {
@@ -663,6 +722,349 @@ export default React.memo(function GameContentRenderer(props: any) {
             )}
           </div>
         );
+
+      case "bad-choices": {
+        const turnPlayerId = room?.currentPlayerId || null;
+        const turnPlayerName =
+          players.find((player) => player.id === turnPlayerId)?.name || "Unknown Player";
+        const activeCard =
+          badChoicesCardMap.get(badChoicesState.activeCardId) || currentQuestion || null;
+        const myHandIds = actualPlayer
+          ? badChoicesState.handsByPlayerId[actualPlayer] || []
+          : [];
+        const myHandCards = myHandIds
+          .map((cardId) => badChoicesCardMap.get(cardId))
+          .filter(Boolean);
+        const selectedBadChoicesCard =
+          badChoicesCardMap.get(badChoicesSelectedCardId) || null;
+        const selectedBadChoicesCardType = getBadChoicesCardType(
+          selectedBadChoicesCard,
+        );
+        const needsBadChoicesTarget =
+          selectedBadChoicesCardType === "QUESTION" ||
+          selectedBadChoicesCardType === "SKIP" ||
+          selectedBadChoicesCardType === "DRAW_ONE" ||
+          selectedBadChoicesCardType === "DRAW_TWO";
+        const canPlaySelectedBadChoicesCard =
+          Boolean(actualPlayer) &&
+          actualPlayer === turnPlayerId &&
+          badChoicesState.status === "PLAYING" &&
+          selectedBadChoicesCard &&
+          (!needsBadChoicesTarget || Boolean(badChoicesSelectedTargetId));
+        const allPlayResponders = players.filter(
+          (player) => player.id !== turnPlayerId,
+        );
+        const iAlreadyAnsweredAllPlay = actualPlayer
+          ? Boolean(badChoicesState.allPlayAnswersByPlayerId[actualPlayer])
+          : false;
+        const targetPlayerName =
+          players.find((player) => player.id === badChoicesState.activeTargetPlayerId)?.name ||
+          "Unknown Player";
+
+        return (
+          <div className="w-full">
+            <div className="mb-6 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">
+                  Turn {badChoicesState.roundNumber}
+                </Badge>
+                <Badge variant="outline">
+                  Current player: {turnPlayerName}
+                </Badge>
+                <Badge className="bg-rose-600">
+                  {badChoicesState.status.replaceAll("_", " ")}
+                </Badge>
+              </div>
+              <p className="mt-4 text-lg text-white leading-relaxed">
+                {activeCard?.text ||
+                  "Build a good read, pick the right target, and empty your hand first."}
+              </p>
+              <p className="mt-3 text-sm text-white/75">
+                Ask a player a card you think they will answer yes to. Yes means
+                you discard it. No means it comes back to your hand. First player
+                out wins.
+              </p>
+              {badChoicesState.lastResult && (
+                <p className="mt-3 text-sm text-emerald-200">
+                  {badChoicesState.lastResult}
+                </p>
+              )}
+            </div>
+
+            <div className="mb-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {players.map((player) => (
+                <div
+                  key={player.id}
+                  className={`rounded-xl border p-4 ${
+                    player.id === turnPlayerId
+                      ? "border-amber-300/40 bg-amber-500/10"
+                      : "border-white/15 bg-black/20"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-white">{player.name}</p>
+                    <Badge variant="secondary">
+                      {badChoicesState.handsByPlayerId[player.id]?.length || 0} cards
+                    </Badge>
+                  </div>
+                  {player.id === badChoicesState.activeTargetPlayerId && (
+                    <p className="mt-2 text-sm text-cyan-200">Answering now</p>
+                  )}
+                  {badChoicesState.status === "AWAITING_ALL_PLAY_ANSWERS" &&
+                    player.id !== turnPlayerId && (
+                      <p className="mt-2 text-sm text-white/70">
+                        {badChoicesState.allPlayAnswersByPlayerId[player.id]
+                          ? "Answered"
+                          : "Waiting"}
+                      </p>
+                    )}
+                </div>
+              ))}
+            </div>
+
+            {badChoicesState.status === "PLAYING" && (
+              <div className="rounded-xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm">
+                {actualPlayer === turnPlayerId ? (
+                  <>
+                    <p className="mb-4 text-white/85">
+                      Pick a card from your hand, then choose a target if that
+                      card needs one.
+                    </p>
+
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {myHandCards.map((card) => {
+                        const cardType = getBadChoicesCardType(card);
+                        const isSelected = badChoicesSelectedCardId === card.id;
+
+                        return (
+                          <button
+                            key={card.id}
+                            type="button"
+                            onClick={() => setBadChoicesSelectedCardId(card.id)}
+                            className={`rounded-xl border p-4 text-left transition ${
+                              isSelected
+                                ? "border-cyan-300 bg-cyan-500/15"
+                                : "border-white/15 bg-black/20 hover:bg-white/10"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <Badge
+                                className={
+                                  cardType === "QUESTION"
+                                    ? "bg-sky-600"
+                                    : cardType === "ALL_PLAY"
+                                      ? "bg-fuchsia-600"
+                                      : "bg-amber-600"
+                                }
+                              >
+                                {cardType === "QUESTION"
+                                  ? "Question"
+                                  : cardType === "DRAW_ONE"
+                                    ? "Draw 1"
+                                    : cardType === "DRAW_TWO"
+                                      ? "Draw 2"
+                                      : cardType.replaceAll("_", " ")}
+                              </Badge>
+                              {isSelected && <Badge variant="secondary">Selected</Badge>}
+                            </div>
+                            <p className="mt-3 text-sm text-white/90">{card.text}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {selectedBadChoicesCard && (
+                      <div className="mt-5 rounded-xl border border-white/15 bg-black/20 p-4">
+                        <p className="text-sm font-semibold text-white">
+                          Ready to play
+                        </p>
+                        <p className="mt-2 text-sm text-white/80">
+                          {selectedBadChoicesCard.text}
+                        </p>
+
+                        {needsBadChoicesTarget && (
+                          <div className="mt-4">
+                            <p className="mb-2 text-sm text-white/75">
+                              Choose a target
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {players
+                                .filter((player) => player.id !== actualPlayer)
+                                .map((player) => (
+                                  <Button
+                                    key={player.id}
+                                    type="button"
+                                    variant={
+                                      badChoicesSelectedTargetId === player.id
+                                        ? "default"
+                                        : "outline"
+                                    }
+                                    className={
+                                      badChoicesSelectedTargetId === player.id
+                                        ? "bg-cyan-600 hover:bg-cyan-700"
+                                        : "border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                                    }
+                                    onClick={() =>
+                                      setBadChoicesSelectedTargetId(player.id)
+                                    }
+                                  >
+                                    {player.name}
+                                  </Button>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <Button
+                          className="mt-4 bg-emerald-600 hover:bg-emerald-700"
+                          disabled={
+                            !canPlaySelectedBadChoicesCard ||
+                            badChoicesPlayCard.isPending
+                          }
+                          onClick={() =>
+                            badChoicesPlayCard.mutate({
+                              roomId: room?.id || "",
+                              playerId: actualPlayer || "",
+                              cardId: selectedBadChoicesCard.id,
+                              ...(needsBadChoicesTarget
+                                ? {
+                                    targetPlayerId: badChoicesSelectedTargetId,
+                                  }
+                                : {}),
+                            })
+                          }
+                        >
+                          Play Card
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-white/80">
+                    Waiting for {turnPlayerName} to choose a card.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {badChoicesState.status === "AWAITING_TARGET_ANSWER" && (
+              <div className="rounded-xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm">
+                <p className="text-white/85">
+                  {turnPlayerName} asked {targetPlayerName}:
+                </p>
+                <p className="mt-3 text-lg text-white">
+                  {activeCard?.text || "No active card found."}
+                </p>
+
+                {actualPlayer === badChoicesState.activeTargetPlayerId ? (
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <Button
+                      className="bg-emerald-600 hover:bg-emerald-700"
+                      disabled={badChoicesAnswer.isPending}
+                      onClick={() =>
+                        badChoicesAnswer.mutate({
+                          roomId: room?.id || "",
+                          playerId: actualPlayer || "",
+                          answer: "YES",
+                        })
+                      }
+                    >
+                      Yes
+                    </Button>
+                    <Button
+                      className="bg-rose-600 hover:bg-rose-700"
+                      disabled={badChoicesAnswer.isPending}
+                      onClick={() =>
+                        badChoicesAnswer.mutate({
+                          roomId: room?.id || "",
+                          playerId: actualPlayer || "",
+                          answer: "NO",
+                        })
+                      }
+                    >
+                      No
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm text-white/75">
+                    Waiting for {targetPlayerName} to answer.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {badChoicesState.status === "AWAITING_ALL_PLAY_ANSWERS" && (
+              <div className="rounded-xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm">
+                <p className="text-white/85">
+                  All Play: everyone except {turnPlayerName} answers this card.
+                </p>
+                <p className="mt-3 text-lg text-white">
+                  {activeCard?.text || "No active card found."}
+                </p>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {allPlayResponders.map((player) => (
+                    <Badge
+                      key={player.id}
+                      variant={
+                        badChoicesState.allPlayAnswersByPlayerId[player.id]
+                          ? "secondary"
+                          : "outline"
+                      }
+                    >
+                      {player.name}:{" "}
+                      {badChoicesState.allPlayAnswersByPlayerId[player.id]
+                        ? "Answered"
+                        : "Waiting"}
+                    </Badge>
+                  ))}
+                </div>
+
+                {actualPlayer &&
+                actualPlayer !== turnPlayerId &&
+                !iAlreadyAnsweredAllPlay ? (
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <Button
+                      className="bg-emerald-600 hover:bg-emerald-700"
+                      disabled={badChoicesAnswer.isPending}
+                      onClick={() =>
+                        badChoicesAnswer.mutate({
+                          roomId: room?.id || "",
+                          playerId: actualPlayer,
+                          answer: "YES",
+                        })
+                      }
+                    >
+                      Yes
+                    </Button>
+                    <Button
+                      className="bg-rose-600 hover:bg-rose-700"
+                      disabled={badChoicesAnswer.isPending}
+                      onClick={() =>
+                        badChoicesAnswer.mutate({
+                          roomId: room?.id || "",
+                          playerId: actualPlayer,
+                          answer: "NO",
+                        })
+                      }
+                    >
+                      No
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm text-white/75">
+                    {actualPlayer === turnPlayerId
+                      ? "Waiting for everyone else to answer."
+                      : iAlreadyAnsweredAllPlay
+                        ? "Your answer is locked in."
+                        : "Waiting for the remaining answers."}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      }
 
       case "bad-people": {
         const dictatorName =
