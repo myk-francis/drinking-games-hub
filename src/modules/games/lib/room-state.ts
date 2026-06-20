@@ -21,6 +21,35 @@ export type BadPeopleRoomState = {
   scoreTarget: number;
 };
 
+export type BadChoicesCardType =
+  | "QUESTION"
+  | "SKIP"
+  | "DRAW_ONE"
+  | "DRAW_TWO"
+  | "ALL_PLAY";
+
+export type BadChoicesPromptAnswer = "YES" | "NO";
+export type BadChoicesStatus =
+  | "PLAYING"
+  | "AWAITING_TARGET_ANSWER"
+  | "AWAITING_ALL_PLAY_ANSWERS"
+  | "ENDED";
+
+export type BadChoicesRoomState = {
+  status: BadChoicesStatus;
+  roundNumber: number;
+  playerOrder: string[];
+  handsByPlayerId: Record<string, number[]>;
+  drawPile: number[];
+  discardPile: number[];
+  activeCardId: number | null;
+  activeTargetPlayerId: string | null;
+  allPlayAnswersByPlayerId: Record<string, BadChoicesPromptAnswer>;
+  pendingSkipCountsByPlayerId: Record<string, number>;
+  winnerPlayerId: string | null;
+  lastResult: string | null;
+};
+
 export type CodenamesRoomState = {
   status: "LOBBY" | "PLAYING" | "ENDED";
   board: number[];
@@ -320,6 +349,117 @@ export type UnoRoomState = {
 
 export const NAME_THE_SONG_TIMER_SECONDS = 5;
 export const GUESS_THE_MOVIE_TIMER_SECONDS = 5;
+
+export function parseBadChoicesState(
+  raw: string | null | undefined,
+): BadChoicesRoomState {
+  const fallback: BadChoicesRoomState = {
+    status: "PLAYING",
+    roundNumber: 1,
+    playerOrder: [],
+    handsByPlayerId: {},
+    drawPile: [],
+    discardPile: [],
+    activeCardId: null,
+    activeTargetPlayerId: null,
+    allPlayAnswersByPlayerId: {},
+    pendingSkipCountsByPlayerId: {},
+    winnerPlayerId: null,
+    lastResult: null,
+  };
+
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<BadChoicesRoomState>;
+    const playerOrder = Array.isArray(parsed.playerOrder)
+      ? parsed.playerOrder.filter(
+          (playerId): playerId is string => typeof playerId === "string",
+        )
+      : [];
+
+    const parseNumberList = (value: unknown) =>
+      Array.isArray(value)
+        ? value.filter(
+            (cardId): cardId is number =>
+              typeof cardId === "number" && Number.isFinite(cardId),
+          )
+        : [];
+
+    const handsByPlayerId =
+      parsed.handsByPlayerId && typeof parsed.handsByPlayerId === "object"
+        ? Object.fromEntries(
+            Object.entries(parsed.handsByPlayerId).map(([playerId, cards]) => [
+              playerId,
+              parseNumberList(cards),
+            ]),
+          )
+        : {};
+
+    const allPlayAnswersByPlayerId =
+      parsed.allPlayAnswersByPlayerId &&
+      typeof parsed.allPlayAnswersByPlayerId === "object"
+        ? Object.fromEntries(
+            Object.entries(parsed.allPlayAnswersByPlayerId).filter(
+              ([playerId, answer]) =>
+                typeof playerId === "string" &&
+                (answer === "YES" || answer === "NO"),
+            ),
+          )
+        : {};
+
+    const pendingSkipCountsByPlayerId =
+      parsed.pendingSkipCountsByPlayerId &&
+      typeof parsed.pendingSkipCountsByPlayerId === "object"
+        ? Object.fromEntries(
+            Object.entries(parsed.pendingSkipCountsByPlayerId).map(
+              ([playerId, count]) => [
+                playerId,
+                typeof count === "number" && Number.isFinite(count) && count > 0
+                  ? Math.floor(count)
+                  : 0,
+              ],
+            ),
+          )
+        : {};
+
+    return {
+      status:
+        parsed.status === "AWAITING_TARGET_ANSWER" ||
+        parsed.status === "AWAITING_ALL_PLAY_ANSWERS" ||
+        parsed.status === "ENDED"
+          ? parsed.status
+          : "PLAYING",
+      roundNumber:
+        typeof parsed.roundNumber === "number" &&
+        Number.isFinite(parsed.roundNumber) &&
+        parsed.roundNumber > 0
+          ? parsed.roundNumber
+          : 1,
+      playerOrder,
+      handsByPlayerId,
+      drawPile: parseNumberList(parsed.drawPile),
+      discardPile: parseNumberList(parsed.discardPile),
+      activeCardId:
+        typeof parsed.activeCardId === "number" &&
+        Number.isFinite(parsed.activeCardId)
+          ? parsed.activeCardId
+          : null,
+      activeTargetPlayerId:
+        typeof parsed.activeTargetPlayerId === "string"
+          ? parsed.activeTargetPlayerId
+          : null,
+      allPlayAnswersByPlayerId,
+      pendingSkipCountsByPlayerId,
+      winnerPlayerId:
+        typeof parsed.winnerPlayerId === "string" ? parsed.winnerPlayerId : null,
+      lastResult:
+        typeof parsed.lastResult === "string" ? parsed.lastResult : null,
+    };
+  } catch {
+    return fallback;
+  }
+}
 
 export function parseBadPeopleState(
   raw: string | null | undefined,

@@ -43,6 +43,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 import { DRINKING_QUOTES } from "@/lib/quotes";
 import {
+  parseBadChoicesState,
   parseBadPeopleState,
   GUESS_THE_MOVIE_TIMER_SECONDS,
   NAME_THE_SONG_TIMER_SECONDS,
@@ -1062,6 +1063,36 @@ export default function RoomPage() {
     }),
   );
 
+  const badChoicesPlayCard = useMutation(
+    trpc.games.badChoicesPlayCard.mutationOptions({
+      onSuccess: (data) => {
+        if (data.winnerPlayerId) {
+          toast.success("We have a winner!");
+          return;
+        }
+        toast.success("Card played.");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not play that card.");
+      },
+    }),
+  );
+
+  const badChoicesAnswer = useMutation(
+    trpc.games.badChoicesAnswer.mutationOptions({
+      onSuccess: (data) => {
+        if (data.winnerPlayerId) {
+          toast.success("Round over. Winner locked in.");
+          return;
+        }
+        toast.success("Answer saved.");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not save that answer.");
+      },
+    }),
+  );
+
   const nextWouldRatherQuestion = useMutation(
     trpc.games.nextWouldRatherQuestion.mutationOptions({
       onSuccess: () => {
@@ -1972,6 +2003,9 @@ export default function RoomPage() {
 
   const guessNumberState = React.useMemo(() => {
     return parseGuessTheNumberState(room?.currentAnswer);
+  }, [room?.currentAnswer]);
+  const badChoicesState = React.useMemo(() => {
+    return parseBadChoicesState(room?.currentAnswer);
   }, [room?.currentAnswer]);
   const badPeopleState = React.useMemo(() => {
     const parsed = parseBadPeopleState(room?.currentAnswer);
@@ -3426,6 +3460,10 @@ export default function RoomPage() {
     <GameContentRenderer
       {...{
         actualPlayer,
+        badChoicesAnswer,
+        badChoicesCards: game?.questions || [],
+        badChoicesPlayCard,
+        badChoicesState,
         actionButtonText,
         badPeopleDictatorVote,
         badPeopleGuess,
