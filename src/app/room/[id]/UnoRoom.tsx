@@ -485,6 +485,7 @@ export default function UnoRoom({
                 {(["RED", "YELLOW", "GREEN", "BLUE"] as const).map((color) => (
                   <Button
                     key={color}
+                    disabled={turnActionPending}
                     onClick={() => {
                       onPlayCard(pendingWildCard.id, color);
                       setPendingWildCardId(null);
@@ -497,6 +498,7 @@ export default function UnoRoom({
               </div>
               <Button
                 variant="ghost"
+                disabled={turnActionPending}
                 onClick={() => setPendingWildCardId(null)}
                 className="mt-3 text-white hover:bg-white/10 hover:text-white"
               >
