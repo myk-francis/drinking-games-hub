@@ -6821,15 +6821,18 @@ export const gamesRouter = createTRPCRouter({
           throw new Error("This question is waiting on a different player");
         }
 
+        const pointIncrement = input.answer === "YES" ? 1 : 0;
+        const drinkIncrement = input.answer === "NO" ? 1 : 0;
+
         if (input.answer === "YES") {
           state.discardPile.push(activeCardId);
-          state.lastResult = "Target answered yes.";
+          state.lastResult = "Target answered yes. +1 point.";
         } else {
           state.handsByPlayerId[turnPlayerId] = [
             ...(state.handsByPlayerId[turnPlayerId] ?? []),
             activeCardId,
           ];
-          state.lastResult = "Target answered no.";
+          state.lastResult = "Target answered no. +1 drink.";
         }
 
         state.status = "PLAYING";
@@ -6849,8 +6852,14 @@ export const gamesRouter = createTRPCRouter({
               where: { id: turnPlayerId },
               data: {
                 points: {
-                  increment: 1,
+                  increment: pointIncrement + 1,
                 },
+                drinks:
+                  drinkIncrement > 0
+                    ? {
+                        increment: drinkIncrement,
+                      }
+                    : undefined,
               },
             });
 
@@ -6890,14 +6899,34 @@ export const gamesRouter = createTRPCRouter({
         state.roundNumber += 1;
         const nextPlayerId = getNextBadChoicesPlayerId(state, turnPlayerId);
 
-        await prisma.room.update({
-          where: { id: input.roomId },
-          data: {
-            currentAnswer: JSON.stringify(state),
-            currentQuestionId: null,
-            currentPlayerId: nextPlayerId,
-            currentRound: state.roundNumber,
-          },
+        await prisma.$transaction(async (tx) => {
+          await tx.player.update({
+            where: { id: turnPlayerId },
+            data: {
+              points:
+                pointIncrement > 0
+                  ? {
+                      increment: pointIncrement,
+                    }
+                  : undefined,
+              drinks:
+                drinkIncrement > 0
+                  ? {
+                      increment: drinkIncrement,
+                    }
+                  : undefined,
+            },
+          });
+
+          await tx.room.update({
+            where: { id: input.roomId },
+            data: {
+              currentAnswer: JSON.stringify(state),
+              currentQuestionId: null,
+              currentPlayerId: nextPlayerId,
+              currentRound: state.roundNumber,
+            },
+          });
         });
 
         return {
@@ -6949,16 +6978,18 @@ export const gamesRouter = createTRPCRouter({
       ).length;
       const noCount = responderIds.length - yesCount;
       const shouldDiscard = yesCount > noCount;
+      const pointIncrement = shouldDiscard ? 1 : 0;
+      const drinkIncrement = shouldDiscard ? 0 : 1;
 
       if (shouldDiscard) {
         state.discardPile.push(activeCardId);
-        state.lastResult = "All Play passed.";
+        state.lastResult = "All Play passed. +1 point.";
       } else {
         state.handsByPlayerId[turnPlayerId] = [
           ...(state.handsByPlayerId[turnPlayerId] ?? []),
           activeCardId,
         ];
-        state.lastResult = "All Play failed.";
+        state.lastResult = "All Play failed. +1 drink.";
       }
 
       state.status = "PLAYING";
@@ -6975,8 +7006,14 @@ export const gamesRouter = createTRPCRouter({
             where: { id: turnPlayerId },
             data: {
               points: {
-                increment: 1,
+                increment: pointIncrement + 1,
               },
+              drinks:
+                drinkIncrement > 0
+                  ? {
+                      increment: drinkIncrement,
+                    }
+                  : undefined,
             },
           });
 
@@ -7016,14 +7053,34 @@ export const gamesRouter = createTRPCRouter({
       state.roundNumber += 1;
       const nextPlayerId = getNextBadChoicesPlayerId(state, turnPlayerId);
 
-      await prisma.room.update({
-        where: { id: input.roomId },
-        data: {
-          currentAnswer: JSON.stringify(state),
-          currentQuestionId: null,
-          currentPlayerId: nextPlayerId,
-          currentRound: state.roundNumber,
-        },
+      await prisma.$transaction(async (tx) => {
+        await tx.player.update({
+          where: { id: turnPlayerId },
+          data: {
+            points:
+              pointIncrement > 0
+                ? {
+                    increment: pointIncrement,
+                  }
+                : undefined,
+            drinks:
+              drinkIncrement > 0
+                ? {
+                    increment: drinkIncrement,
+                  }
+                : undefined,
+          },
+        });
+
+        await tx.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentAnswer: JSON.stringify(state),
+            currentQuestionId: null,
+            currentPlayerId: nextPlayerId,
+            currentRound: state.roundNumber,
+          },
+        });
       });
 
       return {
