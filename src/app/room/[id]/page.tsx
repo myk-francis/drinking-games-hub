@@ -43,6 +43,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 import { DRINKING_QUOTES } from "@/lib/quotes";
 import {
+  parseBadPeopleState,
   GUESS_THE_MOVIE_TIMER_SECONDS,
   NAME_THE_SONG_TIMER_SECONDS,
   parseBlackjackState,
@@ -1009,6 +1010,58 @@ export default function RoomPage() {
     }),
   );
 
+  const badPeopleDictatorVote = useMutation(
+    trpc.games.badPeopleDictatorVote.mutationOptions({
+      onSuccess: () => {
+        toast.success("Secret pick locked in.");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not save the dictator pick.");
+      },
+    }),
+  );
+
+  const badPeopleGuess = useMutation(
+    trpc.games.badPeopleGuess.mutationOptions({
+      onSuccess: (data) => {
+        toast.success(
+          data.usedDoubleDown
+            ? "Guess submitted with Double Down."
+            : "Guess submitted.",
+        );
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not submit your guess.");
+      },
+    }),
+  );
+
+  const badPeopleReveal = useMutation(
+    trpc.games.badPeopleReveal.mutationOptions({
+      onSuccess: (data) => {
+        if (data.winnerPlayerIds.length > 0) {
+          toast.success("Round revealed. We have a winner!");
+          return;
+        }
+        toast.success("Round revealed!");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not reveal this round.");
+      },
+    }),
+  );
+
+  const badPeopleNextRound = useMutation(
+    trpc.games.badPeopleNextRound.mutationOptions({
+      onSuccess: () => {
+        toast.success("Next Bad People round ready.");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not start the next round.");
+      },
+    }),
+  );
+
   const nextWouldRatherQuestion = useMutation(
     trpc.games.nextWouldRatherQuestion.mutationOptions({
       onSuccess: () => {
@@ -1920,6 +1973,14 @@ export default function RoomPage() {
   const guessNumberState = React.useMemo(() => {
     return parseGuessTheNumberState(room?.currentAnswer);
   }, [room?.currentAnswer]);
+  const badPeopleState = React.useMemo(() => {
+    const parsed = parseBadPeopleState(room?.currentAnswer);
+    return {
+      ...parsed,
+      dictatorPlayerId:
+        parsed.dictatorPlayerId ?? room?.currentPlayerId ?? parsed.playerOrder[0] ?? null,
+    };
+  }, [room?.currentAnswer, room?.currentPlayerId]);
   const connectLettersState = React.useMemo(() => {
     return parseConnectLettersState(room?.currentAnswer);
   }, [room?.currentAnswer]);
@@ -3366,6 +3427,11 @@ export default function RoomPage() {
       {...{
         actualPlayer,
         actionButtonText,
+        badPeopleDictatorVote,
+        badPeopleGuess,
+        badPeopleNextRound,
+        badPeopleReveal,
+        badPeopleState,
         blackjackDealerRevealPending,
         blackjackHit,
         blackjackNextRound,

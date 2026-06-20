@@ -18,6 +18,7 @@ export type SelfServicePayload = z.infer<typeof rawSelfServicePayloadSchema>;
 
 export const MIN_PLAYERS_BY_GAME: Record<string, number> = {
   paranoia: 3,
+  "bad-people": 3,
   "kings-cup": 2,
   "taboo-lite": 4,
   "most-likely": 3,

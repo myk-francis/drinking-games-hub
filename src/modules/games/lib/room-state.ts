@@ -1,6 +1,26 @@
 export type CodenamesTeam = "RED" | "BLUE";
 export type CodenamesAssignment = "RED" | "BLUE" | "NEUTRAL" | "ASSASSIN";
 
+export type BadPeopleStatus =
+  | "DICTATOR_PICK"
+  | "PLAYERS_GUESS"
+  | "REVEALED"
+  | "ENDED";
+
+export type BadPeopleRoomState = {
+  status: BadPeopleStatus;
+  roundNumber: number;
+  playerOrder: string[];
+  dictatorPlayerId: string | null;
+  dictatorVotePlayerId: string | null;
+  guessesByPlayerId: Record<string, string>;
+  doubleDownUsedPlayerIds: string[];
+  doubleDownActivePlayerIds: string[];
+  revealedPlayerId: string | null;
+  winnerPlayerIds: string[];
+  scoreTarget: number;
+};
+
 export type CodenamesRoomState = {
   status: "LOBBY" | "PLAYING" | "ENDED";
   board: number[];
@@ -300,6 +320,88 @@ export type UnoRoomState = {
 
 export const NAME_THE_SONG_TIMER_SECONDS = 5;
 export const GUESS_THE_MOVIE_TIMER_SECONDS = 5;
+
+export function parseBadPeopleState(
+  raw: string | null | undefined,
+): BadPeopleRoomState {
+  const fallback: BadPeopleRoomState = {
+    status: "DICTATOR_PICK",
+    roundNumber: 1,
+    playerOrder: [],
+    dictatorPlayerId: null,
+    dictatorVotePlayerId: null,
+    guessesByPlayerId: {},
+    doubleDownUsedPlayerIds: [],
+    doubleDownActivePlayerIds: [],
+    revealedPlayerId: null,
+    winnerPlayerIds: [],
+    scoreTarget: 7,
+  };
+
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<BadPeopleRoomState>;
+    const parsePlayerIdList = (value: unknown) =>
+      Array.isArray(value)
+        ? value.filter(
+            (playerId): playerId is string => typeof playerId === "string",
+          )
+        : [];
+
+    const guessesByPlayerId =
+      parsed.guessesByPlayerId && typeof parsed.guessesByPlayerId === "object"
+        ? Object.fromEntries(
+            Object.entries(parsed.guessesByPlayerId).filter(
+              ([playerId, guessedPlayerId]) =>
+                typeof playerId === "string" && typeof guessedPlayerId === "string",
+            ),
+          )
+        : {};
+
+    return {
+      status:
+        parsed.status === "PLAYERS_GUESS" ||
+        parsed.status === "REVEALED" ||
+        parsed.status === "ENDED"
+          ? parsed.status
+          : "DICTATOR_PICK",
+      roundNumber:
+        typeof parsed.roundNumber === "number" &&
+        Number.isFinite(parsed.roundNumber) &&
+        parsed.roundNumber > 0
+          ? parsed.roundNumber
+          : 1,
+      playerOrder: parsePlayerIdList(parsed.playerOrder),
+      dictatorPlayerId:
+        typeof parsed.dictatorPlayerId === "string"
+          ? parsed.dictatorPlayerId
+          : null,
+      dictatorVotePlayerId:
+        typeof parsed.dictatorVotePlayerId === "string"
+          ? parsed.dictatorVotePlayerId
+          : null,
+      guessesByPlayerId,
+      doubleDownUsedPlayerIds: parsePlayerIdList(parsed.doubleDownUsedPlayerIds),
+      doubleDownActivePlayerIds: parsePlayerIdList(
+        parsed.doubleDownActivePlayerIds,
+      ),
+      revealedPlayerId:
+        typeof parsed.revealedPlayerId === "string"
+          ? parsed.revealedPlayerId
+          : null,
+      winnerPlayerIds: parsePlayerIdList(parsed.winnerPlayerIds),
+      scoreTarget:
+        typeof parsed.scoreTarget === "number" &&
+        Number.isFinite(parsed.scoreTarget) &&
+        parsed.scoreTarget > 0
+          ? parsed.scoreTarget
+          : 7,
+    };
+  } catch {
+    return fallback;
+  }
+}
 
 export function parseCodenamesState(
   raw: string | null | undefined,

@@ -16,6 +16,11 @@ export default React.memo(function GameContentRenderer(props: any) {
   const {
     actualPlayer,
     actionButtonText,
+    badPeopleDictatorVote,
+    badPeopleGuess,
+    badPeopleNextRound,
+    badPeopleReveal,
+    badPeopleState,
     blackjackDealerRevealPending,
     blackjackHit,
     blackjackNextRound,
@@ -157,6 +162,17 @@ export default React.memo(function GameContentRenderer(props: any) {
     : "No player selected";
 
   const teams = room?.playingTeams || [];
+  const [badPeopleUseDoubleDown, setBadPeopleUseDoubleDown] = React.useState(false);
+
+  React.useEffect(() => {
+    setBadPeopleUseDoubleDown(false);
+  }, [
+    actualPlayer,
+    badPeopleState?.dictatorPlayerId,
+    badPeopleState?.revealedPlayerId,
+    badPeopleState?.roundNumber,
+    badPeopleState?.status,
+  ]);
 
   const currentTeamLeaderId = React.useCallback(() => {
     if (selectedGame !== "triviyay") {
@@ -648,6 +664,314 @@ export default React.memo(function GameContentRenderer(props: any) {
           </div>
         );
 
+      case "bad-people": {
+        const dictatorName =
+          players.find((player) => player.id === badPeopleState.dictatorPlayerId)?.name ||
+          "Unknown Player";
+        const revealedPlayerName =
+          players.find((player) => player.id === badPeopleState.revealedPlayerId)?.name ||
+          "Unknown Player";
+        const isDictator = actualPlayer === badPeopleState.dictatorPlayerId;
+        const hasGuessed = actualPlayer
+          ? Boolean(badPeopleState.guessesByPlayerId[actualPlayer])
+          : false;
+        const usedDoubleDown = actualPlayer
+          ? badPeopleState.doubleDownUsedPlayerIds.includes(actualPlayer)
+          : false;
+        const canUseDoubleDown =
+          Boolean(actualPlayer) && !isDictator && !hasGuessed && !usedDoubleDown;
+        const waitingOnPlayers = players.filter(
+          (player) =>
+            player.id !== badPeopleState.dictatorPlayerId &&
+            !badPeopleState.guessesByPlayerId[player.id],
+        );
+        const revealedResults = players
+          .filter((player) => player.id !== badPeopleState.dictatorPlayerId)
+          .map((player) => {
+            const guessedPlayerId = badPeopleState.guessesByPlayerId[player.id] || null;
+            const guessedPlayerName =
+              players.find((entry) => entry.id === guessedPlayerId)?.name || "No guess";
+            const usedDoubleDownThisRound =
+              badPeopleState.doubleDownActivePlayerIds.includes(player.id);
+            const guessedCorrectly =
+              guessedPlayerId !== null &&
+              guessedPlayerId === badPeopleState.revealedPlayerId;
+            return {
+              playerId: player.id,
+              playerName: player.name,
+              guessedPlayerName,
+              guessedCorrectly,
+              usedDoubleDownThisRound,
+              score: guessedCorrectly ? (usedDoubleDownThisRound ? 2 : 1) : 0,
+            };
+          });
+
+        return (
+          <div className="w-full">
+            <div className="mb-6 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">
+                  Round {badPeopleState.roundNumber}
+                </Badge>
+                <Badge variant="outline">
+                  Dictator: {dictatorName}
+                </Badge>
+                <Badge variant="outline">
+                  First to {badPeopleState.scoreTarget} points
+                </Badge>
+                <Badge
+                  className={
+                    badPeopleState.status === "DICTATOR_PICK"
+                      ? "bg-amber-600"
+                      : badPeopleState.status === "PLAYERS_GUESS"
+                        ? "bg-sky-600"
+                        : "bg-emerald-600"
+                  }
+                >
+                  {badPeopleState.status.replaceAll("_", " ")}
+                </Badge>
+              </div>
+              <p className="mt-4 text-lg text-white leading-relaxed">
+                {currentQuestion?.text ||
+                  "No question available. Please wait for the next round."}
+              </p>
+              <p className="mt-3 text-sm text-white/75">
+                The dictator secretly picks who fits the prompt best. Everyone
+                else tries to guess that pick. Matching the dictator earns 1
+                point, or 2 with your one-time Double Down card.
+              </p>
+            </div>
+
+            {badPeopleState.status === "DICTATOR_PICK" && (
+              <div className="rounded-xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm">
+                {isDictator ? (
+                  <>
+                    <p className="mb-4 text-white/85">
+                      Make your secret pick. Everyone else will try to predict it.
+                    </p>
+                    <div className="flex flex-wrap gap-3 justify-center">
+                      {players.map((player) => (
+                        <Button
+                          key={player.id}
+                          onClick={() =>
+                            badPeopleDictatorVote.mutate({
+                              roomId: room?.id || "",
+                              playerId: actualPlayer || "",
+                              votedPlayerId: player.id,
+                            })
+                          }
+                          disabled={!actualPlayer || badPeopleDictatorVote.isPending}
+                          className="bg-rose-600 hover:bg-rose-700"
+                        >
+                          Secret pick: {player.name}
+                        </Button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-center text-white/80">
+                    Waiting for {dictatorName} to make a secret pick.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {badPeopleState.status === "PLAYERS_GUESS" && (
+              <div className="grid gap-4 lg:grid-cols-[1.4fr_0.9fr]">
+                <div className="rounded-xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm">
+                  {isDictator ? (
+                    <>
+                      <p className="text-white/85">
+                        Your secret pick is locked. Waiting for guesses from:
+                      </p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {waitingOnPlayers.length === 0 ? (
+                          <Badge className="bg-emerald-600">Everyone guessed</Badge>
+                        ) : (
+                          waitingOnPlayers.map((player) => (
+                            <Badge key={player.id} variant="secondary">
+                              {player.name}
+                            </Badge>
+                          ))
+                        )}
+                      </div>
+                      {waitingOnPlayers.length === 0 && (
+                        <Button
+                          className="mt-5 bg-purple-600 hover:bg-purple-700"
+                          onClick={() =>
+                            badPeopleReveal.mutate({
+                              roomId: room?.id || "",
+                              playerId: actualPlayer || "",
+                            })
+                          }
+                          disabled={!actualPlayer || badPeopleReveal.isPending}
+                        >
+                          Reveal Round
+                        </Button>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <p className="mb-4 text-white/85">
+                        Guess who {dictatorName} secretly picked.
+                      </p>
+                      {canUseDoubleDown && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setBadPeopleUseDoubleDown((current) => !current)
+                          }
+                          className={`mb-4 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
+                            badPeopleUseDoubleDown
+                              ? "border-amber-300 bg-amber-500/20 text-amber-100"
+                              : "border-white/20 bg-black/20 text-white/80 hover:bg-white/10"
+                          }`}
+                        >
+                          {badPeopleUseDoubleDown
+                            ? "Double Down active: worth 2 points"
+                            : "Use Double Down card"}
+                        </button>
+                      )}
+                      {usedDoubleDown && (
+                        <p className="mb-4 text-sm text-amber-200">
+                          You already used your Double Down card in an earlier round.
+                        </p>
+                      )}
+                      {hasGuessed ? (
+                        <p className="text-white/80">
+                          Your guess is locked in. Wait for the reveal.
+                        </p>
+                      ) : (
+                        <div className="flex flex-wrap gap-3 justify-center">
+                          {players.map((player) => (
+                            <Button
+                              key={player.id}
+                              onClick={() =>
+                                badPeopleGuess.mutate({
+                                  roomId: room?.id || "",
+                                  playerId: actualPlayer || "",
+                                  guessedPlayerId: player.id,
+                                  useDoubleDown: badPeopleUseDoubleDown,
+                                })
+                              }
+                              disabled={!actualPlayer || badPeopleGuess.isPending}
+                              className="bg-sky-600 hover:bg-sky-700"
+                            >
+                              Guess: {player.name}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm">
+                  <h3 className="text-lg font-semibold text-white">Guess Board</h3>
+                  <div className="mt-4 space-y-2">
+                    {players
+                      .filter((player) => player.id !== badPeopleState.dictatorPlayerId)
+                      .map((player) => {
+                        const guessed = Boolean(badPeopleState.guessesByPlayerId[player.id]);
+                        const doubled = badPeopleState.doubleDownActivePlayerIds.includes(
+                          player.id,
+                        );
+                        return (
+                          <div
+                            key={player.id}
+                            className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 px-3 py-2"
+                          >
+                            <span className="text-white">{player.name}</span>
+                            <div className="flex items-center gap-2">
+                              {doubled && (
+                                <Badge className="bg-amber-600">Double Down</Badge>
+                              )}
+                              <Badge variant={guessed ? "secondary" : "outline"}>
+                                {guessed ? "Guessed" : "Waiting"}
+                              </Badge>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {badPeopleState.status === "REVEALED" && (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-emerald-300/30 bg-emerald-500/10 p-5 text-center backdrop-blur-sm">
+                  <p className="text-sm uppercase tracking-[0.2em] text-emerald-200/80">
+                    Dictator Pick
+                  </p>
+                  <p className="mt-3 text-3xl font-extrabold text-white">
+                    {revealedPlayerName}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm">
+                  <h3 className="text-lg font-semibold text-white">Round Results</h3>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    {revealedResults.map((result) => (
+                      <div
+                        key={result.playerId}
+                        className={`rounded-xl border p-4 ${
+                          result.guessedCorrectly
+                            ? "border-emerald-300/30 bg-emerald-500/10"
+                            : "border-white/10 bg-black/20"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-semibold text-white">{result.playerName}</p>
+                          <Badge
+                            className={
+                              result.guessedCorrectly ? "bg-emerald-600" : "bg-zinc-700"
+                            }
+                          >
+                            {result.guessedCorrectly ? `+${result.score}` : "0"}
+                          </Badge>
+                        </div>
+                        <p className="mt-3 text-sm text-white/75">
+                          Guessed: {result.guessedPlayerName}
+                        </p>
+                        {result.usedDoubleDownThisRound && (
+                          <p className="mt-2 text-sm text-amber-200">
+                            Double Down used
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {isDictator ? (
+                    <Button
+                      className="mt-5 bg-yellow-500 text-white hover:bg-yellow-600"
+                      onClick={() =>
+                        badPeopleNextRound.mutate({
+                          roomId: room?.id || "",
+                          playerId: actualPlayer || "",
+                          currentQuestionId:
+                            room?.currentQuestionId == null
+                              ? ""
+                              : String(room.currentQuestionId),
+                        })
+                      }
+                      disabled={!actualPlayer || badPeopleNextRound.isPending}
+                    >
+                      Next Round
+                    </Button>
+                  ) : (
+                    <p className="mt-5 text-sm text-white/75">
+                      Waiting for {dictatorName} to start the next round.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      }
+
       case "paranoia": {
         const isCurrentPlayer = actualPlayer === room?.currentPlayerId;
         const revealedPlayerId = room?.currentAnswer || "";
@@ -682,7 +1006,7 @@ export default React.memo(function GameContentRenderer(props: any) {
             {!revealedPlayerId && (
               <>
                 <p className="text-lg text-white/80 mb-4">
-                  Vote anonymously for who fits this prompt best.
+                  Vote anonymously for who fits this {voteGameName} prompt best.
                 </p>
                 <p className="text-sm text-white/70 mb-6">
                   Votes in: {totalVotes}/{requiredVotes}
