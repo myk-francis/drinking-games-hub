@@ -20,6 +20,7 @@ export const MIN_PLAYERS_BY_GAME: Record<string, number> = {
   paranoia: 3,
   "bad-people": 3,
   "bad-choices": 3,
+  "spin-the-bottle": 4,
   "kings-cup": 2,
   "taboo-lite": 4,
   "most-likely": 3,

@@ -40,6 +40,7 @@ import {
   normalizeSelfServicePayload,
   type SelfServicePayload,
 } from "@/lib/self-service";
+import { SPIN_BOTTLE_MODE_OPTIONS } from "@/modules/games/lib/spin-the-bottle";
 
 interface TeamsInfo {
   teamName: string;
@@ -61,6 +62,7 @@ const GameIcon = (gamecode: string) => {
   if (gamecode === "paranoia") return <Eye className="w-6 h-6" />;
   if (gamecode === "bad-people") return <Skull className="w-6 h-6" />;
   if (gamecode === "bad-choices") return <ShieldQuestion className="w-6 h-6" />;
+  if (gamecode === "spin-the-bottle") return <FlaskConical className="w-6 h-6" />;
   if (gamecode === "rhyme-time") return <Mic className="w-6 h-6" />;
   if (gamecode === "higher-lower") return <ArrowUpRight className="w-6 h-6" />;
   if (gamecode === "verbal-charades") return <Theater className="w-6 h-6" />;
@@ -91,6 +93,7 @@ const GameColor = (gamecode: string) => {
   if (gamecode === "paranoia") return "from-slate-600 to-rose-700";
   if (gamecode === "bad-people") return "from-zinc-700 to-red-700";
   if (gamecode === "bad-choices") return "from-orange-600 to-red-700";
+  if (gamecode === "spin-the-bottle") return "from-fuchsia-600 to-rose-700";
   if (gamecode === "rhyme-time") return "from-violet-500 to-fuchsia-600";
   if (gamecode === "higher-lower") return "from-indigo-600 to-sky-500";
   if (gamecode === "verbal-charades") return "from-amber-500 to-orange-600";
@@ -375,6 +378,15 @@ export default function SelfServicePage() {
                   Starting stack: {selectedPokerStake}. Opening blinds:{" "}
                   {selectedPokerStake / 10} / {selectedPokerStake / 5}.
                 </p>
+              </div>
+            )}
+            {selectedGame === "spin-the-bottle" && (
+              <div className="mt-4">
+                <ComboBox
+                  options={SPIN_BOTTLE_MODE_OPTIONS}
+                  handleSelect={setSelectedRounds}
+                  value={selectedRounds || SPIN_BOTTLE_MODE_OPTIONS[0].value}
+                />
               </div>
             )}
 

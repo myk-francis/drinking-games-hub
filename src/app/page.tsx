@@ -28,6 +28,7 @@ import {
   getGameConfig,
   isCreateRoomDisabled,
 } from "@/modules/games/lib/game-config";
+import { SPIN_BOTTLE_MODE_OPTIONS } from "@/modules/games/lib/spin-the-bottle";
 
 interface TeamsInfo {
   teamName: string;
@@ -599,6 +600,19 @@ export default function HomePage() {
                     <p className="mt-2 text-sm text-white/75">
                       Starting stack: {selectedPokerStake}. Opening blinds:{" "}
                       {selectedPokerStake / 10} / {selectedPokerStake / 5}.
+                    </p>
+                  </div>
+                )}
+                {selectedGame === "spin-the-bottle" && (
+                  <div className="mt-4">
+                    <ComboBox
+                      options={SPIN_BOTTLE_MODE_OPTIONS}
+                      handleSelect={setSelectedRounds}
+                      value={selectedRounds || SPIN_BOTTLE_MODE_OPTIONS[0].value}
+                    />
+                    <p className="mt-2 text-sm text-white/75">
+                      Pick the version of Spin the Bottle you want before creating
+                      the room.
                     </p>
                   </div>
                 )}

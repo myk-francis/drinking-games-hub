@@ -19,6 +19,10 @@ export default React.memo(function GameContentRenderer(props: any) {
     badChoicesCards,
     badChoicesPlayCard,
     badChoicesState,
+    spinBottleChooseAction,
+    spinBottleMode,
+    spinBottleSpin,
+    spinBottleState,
     actionButtonText,
     badPeopleDictatorVote,
     badPeopleGuess,
@@ -169,6 +173,9 @@ export default React.memo(function GameContentRenderer(props: any) {
   const [badPeopleUseDoubleDown, setBadPeopleUseDoubleDown] = React.useState(false);
   const [badChoicesSelectedCardId, setBadChoicesSelectedCardId] = React.useState(null);
   const [badChoicesSelectedTargetId, setBadChoicesSelectedTargetId] = React.useState("");
+  const [spinBottleRotation, setSpinBottleRotation] = React.useState(0);
+  const [spinBottleTransitionMs, setSpinBottleTransitionMs] = React.useState(0);
+  const [spinBottleNow, setSpinBottleNow] = React.useState(() => Date.now());
 
   const badChoicesCardMap = React.useMemo(
     () => new Map((badChoicesCards || []).map((card) => [card.id, card])),
@@ -231,6 +238,64 @@ export default React.memo(function GameContentRenderer(props: any) {
     badChoicesState?.activeCardId,
     badChoicesState?.roundNumber,
     badChoicesState?.status,
+  ]);
+
+  React.useEffect(() => {
+    if (selectedGame !== "spin-the-bottle") {
+      return;
+    }
+
+    const hasActiveSpin =
+      Boolean(spinBottleState?.spinStartedAt) &&
+      spinBottleState?.status === "AWAITING_ACTION";
+    if (!hasActiveSpin) {
+      setSpinBottleNow(Date.now());
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setSpinBottleNow(Date.now());
+    }, 120);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [selectedGame, spinBottleState?.spinStartedAt, spinBottleState?.status]);
+
+  React.useEffect(() => {
+    if (selectedGame !== "spin-the-bottle") {
+      setSpinBottleRotation(0);
+      setSpinBottleTransitionMs(0);
+      return;
+    }
+
+    if (!spinBottleState?.spinStartedAt) {
+      setSpinBottleTransitionMs(0);
+      setSpinBottleRotation(spinBottleState?.finalAngle || 0);
+      return;
+    }
+
+    const endsAt =
+      new Date(spinBottleState.spinStartedAt).getTime() +
+      (spinBottleState.spinDurationMs || 0);
+    const remainingMs = Math.max(0, endsAt - Date.now());
+
+    if (remainingMs === 0) {
+      setSpinBottleTransitionMs(0);
+      setSpinBottleRotation(spinBottleState.finalAngle || 0);
+      return;
+    }
+
+    setSpinBottleTransitionMs(remainingMs);
+    requestAnimationFrame(() => {
+      setSpinBottleRotation(spinBottleState.finalAngle || 0);
+    });
+  }, [
+    selectedGame,
+    spinBottleState?.finalAngle,
+    spinBottleState?.spinDurationMs,
+    spinBottleState?.spinSequence,
+    spinBottleState?.spinStartedAt,
   ]);
 
   const currentTeamLeaderId = React.useCallback(() => {
@@ -722,6 +787,249 @@ export default React.memo(function GameContentRenderer(props: any) {
             )}
           </div>
         );
+
+      case "spin-the-bottle": {
+        const orderedSpinPlayers =
+          (spinBottleState?.playerOrder || [])
+            .map((playerId) => players.find((player) => player.id === playerId))
+            .filter(Boolean) || [];
+        const spinnerPlayerName =
+          players.find(
+            (player) => player.id === spinBottleState.currentSpinnerPlayerId,
+          )?.name || "Unknown Player";
+        const targetPlayerName =
+          players.find((player) => player.id === spinBottleState.targetPlayerId)?.name ||
+          "Unknown Player";
+        const lastTargetPlayerName =
+          players.find(
+            (player) => player.id === spinBottleState.lastTargetPlayerId,
+          )?.name || "Unknown Player";
+        const spinEndsAt = spinBottleState.spinStartedAt
+          ? new Date(spinBottleState.spinStartedAt).getTime() +
+            (spinBottleState.spinDurationMs || 0)
+          : 0;
+        const isSpinAnimating =
+          spinBottleState.status === "AWAITING_ACTION" &&
+          Boolean(spinBottleState.targetPlayerId) &&
+          spinEndsAt > spinBottleNow;
+        const canCurrentPlayerSpin =
+          actualPlayer === spinBottleState.currentSpinnerPlayerId &&
+          spinBottleState.status === "READY";
+        const canChooseSpinAction =
+          actualPlayer === spinBottleState.currentSpinnerPlayerId &&
+          spinBottleState.status === "AWAITING_ACTION" &&
+          !isSpinAnimating &&
+          Boolean(spinBottleState.targetPlayerId);
+        const circleSize = orderedSpinPlayers.length > 6 ? 320 : 280;
+        const playerRingRadius = orderedSpinPlayers.length > 6 ? 128 : 110;
+
+        return (
+          <div className="w-full">
+            <div className="mb-6 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">
+                  {spinBottleMode?.shortName || "Classic"} Mode
+                </Badge>
+                <Badge variant="outline">
+                  Spinner: {spinnerPlayerName}
+                </Badge>
+                <Badge className="bg-fuchsia-600">
+                  Spin {spinBottleState.roundNumber}
+                </Badge>
+              </div>
+              <p className="mt-4 text-sm text-white/80">
+                The server picks the target first, then every phone animates the
+                same spin toward that player.
+              </p>
+              {spinBottleState.lastActionLabel && (
+                <p className="mt-3 text-sm text-amber-200">
+                  Last result: {lastTargetPlayerName} - {spinBottleState.lastActionLabel}
+                </p>
+              )}
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+              <div className="rounded-[2rem] border border-white/20 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.16),rgba(17,24,39,0.08)_45%,rgba(17,24,39,0.28)_100%)] p-4 backdrop-blur-sm">
+                <div
+                  className="relative mx-auto"
+                  style={{ width: circleSize, height: circleSize }}
+                >
+                  <div className="absolute inset-6 rounded-full border border-white/15 border-dashed" />
+                  {orderedSpinPlayers.map((player, index) => {
+                    const angle =
+                      (-90 + index * (360 / Math.max(orderedSpinPlayers.length, 1))) *
+                      (Math.PI / 180);
+                    const x = Math.cos(angle) * playerRingRadius;
+                    const y = Math.sin(angle) * playerRingRadius;
+                    const isTarget =
+                      player.id === spinBottleState.targetPlayerId &&
+                      (isSpinAnimating || spinBottleState.status === "AWAITING_ACTION");
+                    const isLastTarget =
+                      !spinBottleState.targetPlayerId &&
+                      player.id === spinBottleState.lastTargetPlayerId;
+                    const isSpinner = player.id === spinBottleState.currentSpinnerPlayerId;
+
+                    return (
+                      <div
+                        key={player.id}
+                        className={`absolute left-1/2 top-1/2 w-24 -translate-x-1/2 -translate-y-1/2 rounded-2xl border px-3 py-2 text-center text-xs font-semibold shadow-lg transition-all sm:w-28 sm:text-sm ${
+                          isTarget
+                            ? "border-emerald-300/60 bg-emerald-500/25 text-emerald-50 scale-110"
+                            : isLastTarget
+                              ? "border-amber-300/45 bg-amber-500/15 text-amber-50"
+                              : isSpinner
+                                ? "border-fuchsia-300/45 bg-fuchsia-500/15 text-white"
+                                : "border-white/15 bg-black/25 text-white/85"
+                        }`}
+                        style={{
+                          transform: `translate(${x}px, ${y}px) translate(-50%, -50%)`,
+                        }}
+                      >
+                        {player.name}
+                      </div>
+                    );
+                  })}
+
+                  <div className="absolute left-1/2 top-1/2 z-20 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/25 bg-zinc-950/90 shadow-[0_0_25px_rgba(255,255,255,0.15)]" />
+
+                  <div
+                    className="absolute left-1/2 top-1/2 z-10 h-28 w-28 -translate-x-1/2 -translate-y-1/2"
+                    style={{
+                      transform: `translate(-50%, -50%) rotate(${spinBottleRotation}deg)`,
+                      transition:
+                        spinBottleTransitionMs > 0
+                          ? `transform ${spinBottleTransitionMs}ms cubic-bezier(0.12, 0.86, 0.18, 1)`
+                          : "none",
+                    }}
+                  >
+                    <svg viewBox="0 0 120 120" className="h-full w-full drop-shadow-[0_10px_24px_rgba(0,0,0,0.45)]">
+                      <g>
+                        <rect x="51" y="6" width="18" height="20" rx="6" fill="#f8fafc" />
+                        <rect x="46" y="20" width="28" height="14" rx="7" fill="#22d3ee" />
+                        <path
+                          d="M60 30 C88 38 103 54 110 60 C103 66 88 82 60 90 C32 82 17 66 10 60 C17 54 32 38 60 30Z"
+                          fill="#ec4899"
+                        />
+                        <path
+                          d="M60 42 C81 47 93 56 99 60 C93 64 81 73 60 78 C39 73 27 64 21 60 C27 56 39 47 60 42Z"
+                          fill="#fb7185"
+                          opacity="0.9"
+                        />
+                        <circle cx="104" cy="60" r="5" fill="#fef3c7" />
+                      </g>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                  {isSpinAnimating ? (
+                    <>
+                      <p className="text-sm uppercase tracking-[0.24em] text-fuchsia-200/80">
+                        Spinning
+                      </p>
+                      <p className="mt-2 text-xl font-bold text-white">
+                        {spinnerPlayerName} spun toward {targetPlayerName}
+                      </p>
+                      <p className="mt-2 text-sm text-white/75">
+                        All screens should land on the same player.
+                      </p>
+                    </>
+                  ) : spinBottleState.status === "AWAITING_ACTION" &&
+                    spinBottleState.targetPlayerId ? (
+                    <>
+                      <p className="text-sm uppercase tracking-[0.24em] text-emerald-200/80">
+                        Landed On
+                      </p>
+                      <p className="mt-2 text-2xl font-bold text-white">
+                        {targetPlayerName}
+                      </p>
+                      <p className="mt-2 text-sm text-white/75">
+                        Pick what happens next for this spin.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm uppercase tracking-[0.24em] text-cyan-200/80">
+                        Ready
+                      </p>
+                      <p className="mt-2 text-xl font-bold text-white">
+                        {spinnerPlayerName} is up
+                      </p>
+                      <p className="mt-2 text-sm text-white/75">
+                        Tap spin when everyone is ready.
+                      </p>
+                    </>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                  <p className="text-sm font-semibold text-white">Mode outcomes</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(spinBottleMode?.actions || []).map((action) => (
+                      <Badge key={action} variant="outline" className="border-white/20">
+                        {action}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                {canCurrentPlayerSpin && (
+                  <Button
+                    className="w-full bg-fuchsia-600 hover:bg-fuchsia-700"
+                    onClick={() =>
+                      spinBottleSpin.mutate({
+                        roomId: room?.id || "",
+                        playerId: actualPlayer || "",
+                      })
+                    }
+                    disabled={spinBottleSpin.isPending}
+                  >
+                    Spin Bottle
+                  </Button>
+                )}
+
+                {canChooseSpinAction && (
+                  <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <p className="text-sm font-semibold text-white">
+                      Choose the outcome for {targetPlayerName}
+                    </p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {(spinBottleMode?.actions || []).map((action) => (
+                        <Button
+                          key={action}
+                          variant="outline"
+                          className="border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                          onClick={() =>
+                            spinBottleChooseAction.mutate({
+                              roomId: room?.id || "",
+                              playerId: actualPlayer || "",
+                              actionLabel: action,
+                            })
+                          }
+                          disabled={spinBottleChooseAction.isPending}
+                        >
+                          {action}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {!canCurrentPlayerSpin &&
+                  !(canChooseSpinAction && !isSpinAnimating) && (
+                    <p className="text-sm text-white/70">
+                      {actualPlayer === spinBottleState.currentSpinnerPlayerId
+                        ? "Waiting for the bottle to settle."
+                        : `Waiting for ${spinnerPlayerName} to spin.`}
+                    </p>
+                  )}
+              </div>
+            </div>
+          </div>
+        );
+      }
 
       case "bad-choices": {
         const turnPlayerId = room?.currentPlayerId || null;

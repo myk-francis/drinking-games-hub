@@ -45,6 +45,7 @@ import { DRINKING_QUOTES } from "@/lib/quotes";
 import {
   parseBadChoicesState,
   parseBadPeopleState,
+  parseSpinBottleState,
   GUESS_THE_MOVIE_TIMER_SECONDS,
   NAME_THE_SONG_TIMER_SECONDS,
   parseBlackjackState,
@@ -61,6 +62,9 @@ import {
   parseUnoState,
   parseWhoAmIState,
 } from "@/modules/games/lib/room-state";
+import {
+  getSpinBottleModeByCode,
+} from "@/modules/games/lib/spin-the-bottle";
 import type {
   BlackjackCard,
   BlackjackPlayerResult,
@@ -1093,6 +1097,28 @@ export default function RoomPage() {
     }),
   );
 
+  const spinBottleSpin = useMutation(
+    trpc.games.spinBottleSpin.mutationOptions({
+      onSuccess: () => {
+        toast.success("Bottle spinning!");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not spin the bottle.");
+      },
+    }),
+  );
+
+  const spinBottleChooseAction = useMutation(
+    trpc.games.spinBottleChooseAction.mutationOptions({
+      onSuccess: (data) => {
+        toast.success(`${data.actionLabel} selected.`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not lock that bottle result.");
+      },
+    }),
+  );
+
   const nextWouldRatherQuestion = useMutation(
     trpc.games.nextWouldRatherQuestion.mutationOptions({
       onSuccess: () => {
@@ -2006,6 +2032,9 @@ export default function RoomPage() {
   }, [room?.currentAnswer]);
   const badChoicesState = React.useMemo(() => {
     return parseBadChoicesState(room?.currentAnswer);
+  }, [room?.currentAnswer]);
+  const spinBottleState = React.useMemo(() => {
+    return parseSpinBottleState(room?.currentAnswer);
   }, [room?.currentAnswer]);
   const badPeopleState = React.useMemo(() => {
     const parsed = parseBadPeopleState(room?.currentAnswer);
@@ -3608,6 +3637,10 @@ export default function RoomPage() {
                 badChoicesCards: game?.questions || [],
                 badChoicesPlayCard,
                 badChoicesState,
+                spinBottleChooseAction,
+                spinBottleMode: getSpinBottleModeByCode(spinBottleState.mode),
+                spinBottleSpin,
+                spinBottleState,
                 actionButtonText,
                 badPeopleDictatorVote,
                 badPeopleGuess,
@@ -4021,7 +4054,9 @@ const RoomHeader = React.memo(function RoomHeader({
   return (
     <div className="mb-5 text-center sm:mb-6">
       <h1 className="mb-2 text-3xl font-bold sm:text-4xl">🎮 {gameName}</h1>
-      {rounds === 0 || selectedGame === "truth-or-drink" ? (
+      {rounds === 0 ||
+      selectedGame === "truth-or-drink" ||
+      selectedGame === "spin-the-bottle" ? (
         <p className="text-sm text-white/70 sm:text-base">Round in progress</p>
       ) : (
         <p className="text-sm text-white/70 sm:text-base">

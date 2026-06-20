@@ -5,7 +5,12 @@ import { cookies } from "next/headers";
 import {
   parseBadChoicesState,
   parseBadPeopleState,
+  parseSpinBottleState,
 } from "@/modules/games/lib/room-state";
+import {
+  getSpinBottleModeByValue,
+  type SpinBottleMode,
+} from "@/modules/games/lib/spin-the-bottle";
 import type { Prisma } from "../../../../prisma/generated/prisma/client";
 
 function generateUniqueCard(previousCards: number[]): number | null {
@@ -162,6 +167,24 @@ type BadChoicesState = {
   pendingSkipCountsByPlayerId: Record<string, number>;
   winnerPlayerId: string | null;
   lastResult: string | null;
+};
+
+type SpinBottleStatus = "READY" | "AWAITING_ACTION";
+
+type SpinBottleState = {
+  status: SpinBottleStatus;
+  mode: SpinBottleMode;
+  roundNumber: number;
+  playerOrder: string[];
+  currentSpinnerPlayerId: string | null;
+  targetPlayerId: string | null;
+  direction: 1 | -1;
+  spinSequence: number;
+  spinStartedAt: string | null;
+  spinDurationMs: number;
+  finalAngle: number;
+  lastTargetPlayerId: string | null;
+  lastActionLabel: string | null;
 };
 
 type CodenamesState = {
@@ -3869,6 +3892,28 @@ async function syncRoomStateAfterPlayerAdded(
       return;
     }
 
+    case "spin-the-bottle": {
+      const fallbackMode = getSpinBottleModeByValue(room.rounds ?? 1).code;
+      const state = getNormalizedSpinBottleState(
+        room.currentAnswer,
+        nextPlayerIds,
+        fallbackMode,
+      );
+      state.playerOrder = nextPlayerIds;
+      if (!state.currentSpinnerPlayerId) {
+        state.currentSpinnerPlayerId = nextPlayerIds[0] ?? null;
+      }
+
+      await tx.room.update({
+        where: { id: room.id },
+        data: {
+          currentAnswer: JSON.stringify(state),
+          currentPlayerId: state.currentSpinnerPlayerId,
+        },
+      });
+      return;
+    }
+
     case "bad-people": {
       const state = getNormalizedBadPeopleState(
         room.currentAnswer,
@@ -4203,6 +4248,73 @@ function getNormalizedBadChoicesState(raw: string | null, playerIds: string[]) {
   }
 
   return nextState;
+}
+
+function createSpinBottleState(
+  playerIds: string[],
+  mode: SpinBottleMode,
+): SpinBottleState {
+  return {
+    status: "READY",
+    mode,
+    roundNumber: 1,
+    playerOrder: playerIds,
+    currentSpinnerPlayerId: playerIds[0] ?? null,
+    targetPlayerId: null,
+    direction: 1,
+    spinSequence: 0,
+    spinStartedAt: null,
+    spinDurationMs: 4200,
+    finalAngle: 0,
+    lastTargetPlayerId: null,
+    lastActionLabel: null,
+  };
+}
+
+function getNormalizedSpinBottleState(
+  raw: string | null,
+  playerIds: string[],
+  fallbackMode: SpinBottleMode,
+): SpinBottleState {
+  const parsedState = parseSpinBottleState(raw) as SpinBottleState;
+  const nextState: SpinBottleState = {
+    ...parsedState,
+    mode: parsedState.mode ?? fallbackMode,
+    playerOrder: playerIds,
+  };
+
+  if (!nextState.playerOrder.includes(nextState.currentSpinnerPlayerId ?? "")) {
+    nextState.currentSpinnerPlayerId = nextState.playerOrder[0] ?? null;
+  }
+  if (!nextState.playerOrder.includes(nextState.targetPlayerId ?? "")) {
+    nextState.targetPlayerId = null;
+  }
+  if (!nextState.playerOrder.includes(nextState.lastTargetPlayerId ?? "")) {
+    nextState.lastTargetPlayerId = null;
+  }
+
+  return nextState;
+}
+
+function getSpinBottleNextIndex(
+  state: SpinBottleState,
+  playerId: string,
+  direction: 1 | -1 = state.direction,
+) {
+  const currentIndex = state.playerOrder.indexOf(playerId);
+  if (currentIndex === -1 || state.playerOrder.length === 0) return -1;
+  return (
+    (currentIndex + direction + state.playerOrder.length) %
+    state.playerOrder.length
+  );
+}
+
+function getSpinBottleNextSpinnerPlayerId(
+  state: SpinBottleState,
+  currentSpinnerPlayerId: string,
+) {
+  const nextIndex = getSpinBottleNextIndex(state, currentSpinnerPlayerId);
+  return state.playerOrder[nextIndex] ?? null;
 }
 
 export const gamesRouter = createTRPCRouter({
@@ -4686,6 +4798,12 @@ export const gamesRouter = createTRPCRouter({
         ) {
           throw new Error("Bad Choices requires at least 3 players.");
         }
+        if (
+          input.selectedGame === "spin-the-bottle" &&
+          (input.players?.length || 0) < 4
+        ) {
+          throw new Error("Spin the Bottle requires at least 4 players.");
+        }
 
         if (input.selectedGame === "triviyay") {
           if (!input.teamsInfo || input.teamsInfo.length < 1) {
@@ -4824,6 +4942,7 @@ export const gamesRouter = createTRPCRouter({
           let pokerCurrentPlayerId: string | null = null;
           let unoCurrentPlayerId: string | null = null;
           let badChoicesCurrentPlayerId: string | null = null;
+          let spinBottleCurrentPlayerId: string | null = null;
 
           if (input.selectedGame === "truth-or-drink") {
             currentQuestionId =
@@ -4986,6 +5105,19 @@ export const gamesRouter = createTRPCRouter({
             badChoicesCurrentPlayerId = randomCurrentPlayerId;
             currentQuestionId = null;
           }
+          if (input.selectedGame === "spin-the-bottle") {
+            const playerIds = createdRoom.players.map((player) => player.id);
+            const spinBottleMode = getSpinBottleModeByValue(
+              input.selectedRounds || 1,
+            );
+            const spinBottleState = createSpinBottleState(
+              playerIds,
+              spinBottleMode.code,
+            );
+            roomCurrentAnswer = JSON.stringify(spinBottleState);
+            spinBottleCurrentPlayerId = spinBottleState.currentSpinnerPlayerId;
+            currentQuestionId = null;
+          }
 
           const createdRoomId = createdRoom.id;
           await prisma.room.update({
@@ -5004,6 +5136,8 @@ export const gamesRouter = createTRPCRouter({
                     ? unoCurrentPlayerId
                   : input.selectedGame === "bad-choices"
                     ? badChoicesCurrentPlayerId
+                  : input.selectedGame === "spin-the-bottle"
+                    ? spinBottleCurrentPlayerId
                   : randomCurrentPlayerId,
               previousPlayersIds: [],
               currentQuestionId: currentQuestionId,
@@ -5021,7 +5155,8 @@ export const gamesRouter = createTRPCRouter({
                 input.selectedGame === "guess-the-movie" ||
                 input.selectedGame === "blackjack" ||
                 input.selectedGame === "poker" ||
-                input.selectedGame === "bad-choices"
+                input.selectedGame === "bad-choices" ||
+                input.selectedGame === "spin-the-bottle"
                   ? 1
                   : undefined,
             },
@@ -7087,6 +7222,228 @@ export const gamesRouter = createTRPCRouter({
         status: state.status,
         currentPlayerId: nextPlayerId,
         winnerPlayerId: null,
+      };
+    }),
+
+  spinBottleSpin: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "spin-the-bottle") {
+        throw new Error("This room is not Spin the Bottle");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+
+      const mode = getSpinBottleModeByValue(room.rounds ?? 1).code;
+      const playerIds = room.players.map((player) => player.id);
+      const state = getNormalizedSpinBottleState(
+        room.currentAnswer,
+        playerIds,
+        mode,
+      );
+
+      if (state.currentSpinnerPlayerId !== input.playerId) {
+        throw new Error("It is not your turn to spin");
+      }
+      if (state.status === "AWAITING_ACTION") {
+        if (state.spinStartedAt) {
+          const endsAt =
+            new Date(state.spinStartedAt).getTime() + state.spinDurationMs;
+          if (Date.now() < endsAt) {
+            throw new Error("Wait for the bottle to finish spinning");
+          }
+        }
+        throw new Error("Finish the current result before spinning again");
+      }
+
+      const possibleTargetIds = playerIds.filter((playerId) => playerId !== input.playerId);
+      if (possibleTargetIds.length === 0) {
+        throw new Error("Not enough players to spin");
+      }
+
+      const targetPlayerId =
+        possibleTargetIds[Math.floor(Math.random() * possibleTargetIds.length)] ??
+        null;
+      if (!targetPlayerId) {
+        throw new Error("Could not find a target player");
+      }
+
+      const targetIndex = state.playerOrder.indexOf(targetPlayerId);
+      const targetRotation = targetIndex >= 0
+        ? targetIndex * (360 / state.playerOrder.length)
+        : 0;
+      const currentRotation = ((state.finalAngle % 360) + 360) % 360;
+      let forwardDelta = targetRotation - currentRotation;
+      if (forwardDelta <= 0) {
+        forwardDelta += 360;
+      }
+
+      const extraTurns = 5 + Math.floor(Math.random() * 3);
+      const finalAngle = state.finalAngle + extraTurns * 360 + forwardDelta;
+      const spinStartedAt = new Date().toISOString();
+
+      state.status = "AWAITING_ACTION";
+      state.targetPlayerId = targetPlayerId;
+      state.spinSequence += 1;
+      state.spinStartedAt = spinStartedAt;
+      state.spinDurationMs = 4200;
+      state.finalAngle = finalAngle;
+      state.lastTargetPlayerId = targetPlayerId;
+      state.lastActionLabel = null;
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentAnswer: JSON.stringify(state),
+          currentPlayerId: state.currentSpinnerPlayerId,
+          currentRound: state.roundNumber,
+        },
+      });
+
+      return {
+        targetPlayerId,
+        spinSequence: state.spinSequence,
+      };
+    }),
+
+  spinBottleChooseAction: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        actionLabel: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "spin-the-bottle") {
+        throw new Error("This room is not Spin the Bottle");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+
+      const modeOption = getSpinBottleModeByValue(room.rounds ?? 1);
+      const playerIds = room.players.map((player) => player.id);
+      const state = getNormalizedSpinBottleState(
+        room.currentAnswer,
+        playerIds,
+        modeOption.code,
+      );
+
+      if (state.status !== "AWAITING_ACTION" || !state.targetPlayerId) {
+        throw new Error("Spin the bottle first");
+      }
+      if (state.currentSpinnerPlayerId !== input.playerId) {
+        throw new Error("Only the active spinner can choose the result");
+      }
+      if (!modeOption.actions.includes(input.actionLabel)) {
+        throw new Error("That action does not belong to this mode");
+      }
+
+      if (state.spinStartedAt) {
+        const endsAt =
+          new Date(state.spinStartedAt).getTime() + state.spinDurationMs;
+        if (Date.now() < endsAt) {
+          throw new Error("Wait for the bottle to finish spinning");
+        }
+      }
+
+      const currentSpinnerPlayerId = state.currentSpinnerPlayerId;
+      let nextSpinnerPlayerId = state.targetPlayerId;
+      if (input.actionLabel === "Steal Turn") {
+        nextSpinnerPlayerId = currentSpinnerPlayerId;
+      }
+      if (input.actionLabel === "Reverse") {
+        state.direction = state.direction === 1 ? -1 : 1;
+        nextSpinnerPlayerId = getSpinBottleNextSpinnerPlayerId(
+          state,
+          currentSpinnerPlayerId ?? "",
+        );
+      }
+      if (!nextSpinnerPlayerId) {
+        nextSpinnerPlayerId =
+          getSpinBottleNextSpinnerPlayerId(state, currentSpinnerPlayerId ?? "") ??
+          state.playerOrder[0] ??
+          null;
+      }
+
+      state.status = "READY";
+      state.lastActionLabel = input.actionLabel;
+      state.currentSpinnerPlayerId = nextSpinnerPlayerId;
+      state.targetPlayerId = null;
+      state.spinStartedAt = null;
+      state.roundNumber += 1;
+
+      await prisma.$transaction(async (tx) => {
+        if (input.actionLabel === "Drink" && state.lastTargetPlayerId) {
+          await tx.player.update({
+            where: { id: state.lastTargetPlayerId },
+            data: {
+              drinks: {
+                increment: 1,
+              },
+            },
+          });
+        }
+
+        if (input.actionLabel === "Everyone Drinks") {
+          await tx.player.updateMany({
+            where: {
+              roomId: input.roomId,
+            },
+            data: {
+              drinks: {
+                increment: 1,
+              },
+            },
+          });
+        }
+
+        await tx.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentAnswer: JSON.stringify(state),
+            currentPlayerId: state.currentSpinnerPlayerId,
+            currentRound: state.roundNumber,
+          },
+        });
+      });
+
+      return {
+        nextSpinnerPlayerId: state.currentSpinnerPlayerId,
+        actionLabel: input.actionLabel,
       };
     }),
 
