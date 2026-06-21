@@ -9,9 +9,329 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 import PokerRoom from "./PokerRoom";
 import UnoRoom from "./UnoRoom";
+
+const PARTY_TABLE_STYLES = {
+  default: {
+    shell:
+      "border-white/20 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.16),_rgba(10,14,24,0.9)_58%,_rgba(5,7,12,0.98)_100%)]",
+    chip: "bg-white/12 text-white/80 border-white/15",
+    action: "border-white/15 bg-white/10 text-white",
+    tip: "border-white/10 bg-black/25 text-white/80",
+    promptAccent: "from-white/95 via-slate-50 to-slate-100",
+    corner: "Table Deck",
+    tipTitle: "Table Flow",
+    tipText: "Clean prompt in the middle, quick action on the side, same rhythm as Poker.",
+  },
+  "never-have-i-ever": {
+    shell:
+      "border-rose-300/25 bg-[radial-gradient(circle_at_top,_rgba(251,113,133,0.28),_rgba(24,12,22,0.92)_58%,_rgba(10,6,12,0.98)_100%)]",
+    chip: "border-rose-300/20 bg-rose-400/15 text-rose-100",
+    action: "border-rose-300/20 bg-rose-400/12 text-rose-50",
+    tip: "border-orange-300/15 bg-orange-400/10 text-orange-50/85",
+    promptAccent: "from-white via-rose-50 to-orange-50",
+    corner: "Confession",
+    tipTitle: "Sip Check",
+    tipText: "Keep the prompt bright and the action obvious so players react fast.",
+  },
+  imposter: {
+    shell:
+      "border-fuchsia-300/25 bg-[radial-gradient(circle_at_top,_rgba(217,70,239,0.22),_rgba(18,11,27,0.93)_58%,_rgba(8,4,14,0.98)_100%)]",
+    chip: "border-fuchsia-300/20 bg-fuchsia-400/12 text-fuchsia-100",
+    action: "border-fuchsia-300/20 bg-fuchsia-400/10 text-fuchsia-50",
+    tip: "border-cyan-300/15 bg-cyan-400/10 text-cyan-50/85",
+    promptAccent: "from-white via-fuchsia-50 to-violet-50",
+    corner: "Cover Story",
+    tipTitle: "Hidden Role",
+    tipText: "The prompt stays clean while the side panel carries the tension.",
+  },
+  "truth-or-drink": {
+    shell:
+      "border-cyan-300/25 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.24),_rgba(10,20,30,0.93)_58%,_rgba(4,8,14,0.98)_100%)]",
+    chip: "border-cyan-300/20 bg-cyan-400/12 text-cyan-100",
+    action: "border-cyan-300/20 bg-cyan-400/10 text-cyan-50",
+    tip: "border-emerald-300/15 bg-emerald-400/10 text-emerald-50/85",
+    promptAccent: "from-white via-cyan-50 to-sky-50",
+    corner: "Truth Call",
+    tipTitle: "Decision Point",
+    tipText: "This layout makes the question feel like a featured card and the choice feel immediate.",
+  },
+  "pick-a-card": {
+    shell:
+      "border-amber-300/25 bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.24),_rgba(28,16,12,0.93)_58%,_rgba(12,8,6,0.98)_100%)]",
+    chip: "border-amber-300/20 bg-amber-400/12 text-amber-100",
+    action: "border-amber-300/20 bg-amber-400/10 text-amber-50",
+    tip: "border-rose-300/15 bg-rose-400/10 text-rose-50/85",
+    promptAccent: "from-white via-amber-50 to-rose-50",
+    corner: "Drawn Card",
+    tipTitle: "Card Energy",
+    tipText: "A card game should feel dealt, not dumped into a text box.",
+  },
+  "higher-lower": {
+    shell:
+      "border-indigo-300/25 bg-[radial-gradient(circle_at_top,_rgba(99,102,241,0.24),_rgba(12,14,32,0.93)_58%,_rgba(5,7,14,0.98)_100%)]",
+    chip: "border-indigo-300/20 bg-indigo-400/12 text-indigo-100",
+    action: "border-indigo-300/20 bg-indigo-400/10 text-indigo-50",
+    tip: "border-emerald-300/15 bg-emerald-400/10 text-emerald-50/85",
+    promptAccent: "from-white via-indigo-50 to-sky-50",
+    corner: "Read The Run",
+    tipTitle: "Fast Read",
+    tipText: "One giant value, two bold calls, and a side summary keeps this game snappy.",
+  },
+  "most-likely": {
+    shell:
+      "border-lime-300/25 bg-[radial-gradient(circle_at_top,_rgba(132,204,22,0.22),_rgba(16,24,12,0.93)_58%,_rgba(8,12,6,0.98)_100%)]",
+    chip: "border-lime-300/20 bg-lime-400/12 text-lime-100",
+    action: "border-lime-300/20 bg-lime-400/10 text-lime-50",
+    tip: "border-emerald-300/15 bg-emerald-400/10 text-emerald-50/85",
+    promptAccent: "from-white via-lime-50 to-emerald-50",
+    corner: "Spotlight Vote",
+    tipTitle: "Vote Pressure",
+    tipText: "Keep the prompt prominent and the vote buttons easy to scan in a crowd.",
+  },
+  "verbal-charades": {
+    shell:
+      "border-orange-300/25 bg-[radial-gradient(circle_at_top,_rgba(251,146,60,0.24),_rgba(29,16,10,0.93)_58%,_rgba(12,8,5,0.98)_100%)]",
+    chip: "border-orange-300/20 bg-orange-400/12 text-orange-100",
+    action: "border-orange-300/20 bg-orange-400/10 text-orange-50",
+    tip: "border-yellow-300/15 bg-yellow-400/10 text-yellow-50/85",
+    promptAccent: "from-white via-orange-50 to-amber-50",
+    corner: "Act It Out",
+    tipTitle: "Stage Notes",
+    tipText: "The acting pair, timer, and resolution controls now read like one matched set.",
+  },
+  "truth-or-lie": {
+    shell:
+      "border-violet-300/25 bg-[radial-gradient(circle_at_top,_rgba(139,92,246,0.24),_rgba(17,13,31,0.93)_58%,_rgba(7,5,14,0.98)_100%)]",
+    chip: "border-violet-300/20 bg-violet-400/12 text-violet-100",
+    action: "border-violet-300/20 bg-violet-400/10 text-violet-50",
+    tip: "border-pink-300/15 bg-pink-400/10 text-pink-50/85",
+    promptAccent: "from-white via-violet-50 to-fuchsia-50",
+    corner: "Bluff Check",
+    tipTitle: "Reveal Timing",
+    tipText: "Voting and reveal moments should feel dramatic without getting cluttered.",
+  },
+  "would-you-rather": {
+    shell:
+      "border-blue-300/25 bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.24),_rgba(12,16,30,0.93)_58%,_rgba(5,8,15,0.98)_100%)]",
+    chip: "border-blue-300/20 bg-blue-400/12 text-blue-100",
+    action: "border-blue-300/20 bg-blue-400/10 text-blue-50",
+    tip: "border-orange-300/15 bg-orange-400/10 text-orange-50/85",
+    promptAccent: "from-white via-blue-50 to-orange-50",
+    corner: "Split Choice",
+    tipTitle: "Crowd Split",
+    tipText: "The choice card is the star and the side panel shows where the room is leaning.",
+  },
+  triviyay: {
+    shell:
+      "border-purple-300/25 bg-[radial-gradient(circle_at_top,_rgba(168,85,247,0.24),_rgba(18,11,29,0.93)_58%,_rgba(8,5,14,0.98)_100%)]",
+    chip: "border-purple-300/20 bg-purple-400/12 text-purple-100",
+    action: "border-purple-300/20 bg-purple-400/10 text-purple-50",
+    tip: "border-amber-300/15 bg-amber-400/10 text-amber-50/85",
+    promptAccent: "from-white via-purple-50 to-pink-50",
+    corner: "Category Card",
+    tipTitle: "Team Table",
+    tipText: "Judging teams and category calls should feel structured, not improvised.",
+  },
+  "catherines-special": {
+    shell:
+      "border-emerald-300/25 bg-[radial-gradient(circle_at_top,_rgba(52,211,153,0.24),_rgba(10,24,18,0.93)_58%,_rgba(4,10,7,0.98)_100%)]",
+    chip: "border-emerald-300/20 bg-emerald-400/12 text-emerald-100",
+    action: "border-emerald-300/20 bg-emerald-400/10 text-emerald-50",
+    tip: "border-cyan-300/15 bg-cyan-400/10 text-cyan-50/85",
+    promptAccent: "from-white via-emerald-50 to-cyan-50",
+    corner: "Math Head",
+    tipTitle: "Mental Sprint",
+    tipText: "Timer, answer reveal, and result controls now sit inside one stronger card frame.",
+  },
+};
+
+function getPartyTableStyle(gameCode: string) {
+  return PARTY_TABLE_STYLES[gameCode] ?? PARTY_TABLE_STYLES.default;
+}
+
+function PartyStageButton({
+  tone = "neutral",
+  className,
+  ...props
+}: React.ComponentProps<typeof Button> & {
+  tone?: "neutral" | "accent" | "success" | "danger" | "warning";
+}) {
+  const toneClasses = {
+    neutral: "bg-white/12 text-white hover:bg-white/18",
+    accent: "bg-cyan-500 text-slate-950 hover:bg-cyan-400",
+    success: "bg-emerald-500 text-slate-950 hover:bg-emerald-400",
+    danger: "bg-rose-500 text-white hover:bg-rose-400",
+    warning: "bg-amber-400 text-slate-950 hover:bg-amber-300",
+  };
+
+  return (
+    <Button
+      {...props}
+      className={cn(
+        "min-w-[11rem] rounded-xl px-5 py-6 text-sm font-semibold shadow-lg transition-transform duration-200 hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50",
+        toneClasses[tone],
+        className,
+      )}
+    />
+  );
+}
+
+function PartyMetricCard({
+  label,
+  value,
+  hint,
+  tone = "neutral",
+}: {
+  label: React.ReactNode;
+  value: React.ReactNode;
+  hint?: React.ReactNode;
+  tone?: "neutral" | "accent" | "success" | "warning";
+}) {
+  const toneClasses = {
+    neutral: "border-white/15 bg-white/10 text-white",
+    accent: "border-cyan-300/20 bg-cyan-400/10 text-cyan-50",
+    success: "border-emerald-300/20 bg-emerald-400/10 text-emerald-50",
+    warning: "border-amber-300/20 bg-amber-400/10 text-amber-50",
+  };
+
+  return (
+    <div className={cn("rounded-2xl border p-4 backdrop-blur-sm", toneClasses[tone])}>
+      <p className="text-[11px] uppercase tracking-[0.22em] opacity-65">{label}</p>
+      <p className="mt-3 text-2xl font-black leading-none sm:text-3xl">{value}</p>
+      {hint ? <p className="mt-2 text-sm opacity-80">{hint}</p> : null}
+    </div>
+  );
+}
+
+function PartyGameLayout({
+  gameCode,
+  eyebrow,
+  title,
+  subtitle,
+  actionSummary,
+  actionHint,
+  metrics = [],
+  children,
+  aside,
+}: {
+  gameCode: string;
+  eyebrow: React.ReactNode;
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
+  actionSummary: React.ReactNode;
+  actionHint: React.ReactNode;
+  metrics?: Array<{
+    label: React.ReactNode;
+    value: React.ReactNode;
+    hint?: React.ReactNode;
+    tone?: "neutral" | "accent" | "success" | "warning";
+  }>;
+  children?: React.ReactNode;
+  aside?: React.ReactNode;
+}) {
+  const style = getPartyTableStyle(gameCode);
+
+  return (
+    <div className="mx-auto w-full max-w-5xl">
+      <div
+        className={cn(
+          "relative overflow-hidden rounded-[2rem] border p-4 shadow-[0_24px_80px_rgba(0,0,0,0.38)] sm:p-5 lg:p-6",
+          style.shell,
+        )}
+      >
+        <div className="pointer-events-none absolute inset-0 opacity-60">
+          <div className="absolute left-6 top-6 h-32 w-32 rounded-full bg-white/10 blur-3xl" />
+          <div className="absolute bottom-0 right-0 h-40 w-40 rounded-full bg-black/35 blur-3xl" />
+        </div>
+
+        <div className="relative grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+          <div className="space-y-4">
+            {metrics.length > 0 ? (
+              <div className="grid gap-3 sm:grid-cols-3">
+                {metrics.map((metric, index) => (
+                  <PartyMetricCard key={index} {...metric} />
+                ))}
+              </div>
+            ) : null}
+
+            <div className="rounded-[1.75rem] border border-white/15 bg-black/20 p-4 backdrop-blur-sm sm:p-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className={cn("rounded-full border px-3 py-1", style.chip)}>
+                  {eyebrow}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="rounded-full border-white/15 bg-black/15 px-3 py-1 text-white/75"
+                >
+                  Poker Line
+                </Badge>
+              </div>
+
+              <div
+                className={cn(
+                  "mt-4 rounded-[1.6rem] border border-slate-200/70 bg-gradient-to-br p-5 text-slate-950 shadow-[0_20px_50px_rgba(15,23,42,0.18)] sm:p-7",
+                  style.promptAccent,
+                )}
+              >
+                <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">
+                  <span>{eyebrow}</span>
+                  <span>{style.corner}</span>
+                </div>
+
+                <div className="py-8 text-center sm:py-10">
+                  <p className="text-balance text-3xl font-black leading-tight sm:text-4xl">
+                    {title}
+                  </p>
+                  {subtitle ? (
+                    <p className="mx-auto mt-4 max-w-2xl text-balance text-sm leading-6 text-slate-600 sm:text-base">
+                      {subtitle}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">
+                  <span>Last Sip Wins</span>
+                  <span>{style.corner}</span>
+                </div>
+              </div>
+
+              {children ? (
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+                  {children}
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className={cn("rounded-[1.5rem] border p-4 backdrop-blur-sm", style.action)}>
+              <p className="text-[11px] uppercase tracking-[0.24em] opacity-65">
+                Last Player Action
+              </p>
+              <p className="mt-3 text-lg font-bold leading-snug sm:text-xl">
+                {actionSummary}
+              </p>
+              <p className="mt-2 text-sm opacity-85">{actionHint}</p>
+            </div>
+
+            {aside ?? (
+              <div className={cn("rounded-[1.5rem] border p-4 backdrop-blur-sm", style.tip)}>
+                <p className="text-[11px] uppercase tracking-[0.24em] opacity-65">
+                  {style.tipTitle}
+                </p>
+                <p className="mt-3 text-sm leading-6">{style.tipText}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default React.memo(function GameContentRenderer(props: any) {
   const {
@@ -169,6 +489,16 @@ export default React.memo(function GameContentRenderer(props: any) {
     ? players.find((p) => p.id === room.currentPlayerId)?.name ||
       "Unknown Player"
     : "No player selected";
+  const getPlayerNameById = React.useCallback(
+    (playerId: string | null | undefined) => {
+      if (!playerId) return "Player";
+      return players.find((player) => player.id === playerId)?.name || "Player";
+    },
+    [players],
+  );
+  const actualPlayerName = actualPlayer
+    ? getPlayerNameById(actualPlayer)
+    : "You";
 
   const teams = room?.playingTeams || [];
   const [badPeopleUseDoubleDown, setBadPeopleUseDoubleDown] = React.useState(false);
@@ -312,17 +642,48 @@ export default React.memo(function GameContentRenderer(props: any) {
     switch (selectedGame) {
       case "never-have-i-ever":
         return (
-          <div className="text-center">
-            <div className="text-2xl mb-6 text-white leading-relaxed">
-              {currentQuestion?.text ||
-                "No question available. Please wait for the next round."}
-            </div>
-            <p className="text-lg text-white/80 mb-6">
-              Players who have done this, take a drink! 🍻
-            </p>
-            <div className="flex gap-4 justify-center">
-              {!clicked && (
-                <button
+          <PartyGameLayout
+            gameCode="never-have-i-ever"
+            eyebrow="Never Have I Ever"
+            title={
+              currentQuestion?.text ||
+              "No question available. Please wait for the next round."
+            }
+            subtitle="Players who have done it take a drink. Keep the confession quick and keep the table moving."
+            actionSummary={
+              clicked
+                ? `${actualPlayerName} locked in their move for this card.`
+                : `${currentPlayer} is setting the tone for the round.`
+            }
+            actionHint={
+              clicked
+                ? "Use the next card when the room is ready for a fresh confession."
+                : "Mark the sip or jump straight to the next question."
+            }
+            metrics={[
+              {
+                label: "Round",
+                value: room?.currentRound || 1,
+                hint: "Prompt deck live",
+                tone: "accent",
+              },
+              {
+                label: "Your Drinks",
+                value:
+                  room?.players?.find((player) => player.id === actualPlayer)?.drinks ||
+                  0,
+                hint: "Current tally",
+                tone: "warning",
+              },
+              {
+                label: "Turn Focus",
+                value: currentPlayer,
+                hint: "Keep it honest",
+              },
+            ]}
+          >
+            {!clicked && (
+              <PartyStageButton
                   onClick={() => {
                     updateRoom.mutate({
                       gamecode: "never-have-i-ever",
@@ -344,13 +705,13 @@ export default React.memo(function GameContentRenderer(props: any) {
                     });
                     setClicked(true);
                   }}
-                  className="px-6 py-3 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-semibold transition-colors"
+                  tone="warning"
                 >
                   Took a Drink
-                </button>
-              )}
-              {selectedGame === "never-have-i-ever" && !clicked && (
-                <button
+              </PartyStageButton>
+            )}
+            {selectedGame === "never-have-i-ever" && !clicked && (
+              <PartyStageButton
                   onClick={() => {
                     nextQuestion.mutate({
                       gamecode: "never-have-i-ever",
@@ -362,32 +723,64 @@ export default React.memo(function GameContentRenderer(props: any) {
                     });
                     setClicked(true);
                   }}
-                  className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 rounded-lg text-white font-semibold transition-colors"
+                  tone="accent"
                 >
                   Next Question
-                </button>
-              )}
-            </div>
-          </div>
+              </PartyStageButton>
+            )}
+          </PartyGameLayout>
         );
 
       case "imposter":
         return (
-          <div className="text-center">
-            <div className="text-2xl mb-6 text-white leading-relaxed">
-              {actualPlayer === room?.currentPlayerId
-                ? "IMPOSTER 🤡"
+          <PartyGameLayout
+            gameCode="imposter"
+            eyebrow="Imposter"
+            title={
+              actualPlayer === room?.currentPlayerId
+                ? "IMPOSTER"
                 : currentQuestion?.text ||
-                  "No question available. Please wait for the next round."}
-            </div>
-            <p className="text-lg text-white/80 mb-6">
-              {actualPlayer === room?.currentPlayerId
-                ? "Choose the round outcome. Were you discovered?"
-                : "Who is the imposter 👀‼️"}
-            </p>
+                  "No question available. Please wait for the next round."
+            }
+            subtitle={
+              actualPlayer === room?.currentPlayerId
+                ? "Choose the round outcome. Were you discovered or did you stay hidden?"
+                : "Study the clue, read the room, and figure out who is bluffing."
+            }
+            actionSummary={
+              actualPlayer === room?.currentPlayerId
+                ? "The imposter is resolving the round."
+                : `${currentPlayer} is holding the secret while everyone else investigates.`
+            }
+            actionHint={
+              actualPlayer === room?.currentPlayerId
+                ? "Lock the result when the table has called it."
+                : "Only the imposter can finish this round from here."
+            }
+            metrics={[
+              {
+                label: "Status",
+                value:
+                  actualPlayer === room?.currentPlayerId ? "Undercover" : "Hunting",
+                hint: "One role is hidden",
+                tone: "accent",
+              },
+              {
+                label: "Key Player",
+                value: currentPlayer,
+                hint: "Current secret holder",
+              },
+              {
+                label: "Round",
+                value: room?.currentRound || 1,
+                hint: "Trust nobody",
+                tone: "warning",
+              },
+            ]}
+          >
             {actualPlayer === room?.currentPlayerId ? (
-              <div className="flex gap-4 justify-center flex-wrap">
-                <button
+              <>
+                <PartyStageButton
                   onClick={() => {
                     if (clicked) return;
                     imposterResolveRound.mutate({
@@ -401,12 +794,12 @@ export default React.memo(function GameContentRenderer(props: any) {
                     });
                     setClicked(true);
                   }}
-                  className="px-6 py-3 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-semibold transition-colors disabled:opacity-50"
+                  tone="danger"
                   disabled={clicked || imposterResolveRound.isPending}
                 >
                   I Was Caught
-                </button>
-                <button
+                </PartyStageButton>
+                <PartyStageButton
                   onClick={() => {
                     if (clicked) return;
                     imposterResolveRound.mutate({
@@ -420,33 +813,66 @@ export default React.memo(function GameContentRenderer(props: any) {
                     });
                     setClicked(true);
                   }}
-                  className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors disabled:opacity-50"
+                  tone="success"
                   disabled={clicked || imposterResolveRound.isPending}
                 >
                   I Stayed Hidden
-                </button>
-              </div>
+                </PartyStageButton>
+              </>
             ) : (
-              <p className="text-sm text-white/70">
+              <div className="rounded-2xl border border-white/15 bg-white/8 px-5 py-4 text-sm text-white/75">
                 Waiting for the imposter to resolve this round.
-              </p>
+              </div>
             )}
-          </div>
+          </PartyGameLayout>
         );
 
       case "truth-or-drink":
         return (
-          <div className="text-center">
-            <div className="text-xl text-emerald-400 mb-4">
-              👤 {currentPlayer}&apos;s Turn
-            </div>
-            <div className="text-xl mb-6 text-white leading-relaxed">
-              {currentQuestion?.text ||
-                "No question available. Please wait for the next round."}
-            </div>
+          <PartyGameLayout
+            gameCode="truth-or-drink"
+            eyebrow="Truth or Drink"
+            title={
+              currentQuestion?.text ||
+              "No question available. Please wait for the next round."
+            }
+            subtitle="A clean answer earns the point. A sip keeps the mystery alive."
+            actionSummary={
+              actualPlayer === room?.currentPlayerId
+                ? clicked
+                  ? `${actualPlayerName} already made the call on this question.`
+                  : "Decision live: answer truthfully or take the drink."
+                : `Waiting for ${currentPlayer} to respond to the card.`
+            }
+            actionHint="The active player owns the decision while everyone else watches the fallout."
+            metrics={[
+              {
+                label: "Turn",
+                value: currentPlayer,
+                hint: "Current hot seat",
+                tone: "accent",
+              },
+              {
+                label: "Your Points",
+                value:
+                  room?.players?.find((player) => player.id === actualPlayer)?.points ||
+                  0,
+                hint: "Truth wins",
+                tone: "success",
+              },
+              {
+                label: "Your Drinks",
+                value:
+                  room?.players?.find((player) => player.id === actualPlayer)?.drinks ||
+                  0,
+                hint: "Sip total",
+                tone: "warning",
+              },
+            ]}
+          >
             {actualPlayer === room?.currentPlayerId && !clicked && (
-              <div className="flex gap-4 justify-center">
-                <button
+              <>
+                <PartyStageButton
                   onClick={() => {
                     updateRoom.mutate({
                       gamecode: "truth-or-drink",
@@ -470,11 +896,11 @@ export default React.memo(function GameContentRenderer(props: any) {
                     });
                     setClicked(true);
                   }}
-                  className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
+                  tone="success"
                 >
                   Answered Truthfully
-                </button>
-                <button
+                </PartyStageButton>
+                <PartyStageButton
                   onClick={() => {
                     updateRoom.mutate({
                       gamecode: "truth-or-drink",
@@ -498,18 +924,52 @@ export default React.memo(function GameContentRenderer(props: any) {
                     });
                     setClicked(true);
                   }}
-                  className="px-6 py-3 bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-semibold transition-colors"
+                  tone="warning"
                 >
                   Took a Drink
-                </button>
-              </div>
+                </PartyStageButton>
+              </>
             )}
-          </div>
+          </PartyGameLayout>
         );
 
       case "pick-a-card":
         return (
-          <div className="text-center">
+          <PartyGameLayout
+            gameCode="pick-a-card"
+            eyebrow={questionTypePickACard || "Pick a Card"}
+            title={currentQuestion?.text || "No question available. Please wait for the next round."}
+            subtitle="Resolve the drawn card, score it if you win it, or take the sip and keep the deck moving."
+            actionSummary={
+              currentQuestion?.edition === 3
+                ? `${currentPlayer} is holding a transition card.`
+                : `${currentPlayer} drew a ${String(questionTypePickACard || "fresh").toLowerCase()} card.`
+            }
+            actionHint={
+              currentQuestion?.edition === 3
+                ? "Flip forward when the room is ready."
+                : "Play the effect cleanly, then send the next card."
+            }
+            metrics={[
+              {
+                label: "Card Type",
+                value: questionTypePickACard || "Mystery",
+                hint: "Current pull",
+                tone: "accent",
+              },
+              {
+                label: "Turn",
+                value: currentPlayer,
+                hint: "Resolve the draw",
+              },
+              {
+                label: "Mode",
+                value: currentQuestion?.edition === 3 ? "Flip" : "Play",
+                hint: "Deck behavior",
+                tone: "warning",
+              },
+            ]}
+          >
             <div className="text-xl text-yellow-400 mb-4">
               <p>{questionTypePickACard}</p>
             </div>
@@ -601,7 +1061,7 @@ export default React.memo(function GameContentRenderer(props: any) {
                 Next Card
               </button>
             )}
-          </div>
+          </PartyGameLayout>
         );
 
       case "kings-cup":
@@ -676,7 +1136,44 @@ export default React.memo(function GameContentRenderer(props: any) {
 
       case "higher-lower":
         return (
-          <div className="text-center">
+          <PartyGameLayout
+            gameCode="higher-lower"
+            eyebrow="Higher or Lower"
+            title={room?.currentCard || 500}
+            subtitle="Will the next number land higher or lower on the next reveal?"
+            actionSummary={
+              room?.lastPlayerId
+                ? `${getPlayerNameById(room.lastPlayerId)} ${
+                    room?.correctPrediction ? "nailed the call." : "missed the call."
+                  }`
+                : `${currentPlayer} is up to read the next number.`
+            }
+            actionHint="Keep the current value front and center so the decision feels instant."
+            metrics={[
+              {
+                label: "Turn",
+                value: currentPlayer,
+                hint: "Current caller",
+                tone: "accent",
+              },
+              {
+                label: "Round",
+                value: room?.currentRound || 1,
+                hint: `of ${room?.rounds || 1}`,
+              },
+              {
+                label: "Last Result",
+                value:
+                  room?.lastPlayerId && room?.correctPrediction !== undefined
+                    ? room?.correctPrediction
+                      ? "Win"
+                      : "Loss"
+                    : "Pending",
+                hint: "Previous call",
+                tone: room?.correctPrediction ? "success" : "warning",
+              },
+            ]}
+          >
             <div className="text-xl text-pink-400 mb-4">
               {room?.lastPlayerId !== undefined &&
                 room?.lastPlayerId &&
@@ -696,8 +1193,8 @@ export default React.memo(function GameContentRenderer(props: any) {
             {actualPlayer === room?.currentPlayerId &&
               (room?.currentRound || 0) <= room?.rounds &&
               !clicked && (
-                <div className="flex gap-4 justify-center">
-                  <button
+                <>
+                  <PartyStageButton
                     onClick={() => {
                       generateCard.mutate({
                         roomId: room.id,
@@ -706,11 +1203,11 @@ export default React.memo(function GameContentRenderer(props: any) {
                       });
                       setClicked(true);
                     }}
-                    className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg text-white font-semibold transition-colors"
+                    tone="success"
                   >
                     Higher ⬆️
-                  </button>
-                  <button
+                  </PartyStageButton>
+                  <PartyStageButton
                     onClick={() => {
                       generateCard.mutate({
                         roomId: room.id,
@@ -719,35 +1216,58 @@ export default React.memo(function GameContentRenderer(props: any) {
                       });
                       setClicked(true);
                     }}
-                    className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg text-white font-semibold transition-colors"
+                    tone="danger"
                   >
                     Lower ⬇️
-                  </button>
-                </div>
+                  </PartyStageButton>
+                </>
               )}
-          </div>
+          </PartyGameLayout>
         );
 
       case "most-likely":
         return (
-          <div className="text-center">
-            <div className="text-xl text-emerald-400 mb-4">
-              👤 {currentPlayer}&apos;s Turn
-            </div>
-            <div className="text-2xl mb-6 text-white leading-relaxed">
-              {currentQuestion?.text ||
-                "No question available. Please wait for the next round."}
-            </div>
+          <PartyGameLayout
+            gameCode="most-likely"
+            eyebrow="Most Likely To"
+            title={
+              currentQuestion?.text ||
+              "No question available. Please wait for the next round."
+            }
+            subtitle="Vote for the player who fits the prompt best, then push the deck to the next question."
+            actionSummary={
+              clicked
+                ? `${actualPlayerName} has already cast a vote this round.`
+                : `Voting is open while ${currentPlayer} steers the card flow.`
+            }
+            actionHint="Make the crowd choices feel fast and obvious so the room stays loud."
+            metrics={[
+              {
+                label: "Turn",
+                value: currentPlayer,
+                hint: "Controls the round",
+                tone: "accent",
+              },
+              {
+                label: "Players",
+                value: players.length,
+                hint: "Eligible chaos",
+              },
+              {
+                label: "Round",
+                value: room?.currentRound || 1,
+                hint: "Vote and move",
+                tone: "warning",
+              },
+            ]}
+          >
             {actualPlayer === room?.currentPlayerId && (
               <>
-                <p className="text-lg text-white/80 mb-6">
-                  Pick who you think is most likely! 👉
-                </p>
-                <div className="flex gap-3 justify-center flex-wrap mb-4">
+                <div className="flex gap-3 justify-center flex-wrap">
                   {players.map((player) => {
                     if (actualPlayer !== player.id && !clicked) {
                       return (
-                        <button
+                        <PartyStageButton
                           key={player.id}
                           onClick={() => {
                             vote.mutate({
@@ -758,10 +1278,11 @@ export default React.memo(function GameContentRenderer(props: any) {
                             });
                             setClicked(true);
                           }}
-                          className="px-4 py-2 bg-purple-500 hover:bg-purple-600 rounded-lg text-white transition-colors"
+                          tone="accent"
+                          className="min-w-[9rem] py-5"
                         >
                           Vote: {player.name}
-                        </button>
+                        </PartyStageButton>
                       );
                     }
                   })}
@@ -769,7 +1290,7 @@ export default React.memo(function GameContentRenderer(props: any) {
               </>
             )}
             {!clicked && (
-              <button
+              <PartyStageButton
                 onClick={() => {
                   nextRound.mutate({
                     gamecode: "most-likely",
@@ -781,12 +1302,12 @@ export default React.memo(function GameContentRenderer(props: any) {
                   });
                   setClicked(true);
                 }}
-                className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 rounded-lg text-white font-semibold transition-colors"
+                tone="warning"
               >
                 Next Question
-              </button>
+              </PartyStageButton>
             )}
-          </div>
+          </PartyGameLayout>
         );
 
       case "spin-the-bottle": {
@@ -1884,7 +2405,25 @@ export default React.memo(function GameContentRenderer(props: any) {
             "Unknown Player"
           : "No player selected";
         return (
-          <div className="text-center">
+          <PartyGameLayout
+            gameCode="verbal-charades"
+            eyebrow="Verbal Charades"
+            title={currentQuestion?.text || "No question available. Please wait for the next round."}
+            subtitle="One player acts it out, one player guesses, and the timer keeps the pressure on."
+            actionSummary={
+              isRunning
+                ? `${PlayerOne} is performing while ${PlayerTwo} tries to land the guess.`
+                : timeLeft === 0
+                  ? "Timer ended. Judge the round."
+                  : "Round is staged and ready to start."
+            }
+            actionHint="Keep the pair, timer, and resolution controls visible like a single table flow."
+            metrics={[
+              { label: "Actor", value: PlayerOne, hint: "Player one", tone: "accent" },
+              { label: "Guesser", value: PlayerTwo, hint: "Player two" },
+              { label: "Clock", value: formatTime(timeLeft), hint: "Live timer", tone: "warning" },
+            ]}
+          >
             <div className="text-xl text-emerald-400 mb-4">
               👤 {PlayerOne} ➕ {PlayerTwo} {"📒"}
             </div>
@@ -1965,7 +2504,7 @@ export default React.memo(function GameContentRenderer(props: any) {
                   </button>
                 </div>
               )}
-          </div>
+          </PartyGameLayout>
         );
 
       case "taboo-lite":
@@ -2082,7 +2621,23 @@ export default React.memo(function GameContentRenderer(props: any) {
 
       case "catherines-special":
         return (
-          <div className="text-center">
+          <PartyGameLayout
+            gameCode="catherines-special"
+            eyebrow="Math Head"
+            title={currentQuestion?.text || "No question available. Please wait for the next round."}
+            subtitle="Race the timer, solve it cleanly, then reveal the answer when the countdown hits zero."
+            actionSummary={
+              timeLeft === 0
+                ? `${currentPlayer} reached the end of the timer and needs to score the round.`
+                : `${currentPlayer} is in the mental sprint.`
+            }
+            actionHint="This mode feels better when the timer and answer reveal share the same card frame."
+            metrics={[
+              { label: "Turn", value: currentPlayer, hint: "Current solver", tone: "accent" },
+              { label: "Clock", value: formatTime(timeLeft), hint: "Round timer", tone: "warning" },
+              { label: "Answer", value: timeLeft === 0 || actualPlayer !== room?.currentPlayerId ? "Visible" : "Hidden", hint: "Reveal state" },
+            ]}
+          >
             <div className="text-xl text-emerald-400 mb-4">
               👤 {currentPlayer}&apos;s Turn
             </div>
@@ -2161,7 +2716,7 @@ export default React.memo(function GameContentRenderer(props: any) {
                   </button>
                 </div>
               )}
-          </div>
+          </PartyGameLayout>
         );
 
       case "truth-or-lie": {
@@ -2195,7 +2750,27 @@ export default React.memo(function GameContentRenderer(props: any) {
           room?.currentAnswer === "TRUTH" ? playerVotedTruth : playerVotedLie;
 
         return (
-          <div className="text-center">
+          <PartyGameLayout
+            gameCode="truth-or-lie"
+            eyebrow="Truth or Lie"
+            title={`Card: ${currentCategory}`}
+            subtitle="Everyone votes first. The storyteller reveals only after the table commits."
+            actionSummary={
+              answerRevealed
+                ? `${currentPlayer} revealed ${room?.currentAnswer}.`
+                : isCurrentPlayer
+                  ? `Waiting for votes (${totalVotes}/${requiredVotes}) before the reveal.`
+                  : playerVoted
+                    ? `${actualPlayerName} locked a ${playerVotedTruth ? "TRUTH" : "LIE"} vote.`
+                    : "Voting is live."
+            }
+            actionHint="Poker-style side state works especially well here because reveal timing matters."
+            metrics={[
+              { label: "Turn", value: currentPlayer, hint: "Story holder", tone: "accent" },
+              { label: "Votes", value: `${totalVotes}/${requiredVotes}`, hint: "Table locked?" },
+              { label: "Reveal", value: answerRevealed ? room?.currentAnswer : "Hidden", hint: "Current state", tone: answerRevealed ? "warning" : "success" },
+            ]}
+          >
             <div className="text-xl text-emerald-400 mb-4">
               👤 {currentPlayer}&apos;s Turn
             </div>
@@ -2302,13 +2877,25 @@ export default React.memo(function GameContentRenderer(props: any) {
                 )}
               </div>
             )}
-          </div>
+          </PartyGameLayout>
         );
       }
 
       case "would-you-rather":
         return (
-          <div className="text-center">
+          <PartyGameLayout
+            gameCode="would-you-rather"
+            eyebrow="Would You Rather"
+            title={currentQuestion?.text || "No question available. Please wait for the next round."}
+            subtitle="Force the room to choose a side, then reveal which option won the crowd."
+            actionSummary={wouldRatherResult || `Votes are building while ${currentPlayer} drives the round.`}
+            actionHint="The side card now keeps the running room verdict visible instead of burying it under the prompt."
+            metrics={[
+              { label: "Turn", value: currentPlayer, hint: "Current voter", tone: "accent" },
+              { label: "Option A", value: room?.questionAVotes.length || 0, hint: "Votes" },
+              { label: "Option B", value: room?.questionBVotes.length || 0, hint: "Votes", tone: "warning" },
+            ]}
+          >
             <div className="text-xl text-pink-400 mb-4">
               {wouldRatherResult}
             </div>
@@ -2373,12 +2960,28 @@ export default React.memo(function GameContentRenderer(props: any) {
                 Next Question
               </button>
             )}
-          </div>
+          </PartyGameLayout>
         );
 
       case "triviyay":
         return (
-          <div className="text-center">
+          <PartyGameLayout
+            gameCode="triviyay"
+            eyebrow="TriviYay"
+            title={currentQuestion?.text || "No question available. Please wait for the next round."}
+            subtitle="Category card up front, team judgment controls below, same table cadence as Poker."
+            actionSummary={
+              clicked
+                ? "Winning teams are locked in for this category."
+                : `Team ${room?.currentPlayerId || "?"} is judging the current category.`
+            }
+            actionHint="This is now framed like a scoreboard decision, not a loose admin action."
+            metrics={[
+              { label: "Judging Team", value: room?.currentPlayerId || "-", hint: "Current lead", tone: "accent" },
+              { label: "Teams", value: teams.length, hint: "In rotation" },
+              { label: "Round", value: room?.currentRound || 1, hint: "Category count", tone: "warning" },
+            ]}
+          >
             <div className="text-xl text-emerald-400 mb-4">
               👤 {room?.currentPlayerId}&apos;s Turn
             </div>
@@ -2429,7 +3032,7 @@ export default React.memo(function GameContentRenderer(props: any) {
                 </div>
               </>
             )}
-          </div>
+          </PartyGameLayout>
         );
 
       case "guess-the-number": {
