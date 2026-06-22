@@ -75,6 +75,105 @@ export type SpinBottleRoomState = {
   lastActionLabel: string | null;
 };
 
+export type CoupRole =
+  | "DUKE"
+  | "ASSASSIN"
+  | "CAPTAIN"
+  | "AMBASSADOR"
+  | "CONTESSA";
+
+export type CoupActionType =
+  | "INCOME"
+  | "FOREIGN_AID"
+  | "COUP"
+  | "TAX"
+  | "ASSASSINATE"
+  | "STEAL"
+  | "EXCHANGE";
+
+export type CoupResponseType =
+  | "ALLOW"
+  | "CHALLENGE"
+  | "BLOCK_DUKE"
+  | "BLOCK_CONTESSA"
+  | "BLOCK_CAPTAIN"
+  | "BLOCK_AMBASSADOR";
+
+export type CoupCard = {
+  id: string;
+  role: CoupRole;
+  revealed: boolean;
+};
+
+export type CoupPendingAction = {
+  type: CoupActionType;
+  actorId: string;
+  targetPlayerId: string | null;
+  claimedRole: CoupRole | null;
+  coinsCost: number;
+  respondersPendingIds: string[];
+};
+
+export type CoupPendingBlock = {
+  blockerId: string;
+  claimedRole: CoupRole;
+  response: CoupResponseType;
+  respondersPendingIds: string[];
+};
+
+export type CoupPostRevealContinuation =
+  | {
+      type: "END_TURN";
+      nextPlayerId: string | null;
+      message: string;
+    }
+  | {
+      type: "RESOLVE_ACTION";
+      action: CoupPendingAction;
+      message: string;
+    };
+
+export type CoupPendingReveal = {
+  playerId: string;
+  remainingLosses: number;
+  reason: string;
+  continuation: CoupPostRevealContinuation;
+};
+
+export type CoupPendingExchange = {
+  playerId: string;
+  keepCount: number;
+  drawnCards: CoupCard[];
+};
+
+export type CoupHistoryEntry = {
+  id: string;
+  message: string;
+};
+
+export type CoupRoomState = {
+  status:
+    | "ACTION"
+    | "ACTION_RESPONSE"
+    | "BLOCK_RESPONSE"
+    | "REVEAL_INFLUENCE"
+    | "EXCHANGE"
+    | "ENDED";
+  roundNumber: number;
+  playerOrder: string[];
+  currentPlayerId: string | null;
+  winnerPlayerId: string | null;
+  deck: CoupCard[];
+  handsByPlayerId: Record<string, CoupCard[]>;
+  coinsByPlayerId: Record<string, number>;
+  pendingAction: CoupPendingAction | null;
+  pendingBlock: CoupPendingBlock | null;
+  pendingReveal: CoupPendingReveal | null;
+  pendingExchange: CoupPendingExchange | null;
+  lastAction: string | null;
+  history: CoupHistoryEntry[];
+};
+
 export type CodenamesRoomState = {
   status: "LOBBY" | "PLAYING" | "ENDED";
   board: number[];
@@ -638,6 +737,274 @@ export function parseSpinBottleState(
       lastTargetPlayerId: parsePlayerId(parsed.lastTargetPlayerId),
       lastActionLabel:
         typeof parsed.lastActionLabel === "string" ? parsed.lastActionLabel : null,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+export function parseCoupState(
+  raw: string | null | undefined,
+): CoupRoomState {
+  const fallback: CoupRoomState = {
+    status: "ACTION",
+    roundNumber: 1,
+    playerOrder: [],
+    currentPlayerId: null,
+    winnerPlayerId: null,
+    deck: [],
+    handsByPlayerId: {},
+    coinsByPlayerId: {},
+    pendingAction: null,
+    pendingBlock: null,
+    pendingReveal: null,
+    pendingExchange: null,
+    lastAction: null,
+    history: [],
+  };
+
+  const isCoupRole = (value: unknown): value is CoupRole =>
+    value === "DUKE" ||
+    value === "ASSASSIN" ||
+    value === "CAPTAIN" ||
+    value === "AMBASSADOR" ||
+    value === "CONTESSA";
+
+  const isCoupActionType = (value: unknown): value is CoupActionType =>
+    value === "INCOME" ||
+    value === "FOREIGN_AID" ||
+    value === "COUP" ||
+    value === "TAX" ||
+    value === "ASSASSINATE" ||
+    value === "STEAL" ||
+    value === "EXCHANGE";
+
+  const isCoupResponseType = (value: unknown): value is CoupResponseType =>
+    value === "ALLOW" ||
+    value === "CHALLENGE" ||
+    value === "BLOCK_DUKE" ||
+    value === "BLOCK_CONTESSA" ||
+    value === "BLOCK_CAPTAIN" ||
+    value === "BLOCK_AMBASSADOR";
+
+  const parsePlayerIdList = (value: unknown) =>
+    Array.isArray(value)
+      ? value.filter(
+          (playerId): playerId is string => typeof playerId === "string",
+        )
+      : [];
+
+  const parseCard = (value: unknown): CoupCard | null => {
+    if (!value || typeof value !== "object") return null;
+    const card = value as Partial<CoupCard>;
+    if (
+      typeof card.id !== "string" ||
+      !isCoupRole(card.role) ||
+      typeof card.revealed !== "boolean"
+    ) {
+      return null;
+    }
+    return {
+      id: card.id,
+      role: card.role,
+      revealed: card.revealed,
+    };
+  };
+
+  const parseAction = (value: unknown): CoupPendingAction | null => {
+    if (!value || typeof value !== "object") return null;
+    const action = value as Partial<CoupPendingAction>;
+    if (
+      !isCoupActionType(action.type) ||
+      typeof action.actorId !== "string" ||
+      (action.targetPlayerId !== null && action.targetPlayerId !== undefined &&
+        typeof action.targetPlayerId !== "string") ||
+      (action.claimedRole !== null && action.claimedRole !== undefined &&
+        !isCoupRole(action.claimedRole)) ||
+      typeof action.coinsCost !== "number"
+    ) {
+      return null;
+    }
+
+    return {
+      type: action.type,
+      actorId: action.actorId,
+      targetPlayerId:
+        typeof action.targetPlayerId === "string" ? action.targetPlayerId : null,
+      claimedRole: action.claimedRole ?? null,
+      coinsCost: action.coinsCost,
+      respondersPendingIds: parsePlayerIdList(action.respondersPendingIds),
+    };
+  };
+
+  const parseBlock = (value: unknown): CoupPendingBlock | null => {
+    if (!value || typeof value !== "object") return null;
+    const block = value as Partial<CoupPendingBlock>;
+    if (
+      typeof block.blockerId !== "string" ||
+      !isCoupRole(block.claimedRole) ||
+      !isCoupResponseType(block.response)
+    ) {
+      return null;
+    }
+    return {
+      blockerId: block.blockerId,
+      claimedRole: block.claimedRole,
+      response: block.response,
+      respondersPendingIds: parsePlayerIdList(block.respondersPendingIds),
+    };
+  };
+
+  const parseContinuation = (
+    value: unknown,
+  ): CoupPostRevealContinuation | null => {
+    if (!value || typeof value !== "object") return null;
+    const continuation = value as Partial<CoupPostRevealContinuation>;
+    if (continuation.type === "END_TURN") {
+      return {
+        type: "END_TURN",
+        nextPlayerId:
+          typeof continuation.nextPlayerId === "string"
+            ? continuation.nextPlayerId
+            : null,
+        message:
+          typeof continuation.message === "string" ? continuation.message : "",
+      };
+    }
+    if (continuation.type === "RESOLVE_ACTION") {
+      const action = parseAction(continuation.action);
+      if (!action) return null;
+      return {
+        type: "RESOLVE_ACTION",
+        action,
+        message:
+          typeof continuation.message === "string" ? continuation.message : "",
+      };
+    }
+    return null;
+  };
+
+  const parseReveal = (value: unknown): CoupPendingReveal | null => {
+    if (!value || typeof value !== "object") return null;
+    const reveal = value as Partial<CoupPendingReveal>;
+    const continuation = parseContinuation(reveal.continuation);
+    if (
+      typeof reveal.playerId !== "string" ||
+      typeof reveal.remainingLosses !== "number" ||
+      typeof reveal.reason !== "string" ||
+      !continuation
+    ) {
+      return null;
+    }
+    return {
+      playerId: reveal.playerId,
+      remainingLosses: reveal.remainingLosses,
+      reason: reveal.reason,
+      continuation,
+    };
+  };
+
+  const parseExchange = (value: unknown): CoupPendingExchange | null => {
+    if (!value || typeof value !== "object") return null;
+    const exchange = value as Partial<CoupPendingExchange>;
+    if (
+      typeof exchange.playerId !== "string" ||
+      typeof exchange.keepCount !== "number"
+    ) {
+      return null;
+    }
+    return {
+      playerId: exchange.playerId,
+      keepCount: exchange.keepCount,
+      drawnCards: Array.isArray(exchange.drawnCards)
+        ? exchange.drawnCards
+            .map((card) => parseCard(card))
+            .filter((card): card is CoupCard => card !== null)
+        : [],
+    };
+  };
+
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<CoupRoomState>;
+    const validStatus =
+      parsed.status === "ACTION_RESPONSE" ||
+      parsed.status === "BLOCK_RESPONSE" ||
+      parsed.status === "REVEAL_INFLUENCE" ||
+      parsed.status === "EXCHANGE" ||
+      parsed.status === "ENDED"
+        ? parsed.status
+        : "ACTION";
+
+    const handsByPlayerId =
+      parsed.handsByPlayerId && typeof parsed.handsByPlayerId === "object"
+        ? Object.fromEntries(
+            Object.entries(parsed.handsByPlayerId).map(([playerId, cards]) => [
+              playerId,
+              Array.isArray(cards)
+                ? cards
+                    .map((card) => parseCard(card))
+                    .filter((card): card is CoupCard => card !== null)
+                : [],
+            ]),
+          )
+        : {};
+
+    const coinsByPlayerId =
+      parsed.coinsByPlayerId && typeof parsed.coinsByPlayerId === "object"
+        ? Object.fromEntries(
+            Object.entries(parsed.coinsByPlayerId).map(([playerId, coins]) => [
+              playerId,
+              typeof coins === "number" && Number.isFinite(coins) ? coins : 0,
+            ]),
+          )
+        : {};
+
+    return {
+      status: validStatus,
+      roundNumber:
+        typeof parsed.roundNumber === "number" &&
+        Number.isFinite(parsed.roundNumber) &&
+        parsed.roundNumber > 0
+          ? parsed.roundNumber
+          : 1,
+      playerOrder: parsePlayerIdList(parsed.playerOrder),
+      currentPlayerId:
+        typeof parsed.currentPlayerId === "string" ? parsed.currentPlayerId : null,
+      winnerPlayerId:
+        typeof parsed.winnerPlayerId === "string" ? parsed.winnerPlayerId : null,
+      deck: Array.isArray(parsed.deck)
+        ? parsed.deck
+            .map((card) => parseCard(card))
+            .filter((card): card is CoupCard => card !== null)
+        : [],
+      handsByPlayerId,
+      coinsByPlayerId,
+      pendingAction: parseAction(parsed.pendingAction),
+      pendingBlock: parseBlock(parsed.pendingBlock),
+      pendingReveal: parseReveal(parsed.pendingReveal),
+      pendingExchange: parseExchange(parsed.pendingExchange),
+      lastAction:
+        typeof parsed.lastAction === "string" ? parsed.lastAction : null,
+      history: Array.isArray(parsed.history)
+        ? parsed.history
+            .map((entry) => {
+              if (!entry || typeof entry !== "object") return null;
+              const parsedEntry = entry as Partial<CoupHistoryEntry>;
+              if (
+                typeof parsedEntry.id !== "string" ||
+                typeof parsedEntry.message !== "string"
+              ) {
+                return null;
+              }
+              return {
+                id: parsedEntry.id,
+                message: parsedEntry.message,
+              } satisfies CoupHistoryEntry;
+            })
+            .filter((entry): entry is CoupHistoryEntry => entry !== null)
+        : [],
     };
   } catch {
     return fallback;

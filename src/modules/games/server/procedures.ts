@@ -5,8 +5,16 @@ import { cookies } from "next/headers";
 import {
   parseBadChoicesState,
   parseBadPeopleState,
+  parseCoupState,
   parseSpinBottleState,
 } from "@/modules/games/lib/room-state";
+import {
+  chooseCoupExchange,
+  chooseCoupReveal,
+  createInitialCoupState,
+  declareCoupAction,
+  respondToCoupDecision,
+} from "@/modules/games/lib/coup-engine";
 import {
   getSpinBottleModeByValue,
   type SpinBottleMode,
@@ -21,6 +29,54 @@ import {
   redrawBadChoicesCards,
 } from "@/modules/games/lib/bad-choices";
 import type { Prisma } from "../../../../prisma/generated/prisma/client";
+
+async function saveCoupState(args: {
+  roomId: string;
+  state: ReturnType<typeof parseCoupState>;
+  tx: Prisma.TransactionClient;
+}) {
+  const { roomId, state, tx } = args;
+
+  if (state.status === "ENDED" && state.winnerPlayerId) {
+    await tx.player.update({
+      where: {
+        id: state.winnerPlayerId,
+      },
+      data: {
+        points: {
+          increment: 1,
+        },
+      },
+    });
+
+    await tx.player.updateMany({
+      where: {
+        roomId,
+        id: {
+          not: state.winnerPlayerId,
+        },
+      },
+      data: {
+        drinks: {
+          increment: 1,
+        },
+      },
+    });
+  }
+
+  await tx.room.update({
+    where: {
+      id: roomId,
+    },
+    data: {
+      currentPlayerId: state.currentPlayerId,
+      currentAnswer: JSON.stringify(state),
+      currentRound: state.roundNumber,
+      gameEnded: state.status === "ENDED",
+      gameEndedAt: state.status === "ENDED" ? new Date() : null,
+    },
+  });
+}
 
 function generateUniqueCard(previousCards: number[]): number | null {
   const maxAttempts = 1000;
@@ -4706,6 +4762,18 @@ export const gamesRouter = createTRPCRouter({
         }
 
         if (
+          input.selectedGame === "coup" &&
+          (input.players?.length || 0) < 2
+        ) {
+          throw new Error("Coup requires at least 2 players.");
+        }
+        if (
+          input.selectedGame === "coup" &&
+          (input.players?.length || 0) > 6
+        ) {
+          throw new Error("Coup allows at most 6 players.");
+        }
+        if (
           input.selectedGame === "memory-chain" &&
           (input.players?.length || 0) < 2
         ) {
@@ -4928,6 +4996,7 @@ export const gamesRouter = createTRPCRouter({
           let blackjackDrinkPlayerIds: string[] = [];
           let pokerCurrentPlayerId: string | null = null;
           let unoCurrentPlayerId: string | null = null;
+          let coupCurrentPlayerId: string | null = null;
           let badChoicesCurrentPlayerId: string | null = null;
           let spinBottleCurrentPlayerId: string | null = null;
 
@@ -5071,6 +5140,13 @@ export const gamesRouter = createTRPCRouter({
             roomCurrentAnswer = JSON.stringify(unoState);
             unoCurrentPlayerId = unoState.currentPlayerId;
           }
+          if (input.selectedGame === "coup") {
+            const playerIds = createdRoom.players.map((player) => player.id);
+            const coupState = createInitialCoupState(playerIds);
+            roomCurrentAnswer = JSON.stringify(coupState);
+            coupCurrentPlayerId = coupState.currentPlayerId;
+            currentQuestionId = null;
+          }
           if (input.selectedGame === "bad-people") {
             const playerIds = createdRoom.players.map((player) => player.id);
             const badPeopleState = createBadPeopleState(
@@ -5121,6 +5197,8 @@ export const gamesRouter = createTRPCRouter({
                     ? pokerCurrentPlayerId
                   : input.selectedGame === "uno"
                     ? unoCurrentPlayerId
+                  : input.selectedGame === "coup"
+                    ? coupCurrentPlayerId
                   : input.selectedGame === "bad-choices"
                     ? badChoicesCurrentPlayerId
                   : input.selectedGame === "spin-the-bottle"
@@ -5142,6 +5220,7 @@ export const gamesRouter = createTRPCRouter({
                 input.selectedGame === "guess-the-movie" ||
                 input.selectedGame === "blackjack" ||
                 input.selectedGame === "poker" ||
+                input.selectedGame === "coup" ||
                 input.selectedGame === "bad-choices" ||
                 input.selectedGame === "spin-the-bottle"
                   ? 1
@@ -13144,6 +13223,243 @@ export const gamesRouter = createTRPCRouter({
 
       return {
         roundNumber: nextState.roundNumber,
+      };
+    }),
+
+  coupDeclareAction: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        actionType: z.enum([
+          "INCOME",
+          "FOREIGN_AID",
+          "COUP",
+          "TAX",
+          "ASSASSINATE",
+          "STEAL",
+          "EXCHANGE",
+        ]),
+        targetPlayerId: z.string().min(1).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "coup") {
+        throw new Error("This room is not Coup");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+      if (!room.players.some((player) => player.id === input.playerId)) {
+        throw new Error("Player not found in room");
+      }
+
+      const state = parseCoupState(room.currentAnswer);
+      declareCoupAction({
+        state,
+        playerId: input.playerId,
+        actionType: input.actionType,
+        targetPlayerId: input.targetPlayerId,
+      });
+
+      await prisma.$transaction(async (tx) => {
+        await saveCoupState({
+          roomId: input.roomId,
+          state,
+          tx,
+        });
+      });
+
+      return {
+        status: state.status,
+        currentPlayerId: state.currentPlayerId,
+        winnerPlayerId: state.winnerPlayerId,
+        lastAction: state.lastAction,
+      };
+    }),
+
+  coupRespondDecision: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        response: z.enum([
+          "ALLOW",
+          "CHALLENGE",
+          "BLOCK_DUKE",
+          "BLOCK_CONTESSA",
+          "BLOCK_CAPTAIN",
+          "BLOCK_AMBASSADOR",
+        ]),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "coup") {
+        throw new Error("This room is not Coup");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+      if (!room.players.some((player) => player.id === input.playerId)) {
+        throw new Error("Player not found in room");
+      }
+
+      const state = parseCoupState(room.currentAnswer);
+      respondToCoupDecision({
+        state,
+        playerId: input.playerId,
+        response: input.response,
+      });
+
+      await prisma.$transaction(async (tx) => {
+        await saveCoupState({
+          roomId: input.roomId,
+          state,
+          tx,
+        });
+      });
+
+      return {
+        status: state.status,
+        currentPlayerId: state.currentPlayerId,
+        winnerPlayerId: state.winnerPlayerId,
+        lastAction: state.lastAction,
+      };
+    }),
+
+  coupRevealInfluence: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        cardId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "coup") {
+        throw new Error("This room is not Coup");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+      if (!room.players.some((player) => player.id === input.playerId)) {
+        throw new Error("Player not found in room");
+      }
+
+      const state = parseCoupState(room.currentAnswer);
+      chooseCoupReveal({
+        state,
+        playerId: input.playerId,
+        cardId: input.cardId,
+      });
+
+      await prisma.$transaction(async (tx) => {
+        await saveCoupState({
+          roomId: input.roomId,
+          state,
+          tx,
+        });
+      });
+
+      return {
+        status: state.status,
+        currentPlayerId: state.currentPlayerId,
+        winnerPlayerId: state.winnerPlayerId,
+        lastAction: state.lastAction,
+      };
+    }),
+
+  coupChooseExchange: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        keptCardIds: z.array(z.string().min(1)).min(1).max(2),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "coup") {
+        throw new Error("This room is not Coup");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+      if (!room.players.some((player) => player.id === input.playerId)) {
+        throw new Error("Player not found in room");
+      }
+
+      const state = parseCoupState(room.currentAnswer);
+      chooseCoupExchange({
+        state,
+        playerId: input.playerId,
+        keptCardIds: input.keptCardIds,
+      });
+
+      await prisma.$transaction(async (tx) => {
+        await saveCoupState({
+          roomId: input.roomId,
+          state,
+          tx,
+        });
+      });
+
+      return {
+        status: state.status,
+        currentPlayerId: state.currentPlayerId,
+        winnerPlayerId: state.winnerPlayerId,
+        lastAction: state.lastAction,
       };
     }),
 

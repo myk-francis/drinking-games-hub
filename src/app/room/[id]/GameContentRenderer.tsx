@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+import CoupRoom from "./CoupRoom";
 import PokerRoom from "./PokerRoom";
 import UnoRoom from "./UnoRoom";
 
@@ -353,6 +354,11 @@ export default React.memo(function GameContentRenderer(props: any) {
     badChoicesPlayCard,
     badChoicesRedrawCards,
     badChoicesState,
+    coupChooseExchange,
+    coupDeclareAction,
+    coupRevealInfluence,
+    coupRespondDecision,
+    coupState,
     spinBottleChooseAction,
     spinBottleMode,
     spinBottleSpin,
@@ -6096,6 +6102,50 @@ export default React.memo(function GameContentRenderer(props: any) {
           </div>
         );
       }
+
+      case "coup":
+        return (
+          <CoupRoom
+            actualPlayer={actualPlayer || ""}
+            coupState={coupState}
+            onChooseExchange={(keptCardIds) =>
+              coupChooseExchange.mutate({
+                roomId: room?.id || "",
+                playerId: actualPlayer || "",
+                keptCardIds,
+              })
+            }
+            onDeclareAction={(actionType, targetPlayerId) =>
+              coupDeclareAction.mutate({
+                roomId: room?.id || "",
+                playerId: actualPlayer || "",
+                actionType,
+                targetPlayerId,
+              })
+            }
+            onRevealInfluence={(cardId) =>
+              coupRevealInfluence.mutate({
+                roomId: room?.id || "",
+                playerId: actualPlayer || "",
+                cardId,
+              })
+            }
+            onRespondDecision={(response) =>
+              coupRespondDecision.mutate({
+                roomId: room?.id || "",
+                playerId: actualPlayer || "",
+                response,
+              })
+            }
+            pending={
+              coupChooseExchange.isPending ||
+              coupDeclareAction.isPending ||
+              coupRevealInfluence.isPending ||
+              coupRespondDecision.isPending
+            }
+            players={players}
+          />
+        );
 
       default:
         return (
