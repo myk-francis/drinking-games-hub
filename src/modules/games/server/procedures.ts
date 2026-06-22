@@ -11,6 +11,11 @@ import {
   getSpinBottleModeByValue,
   type SpinBottleMode,
 } from "@/modules/games/lib/spin-the-bottle";
+import {
+  buildDirectedPairs,
+  getYouLaughYouDrinkOutcome,
+  YOU_LAUGH_YOU_DRINK_RESULTS,
+} from "@/modules/games/lib/you-laugh-you-drink";
 import type { Prisma } from "../../../../prisma/generated/prisma/client";
 
 function generateUniqueCard(previousCards: number[]): number | null {
@@ -3697,16 +3702,22 @@ async function syncRoomStateAfterPlayerAdded(
   switch (room.game.code) {
     case "verbal-charades":
     case "taboo-lite": {
-      const allPairs = [...(room.allPairIds || [])];
-      for (const existingPlayer of room.players) {
-        allPairs.push([newPlayer.id, existingPlayer.id].join("&"));
-        allPairs.push([existingPlayer.id, newPlayer.id].join("&"));
-      }
+      const allPairs = buildDirectedPairs(nextPlayerIds);
 
       await tx.room.update({
         where: { id: room.id },
         data: {
           allPairIds: allPairs,
+        },
+      });
+      return;
+    }
+
+    case "you-laugh-you-drink": {
+      await tx.room.update({
+        where: { id: room.id },
+        data: {
+          allPairIds: buildDirectedPairs(nextPlayerIds),
         },
       });
       return;
@@ -4763,6 +4774,12 @@ export const gamesRouter = createTRPCRouter({
           throw new Error("Guess The Movie requires at least 2 players.");
         }
         if (
+          input.selectedGame === "you-laugh-you-drink" &&
+          (input.players?.length || 0) < 2
+        ) {
+          throw new Error("You Laugh, You Drink requires at least 2 players.");
+        }
+        if (
           input.selectedGame === "ride-the-bus" &&
           (input.players?.length || 0) < 2
         ) {
@@ -4905,22 +4922,12 @@ export const gamesRouter = createTRPCRouter({
           let playerTwoId = "";
           if (
             input.selectedGame === "verbal-charades" ||
-            input.selectedGame === "taboo-lite"
+            input.selectedGame === "taboo-lite" ||
+            input.selectedGame === "you-laugh-you-drink"
           ) {
-            for (let i = 0; i < createdRoom.players.length; i++) {
-              for (let j = i + 1; j < createdRoom.players.length; j++) {
-                const pairKey = [
-                  createdRoomPlayers[i].id,
-                  createdRoomPlayers[j].id,
-                ].join("&");
-                const opositePairKey = [
-                  createdRoomPlayers[j].id,
-                  createdRoomPlayers[i].id,
-                ].join("&");
-                allPairs.push(pairKey);
-                allPairs.push(opositePairKey);
-              }
-            }
+            allPairs.push(
+              ...buildDirectedPairs(createdRoomPlayers.map((player) => player.id)),
+            );
           }
 
           if (allPairs.length > 0) {
@@ -6055,6 +6062,136 @@ export const gamesRouter = createTRPCRouter({
             },
           });
         }
+
+        return true;
+      } catch (error) {
+        console.error("Failed to update room:", error);
+        throw new Error("Failed to update room");
+      }
+    }),
+
+  nextYouLaughYouDrinkCard: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string(),
+        result: z.enum(YOU_LAUGH_YOU_DRINK_RESULTS),
+        attackerPlayerId: z.string(),
+        targetPlayerId: z.string(),
+        currentQuestionId: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const room = await prisma.room.findFirst({
+          where: {
+            id: input.roomId,
+          },
+          include: {
+            players: true,
+            game: {
+              include: {
+                questions: true,
+              },
+            },
+          },
+        });
+
+        if (!room) {
+          throw new Error("Room not found");
+        }
+
+        if (room.game.code !== "you-laugh-you-drink") {
+          throw new Error("Wrong game for this action.");
+        }
+
+        let nextQuestionId = null;
+
+        const questions = room.game.questions.map((obj) => obj.id);
+        let previousQuestionsIds = room.previousQuestionsId || [];
+        const questionsWhichHaveNotPlayed = questions.filter(
+          (id) =>
+            ![
+              ...previousQuestionsIds,
+              parseInt(input.currentQuestionId, 10),
+            ].includes(id),
+        );
+
+        if (questionsWhichHaveNotPlayed.length > 0) {
+          nextQuestionId =
+            questionsWhichHaveNotPlayed[
+              Math.floor(Math.random() * questionsWhichHaveNotPlayed.length)
+            ];
+          previousQuestionsIds = [
+            ...previousQuestionsIds,
+            parseInt(input.currentQuestionId, 10),
+          ];
+        } else {
+          const availableQuestions = questions.filter(
+            (id) => id !== parseInt(input.currentQuestionId, 10),
+          );
+          nextQuestionId =
+            availableQuestions[
+              Math.floor(Math.random() * availableQuestions.length)
+            ] ?? null;
+          previousQuestionsIds = [];
+        }
+
+        const unusedPairs = room.allPairIds.filter(
+          (pair) => !room.previousPairIds.includes(pair),
+        );
+
+        let nextPair = "";
+        let nextPreviousPairIds = [...room.previousPairIds];
+
+        if (unusedPairs.length > 0) {
+          nextPair =
+            unusedPairs[Math.floor(Math.random() * unusedPairs.length)] ?? "";
+          nextPreviousPairIds = [...room.previousPairIds, nextPair];
+        } else {
+          nextPair =
+            room.allPairIds[Math.floor(Math.random() * room.allPairIds.length)] ?? "";
+          nextPreviousPairIds = nextPair ? [nextPair] : [];
+        }
+
+        const [nextAttackerId = "", nextTargetId = ""] = nextPair.split("&");
+
+        await prisma.room.update({
+          where: { id: input.roomId },
+          data: {
+            currentQuestionId: nextQuestionId ?? null,
+            previousQuestionsId: previousQuestionsIds,
+            playerOneId: nextAttackerId,
+            playerTwoId: nextTargetId,
+            previousPairIds: nextPreviousPairIds,
+          },
+        });
+
+        const attacker =
+          room.players.find((player) => player.id === input.attackerPlayerId) ?? null;
+        const target =
+          room.players.find((player) => player.id === input.targetPlayerId) ?? null;
+
+        if (!attacker || !target) {
+          throw new Error("Pair players not found.");
+        }
+
+        const outcome = getYouLaughYouDrinkOutcome(input.result);
+
+        await prisma.player.update({
+          where: { id: attacker.id },
+          data: {
+            points: (attacker.points ?? 0) + outcome.attacker.points,
+            drinks: (attacker.drinks ?? 0) + outcome.attacker.drinks,
+          },
+        });
+
+        await prisma.player.update({
+          where: { id: target.id },
+          data: {
+            points: (target.points ?? 0) + outcome.target.points,
+            drinks: (target.drinks ?? 0) + outcome.target.drinks,
+          },
+        });
 
         return true;
       } catch (error) {
