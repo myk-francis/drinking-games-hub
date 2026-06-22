@@ -174,6 +174,101 @@ export type CoupRoomState = {
   history: CoupHistoryEntry[];
 };
 
+export type Flip7ModifierType =
+  | "PLUS_TWO"
+  | "PLUS_FOUR"
+  | "PLUS_SIX"
+  | "PLUS_EIGHT"
+  | "PLUS_TEN"
+  | "MULTIPLY_TWO";
+
+export type Flip7ActionType = "FREEZE" | "FLIP_THREE" | "SECOND_CHANCE";
+
+export type Flip7NumberCard = {
+  id: string;
+  kind: "NUMBER";
+  value: number;
+};
+
+export type Flip7ModifierCard = {
+  id: string;
+  kind: "MODIFIER";
+  modifier: Flip7ModifierType;
+};
+
+export type Flip7ActionCard = {
+  id: string;
+  kind: "ACTION";
+  action: Flip7ActionType;
+};
+
+export type Flip7Card = Flip7NumberCard | Flip7ModifierCard | Flip7ActionCard;
+
+export type Flip7QueuedAction = {
+  id: string;
+  sourcePlayerId: string;
+  actionType: Flip7ActionType;
+};
+
+export type Flip7PendingAction = {
+  id: string;
+  sourcePlayerId: string;
+  actionType: Flip7ActionType;
+  allowedTargetPlayerIds: string[];
+};
+
+export type Flip7ResolutionContext =
+  | {
+      kind: "INITIAL_DEAL";
+    }
+  | {
+      kind: "TURN_END";
+      playerId: string;
+    };
+
+export type Flip7PlayerState = {
+  cards: Flip7Card[];
+  active: boolean;
+  stayed: boolean;
+  busted: boolean;
+  frozen: boolean;
+  protectedBySecondChance: boolean;
+  hasFlippedSeven: boolean;
+};
+
+export type Flip7HistoryEntry = {
+  id: string;
+  message: string;
+};
+
+export type Flip7RoomState = {
+  status:
+    | "INITIAL_DEAL"
+    | "AWAITING_ACTION_TARGET"
+    | "ROUND_DECISION"
+    | "ROUND_OVER"
+    | "ENDED";
+  roundNumber: number;
+  playerOrder: string[];
+  roundStarterPlayerId: string | null;
+  currentPlayerId: string | null;
+  drawPile: Flip7Card[];
+  discardPile: Flip7Card[];
+  playerStatesById: Record<string, Flip7PlayerState>;
+  scoresByPlayerId: Record<string, number>;
+  lastRoundScoresByPlayerId: Record<string, number>;
+  initialDealIndex: number;
+  queuedActions: Flip7QueuedAction[];
+  pendingAction: Flip7PendingAction | null;
+  resolutionContext: Flip7ResolutionContext | null;
+  targetScore: number;
+  winnerPlayerId: string | null;
+  pointPlayerIds: string[];
+  drinkPlayerIds: string[];
+  lastAction: string | null;
+  history: Flip7HistoryEntry[];
+};
+
 export type CodenamesRoomState = {
   status: "LOBBY" | "PLAYING" | "ENDED";
   board: number[];
@@ -2038,6 +2133,295 @@ export function parsePokerState(
           : null,
       winnerPlayerIds: parsePlayerIdList(parsed.winnerPlayerIds),
       handLabelByPlayerId,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+export function parseFlip7State(
+  raw: string | null | undefined,
+): Flip7RoomState {
+  const fallback: Flip7RoomState = {
+    status: "INITIAL_DEAL",
+    roundNumber: 1,
+    playerOrder: [],
+    roundStarterPlayerId: null,
+    currentPlayerId: null,
+    drawPile: [],
+    discardPile: [],
+    playerStatesById: {},
+    scoresByPlayerId: {},
+    lastRoundScoresByPlayerId: {},
+    initialDealIndex: 0,
+    queuedActions: [],
+    pendingAction: null,
+    resolutionContext: null,
+    targetScore: 200,
+    winnerPlayerId: null,
+    pointPlayerIds: [],
+    drinkPlayerIds: [],
+    lastAction: null,
+    history: [],
+  };
+
+  if (!raw) return fallback;
+
+  const isModifierType = (value: unknown): value is Flip7ModifierType =>
+    value === "PLUS_TWO" ||
+    value === "PLUS_FOUR" ||
+    value === "PLUS_SIX" ||
+    value === "PLUS_EIGHT" ||
+    value === "PLUS_TEN" ||
+    value === "MULTIPLY_TWO";
+
+  const isActionType = (value: unknown): value is Flip7ActionType =>
+    value === "FREEZE" || value === "FLIP_THREE" || value === "SECOND_CHANCE";
+
+  const parseCard = (value: unknown): Flip7Card | null => {
+    if (!value || typeof value !== "object") return null;
+    const card = value as Partial<Flip7Card>;
+
+    if (card.kind === "NUMBER") {
+      if (
+        typeof card.id === "string" &&
+        typeof card.value === "number" &&
+        Number.isFinite(card.value) &&
+        card.value >= 1 &&
+        card.value <= 12
+      ) {
+        return {
+          id: card.id,
+          kind: "NUMBER",
+          value: card.value,
+        };
+      }
+      return null;
+    }
+
+    if (card.kind === "MODIFIER") {
+      if (typeof card.id === "string" && isModifierType(card.modifier)) {
+        return {
+          id: card.id,
+          kind: "MODIFIER",
+          modifier: card.modifier,
+        };
+      }
+      return null;
+    }
+
+    if (card.kind === "ACTION") {
+      if (typeof card.id === "string" && isActionType(card.action)) {
+        return {
+          id: card.id,
+          kind: "ACTION",
+          action: card.action,
+        };
+      }
+      return null;
+    }
+
+    return null;
+  };
+
+  const parseCardList = (value: unknown): Flip7Card[] =>
+    Array.isArray(value)
+      ? value
+          .map((entry) => parseCard(entry))
+          .filter((entry): entry is Flip7Card => entry !== null)
+      : [];
+
+  const parsePlayerIdList = (value: unknown): string[] =>
+    Array.isArray(value)
+      ? value.filter(
+          (playerId): playerId is string => typeof playerId === "string",
+        )
+      : [];
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<Flip7RoomState>;
+    const playerStatesById: Record<string, Flip7PlayerState> = {};
+
+    if (
+      parsed.playerStatesById &&
+      typeof parsed.playerStatesById === "object" &&
+      !Array.isArray(parsed.playerStatesById)
+    ) {
+      for (const [playerId, rawPlayerState] of Object.entries(parsed.playerStatesById)) {
+        if (!rawPlayerState || typeof rawPlayerState !== "object") {
+          playerStatesById[playerId] = {
+            cards: [],
+            active: true,
+            stayed: false,
+            busted: false,
+            frozen: false,
+            protectedBySecondChance: false,
+            hasFlippedSeven: false,
+          };
+          continue;
+        }
+
+        const state = rawPlayerState as Partial<Flip7PlayerState>;
+        playerStatesById[playerId] = {
+          cards: parseCardList(state.cards),
+          active: typeof state.active === "boolean" ? state.active : true,
+          stayed: typeof state.stayed === "boolean" ? state.stayed : false,
+          busted: typeof state.busted === "boolean" ? state.busted : false,
+          frozen: typeof state.frozen === "boolean" ? state.frozen : false,
+          protectedBySecondChance:
+            typeof state.protectedBySecondChance === "boolean"
+              ? state.protectedBySecondChance
+              : false,
+          hasFlippedSeven:
+            typeof state.hasFlippedSeven === "boolean"
+              ? state.hasFlippedSeven
+              : false,
+        };
+      }
+    }
+
+    const parseScoreMap = (value: unknown): Record<string, number> => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return {};
+      }
+
+      const entries = Object.entries(value).map(([playerId, score]) => [
+        playerId,
+        typeof score === "number" && Number.isFinite(score) ? score : 0,
+      ]);
+
+      return Object.fromEntries(entries);
+    };
+
+    const queuedActions = Array.isArray(parsed.queuedActions)
+      ? parsed.queuedActions
+          .map((entry) => {
+            if (!entry || typeof entry !== "object") return null;
+            const action = entry as Partial<Flip7QueuedAction>;
+            if (
+              typeof action.id !== "string" ||
+              typeof action.sourcePlayerId !== "string" ||
+              !isActionType(action.actionType)
+            ) {
+              return null;
+            }
+            return {
+              id: action.id,
+              sourcePlayerId: action.sourcePlayerId,
+              actionType: action.actionType,
+            } satisfies Flip7QueuedAction;
+          })
+          .filter((entry): entry is Flip7QueuedAction => entry !== null)
+      : [];
+
+    const pendingAction =
+      parsed.pendingAction && typeof parsed.pendingAction === "object"
+        ? (() => {
+            const action = parsed.pendingAction as Partial<Flip7PendingAction>;
+            if (
+              typeof action.id !== "string" ||
+              typeof action.sourcePlayerId !== "string" ||
+              !isActionType(action.actionType)
+            ) {
+              return null;
+            }
+
+            return {
+              id: action.id,
+              sourcePlayerId: action.sourcePlayerId,
+              actionType: action.actionType,
+              allowedTargetPlayerIds: parsePlayerIdList(action.allowedTargetPlayerIds),
+            } satisfies Flip7PendingAction;
+          })()
+        : null;
+
+    const resolutionContext =
+      parsed.resolutionContext && typeof parsed.resolutionContext === "object"
+        ? (() => {
+            const context = parsed.resolutionContext as Partial<Flip7ResolutionContext>;
+            if (context.kind === "INITIAL_DEAL") {
+              return { kind: "INITIAL_DEAL" } satisfies Flip7ResolutionContext;
+            }
+            if (
+              context.kind === "TURN_END" &&
+              typeof context.playerId === "string"
+            ) {
+              return {
+                kind: "TURN_END",
+                playerId: context.playerId,
+              } satisfies Flip7ResolutionContext;
+            }
+            return null;
+          })()
+        : null;
+
+    const history = Array.isArray(parsed.history)
+      ? parsed.history
+          .map((entry) => {
+            if (!entry || typeof entry !== "object") return null;
+            const historyEntry = entry as Partial<Flip7HistoryEntry>;
+            if (
+              typeof historyEntry.id !== "string" ||
+              typeof historyEntry.message !== "string"
+            ) {
+              return null;
+            }
+            return {
+              id: historyEntry.id,
+              message: historyEntry.message,
+            } satisfies Flip7HistoryEntry;
+          })
+          .filter((entry): entry is Flip7HistoryEntry => entry !== null)
+      : [];
+
+    return {
+      status:
+        parsed.status === "AWAITING_ACTION_TARGET" ||
+        parsed.status === "ROUND_DECISION" ||
+        parsed.status === "ROUND_OVER" ||
+        parsed.status === "ENDED"
+          ? parsed.status
+          : "INITIAL_DEAL",
+      roundNumber:
+        typeof parsed.roundNumber === "number" &&
+        Number.isFinite(parsed.roundNumber) &&
+        parsed.roundNumber >= 1
+          ? parsed.roundNumber
+          : 1,
+      playerOrder: parsePlayerIdList(parsed.playerOrder),
+      roundStarterPlayerId:
+        typeof parsed.roundStarterPlayerId === "string"
+          ? parsed.roundStarterPlayerId
+          : null,
+      currentPlayerId:
+        typeof parsed.currentPlayerId === "string" ? parsed.currentPlayerId : null,
+      drawPile: parseCardList(parsed.drawPile),
+      discardPile: parseCardList(parsed.discardPile),
+      playerStatesById,
+      scoresByPlayerId: parseScoreMap(parsed.scoresByPlayerId),
+      lastRoundScoresByPlayerId: parseScoreMap(parsed.lastRoundScoresByPlayerId),
+      initialDealIndex:
+        typeof parsed.initialDealIndex === "number" &&
+        Number.isFinite(parsed.initialDealIndex) &&
+        parsed.initialDealIndex >= 0
+          ? parsed.initialDealIndex
+          : 0,
+      queuedActions,
+      pendingAction,
+      resolutionContext,
+      targetScore:
+        typeof parsed.targetScore === "number" &&
+        Number.isFinite(parsed.targetScore) &&
+        parsed.targetScore > 0
+          ? parsed.targetScore
+          : 200,
+      winnerPlayerId:
+        typeof parsed.winnerPlayerId === "string" ? parsed.winnerPlayerId : null,
+      pointPlayerIds: parsePlayerIdList(parsed.pointPlayerIds),
+      drinkPlayerIds: parsePlayerIdList(parsed.drinkPlayerIds),
+      lastAction:
+        typeof parsed.lastAction === "string" ? parsed.lastAction : null,
+      history,
     };
   } catch {
     return fallback;

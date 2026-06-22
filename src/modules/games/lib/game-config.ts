@@ -120,6 +120,11 @@ export const GAME_CONFIG: Record<string, GameConfig> = {
     minPlayers: 2,
     maxPlayers: 6,
   },
+  "flip-7": {
+    color: "from-cyan-500 to-indigo-700",
+    icon: Hash,
+    minPlayers: 3,
+  },
   "catherines-special": {
     color: "from-green-500 to-emerald-700",
     icon: Sparkles,
