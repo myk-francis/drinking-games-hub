@@ -2281,6 +2281,16 @@ export default function RoomPage() {
   const unoState = React.useMemo(() => {
     return parseUnoState(room?.currentAnswer);
   }, [room?.currentAnswer]);
+  const scoreboardPlayers = React.useMemo(() => {
+    if (selectedGame !== "flip-7") {
+      return players;
+    }
+
+    return players.map((player) => ({
+      ...player,
+      points: flip7State.scoresByPlayerId[player.id] ?? 0,
+    }));
+  }, [flip7State.scoresByPlayerId, players, selectedGame]);
 
   React.useEffect(() => {
     if (selectedGame !== "uno") {
@@ -3837,7 +3847,7 @@ export default function RoomPage() {
           selectedGame={selectedGame}
           playingTeams={room?.playingTeams || []}
           teamStats={TeamPlayerStats}
-          players={players}
+          players={scoreboardPlayers}
           PlayerScoreComponent={PlayerScore}
         />
 
