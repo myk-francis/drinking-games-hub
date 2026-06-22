@@ -2531,15 +2531,16 @@ export default React.memo(function GameContentRenderer(props: any) {
           : "No player selected";
         const isAttacker = actualPlayer === room?.playerOneId;
         const isTarget = actualPlayer === room?.playerTwoId;
+        const promptTitle = isAttacker
+          ? currentQuestion?.text ||
+            "No card available. Please wait for the next round."
+          : `${attackerName} is trying to make ${targetName} laugh.`;
 
         return (
           <PartyGameLayout
             gameCode="you-laugh-you-drink"
             eyebrow="You Laugh, You Drink"
-            title={
-              currentQuestion?.text ||
-              "No card available. Please wait for the next round."
-            }
+            title={promptTitle}
             subtitle="One attacker performs the bit, one target tries not to crack, and the room scores the face-off."
             actionSummary={`${attackerName} is attacking ${targetName}.`}
             actionHint="Attacker resolves the round: laugh means target drinks, stone face means attacker drinks."
