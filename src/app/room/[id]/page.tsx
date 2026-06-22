@@ -1082,6 +1082,21 @@ export default function RoomPage() {
     }),
   );
 
+  const badChoicesRedrawCards = useMutation(
+    trpc.games.badChoicesRedrawCards.mutationOptions({
+      onSuccess: (data) => {
+        toast.success(
+          `Hand refreshed. Drew ${data.redrawnCount} new card${
+            data.redrawnCount === 1 ? "" : "s"
+          }.`,
+        );
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not redraw those cards.");
+      },
+    }),
+  );
+
   const badChoicesAnswer = useMutation(
     trpc.games.badChoicesAnswer.mutationOptions({
       onSuccess: (data) => {
@@ -3650,6 +3665,7 @@ export default function RoomPage() {
                 badChoicesAnswer,
                 badChoicesCards: game?.questions || [],
                 badChoicesPlayCard,
+                badChoicesRedrawCards,
                 badChoicesState,
                 spinBottleChooseAction,
                 spinBottleMode: getSpinBottleModeByCode(spinBottleState.mode),

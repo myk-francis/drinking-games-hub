@@ -351,6 +351,7 @@ export default React.memo(function GameContentRenderer(props: any) {
     badChoicesAnswer,
     badChoicesCards,
     badChoicesPlayCard,
+    badChoicesRedrawCards,
     badChoicesState,
     spinBottleChooseAction,
     spinBottleMode,
@@ -516,6 +517,7 @@ export default React.memo(function GameContentRenderer(props: any) {
   const teams = room?.playingTeams || [];
   const [badPeopleUseDoubleDown, setBadPeopleUseDoubleDown] = React.useState(false);
   const [badChoicesSelectedCardId, setBadChoicesSelectedCardId] = React.useState(null);
+  const [badChoicesDiscardIds, setBadChoicesDiscardIds] = React.useState<number[]>([]);
   const [badChoicesSelectedTargetId, setBadChoicesSelectedTargetId] = React.useState("");
   const [spinBottleRotation, setSpinBottleRotation] = React.useState(0);
   const [spinBottleTransitionMs, setSpinBottleTransitionMs] = React.useState(0);
@@ -572,6 +574,7 @@ export default React.memo(function GameContentRenderer(props: any) {
 
     if (shouldResetSelection) {
       setBadChoicesSelectedCardId(null);
+      setBadChoicesDiscardIds([]);
       setBadChoicesSelectedTargetId("");
     }
 
@@ -1651,6 +1654,11 @@ export default React.memo(function GameContentRenderer(props: any) {
           badChoicesState.status === "PLAYING" &&
           selectedBadChoicesCard &&
           (!needsBadChoicesTarget || Boolean(badChoicesSelectedTargetId));
+        const canRedrawBadChoicesCards =
+          Boolean(actualPlayer) &&
+          actualPlayer === turnPlayerId &&
+          badChoicesState.status === "PLAYING" &&
+          badChoicesDiscardIds.length > 0;
         const allPlayResponders = players.filter(
           (player) => player.id !== turnPlayerId,
         );
@@ -1730,11 +1738,16 @@ export default React.memo(function GameContentRenderer(props: any) {
                       Pick a card from your hand, then choose a target if that
                       card needs one.
                     </p>
+                    <p className="mb-4 text-sm text-white/65">
+                      Or spend your turn discarding selected cards to draw the
+                      same number of new ones.
+                    </p>
 
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                       {myHandCards.map((card) => {
                         const cardType = getBadChoicesCardType(card);
                         const isSelected = badChoicesSelectedCardId === card.id;
+                        const isMarkedForDiscard = badChoicesDiscardIds.includes(card.id);
 
                         return (
                           <button
@@ -1756,7 +1769,7 @@ export default React.memo(function GameContentRenderer(props: any) {
                                       ? "bg-fuchsia-600"
                                       : "bg-amber-600"
                                 }
-                              >
+                            >
                                 {cardType === "QUESTION"
                                   ? "Question"
                                   : cardType === "DRAW_ONE"
@@ -1768,9 +1781,64 @@ export default React.memo(function GameContentRenderer(props: any) {
                               {isSelected && <Badge variant="secondary">Selected</Badge>}
                             </div>
                             <p className="mt-3 text-sm text-white/90">{card.text}</p>
+                            <div className="mt-4 flex items-center justify-between gap-3">
+                              <span className="text-xs uppercase tracking-[0.18em] text-white/50">
+                                Turn redraw
+                              </span>
+                              <Button
+                                type="button"
+                                variant={isMarkedForDiscard ? "default" : "outline"}
+                                className={
+                                  isMarkedForDiscard
+                                    ? "bg-amber-500 text-slate-950 hover:bg-amber-400"
+                                    : "border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                                }
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setBadChoicesDiscardIds((current) =>
+                                    current.includes(card.id)
+                                      ? current.filter((id) => id !== card.id)
+                                      : [...current, card.id],
+                                  );
+                                }}
+                              >
+                                {isMarkedForDiscard ? "Marked" : "Discard"}
+                              </Button>
+                            </div>
                           </button>
                         );
                       })}
+                    </div>
+
+                    <div className="mt-5 rounded-xl border border-amber-300/20 bg-amber-500/10 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-white">
+                            Redraw instead of playing
+                          </p>
+                          <p className="mt-1 text-sm text-white/75">
+                            Discard {badChoicesDiscardIds.length} selected card
+                            {badChoicesDiscardIds.length === 1 ? "" : "s"},
+                            draw the same number, then wait for your next turn.
+                          </p>
+                        </div>
+                        <Button
+                          className="bg-amber-400 text-slate-950 hover:bg-amber-300"
+                          disabled={
+                            !canRedrawBadChoicesCards ||
+                            badChoicesRedrawCards.isPending
+                          }
+                          onClick={() =>
+                            badChoicesRedrawCards.mutate({
+                              roomId: room?.id || "",
+                              playerId: actualPlayer || "",
+                              cardIds: badChoicesDiscardIds,
+                            })
+                          }
+                        >
+                          Redraw Selected Cards
+                        </Button>
+                      </div>
                     </div>
 
                     {selectedBadChoicesCard && (

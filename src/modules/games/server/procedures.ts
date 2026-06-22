@@ -16,6 +16,10 @@ import {
   getYouLaughYouDrinkOutcome,
   YOU_LAUGH_YOU_DRINK_RESULTS,
 } from "@/modules/games/lib/you-laugh-you-drink";
+import {
+  drawBadChoicesCards,
+  redrawBadChoicesCards,
+} from "@/modules/games/lib/bad-choices";
 import type { Prisma } from "../../../../prisma/generated/prisma/client";
 
 function generateUniqueCard(previousCards: number[]): number | null {
@@ -4141,30 +4145,6 @@ function createBadChoicesState(playerIds: string[]): BadChoicesState {
   } satisfies BadChoicesState;
 }
 
-function refillBadChoicesDrawPile(state: BadChoicesState) {
-  if (state.drawPile.length > 0 || state.discardPile.length === 0) {
-    return;
-  }
-
-  state.drawPile = shuffleArray(state.discardPile);
-  state.discardPile = [];
-}
-
-function drawBadChoicesCards(state: BadChoicesState, count: number) {
-  const drawnCards: number[] = [];
-
-  for (let index = 0; index < count; index += 1) {
-    refillBadChoicesDrawPile(state);
-    const nextCardId = state.drawPile.shift() ?? null;
-    if (nextCardId === null) {
-      break;
-    }
-    drawnCards.push(nextCardId);
-  }
-
-  return drawnCards;
-}
-
 function initializeBadChoicesState(
   playerIds: string[],
   questionIds: number[],
@@ -7359,6 +7339,80 @@ export const gamesRouter = createTRPCRouter({
         status: state.status,
         currentPlayerId: nextPlayerId,
         winnerPlayerId: null,
+      };
+    }),
+
+  badChoicesRedrawCards: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        cardIds: z.array(z.number().int().positive()).min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "bad-choices") {
+        throw new Error("This room is not Bad Choices");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+
+      const playerIds = room.players.map((player) => player.id);
+      const state = getNormalizedBadChoicesState(room.currentAnswer, playerIds);
+
+      if (state.status !== "PLAYING") {
+        throw new Error("Finish the current card before redrawing");
+      }
+      if (room.currentPlayerId !== input.playerId) {
+        throw new Error("It is not your turn");
+      }
+
+      const replacementCards = redrawBadChoicesCards({
+        state,
+        playerId: input.playerId,
+        cardIds: input.cardIds,
+      });
+
+      state.roundNumber += 1;
+      state.activeCardId = null;
+      state.activeTargetPlayerId = null;
+      state.allPlayAnswersByPlayerId = {};
+      state.lastResult = `Discarded ${input.cardIds.length} card${
+        input.cardIds.length === 1 ? "" : "s"
+      } and drew ${replacementCards.length} new one${
+        replacementCards.length === 1 ? "" : "s"
+      }.`;
+
+      const nextPlayerId = getNextBadChoicesPlayerId(state, input.playerId);
+
+      await prisma.room.update({
+        where: { id: input.roomId },
+        data: {
+          currentAnswer: JSON.stringify(state),
+          currentQuestionId: null,
+          currentPlayerId: nextPlayerId,
+          currentRound: state.roundNumber,
+        },
+      });
+
+      return {
+        status: state.status,
+        currentPlayerId: nextPlayerId,
+        redrawnCount: replacementCards.length,
       };
     }),
 
