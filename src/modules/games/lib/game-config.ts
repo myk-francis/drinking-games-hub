@@ -90,6 +90,11 @@ export const GAME_CONFIG: Record<string, GameConfig> = {
     icon: Theater,
     minPlayers: 4,
   },
+  "you-laugh-you-drink": {
+    color: "from-yellow-500 to-rose-600",
+    icon: Theater,
+    minPlayers: 2,
+  },
   "taboo-lite": {
     color: "from-teal-500 to-cyan-700",
     icon: ShieldQuestion,
