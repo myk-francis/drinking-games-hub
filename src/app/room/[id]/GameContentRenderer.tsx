@@ -103,6 +103,18 @@ const PARTY_TABLE_STYLES = {
     tipTitle: "Stage Notes",
     tipText: "The acting pair, timer, and resolution controls now read like one matched set.",
   },
+  "you-laugh-you-drink": {
+    shell:
+      "border-amber-300/25 bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.24),_rgba(39,16,16,0.93)_58%,_rgba(18,7,7,0.98)_100%)]",
+    chip: "border-amber-300/20 bg-amber-400/12 text-amber-100",
+    action: "border-rose-300/20 bg-rose-400/10 text-rose-50",
+    tip: "border-yellow-300/15 bg-yellow-400/10 text-yellow-50/85",
+    promptAccent: "from-white via-amber-50 to-rose-50",
+    corner: "Straight Face",
+    tipTitle: "Face-Off Rule",
+    tipText:
+      "Attacker judges the laugh. If the target breaks, they drink. If they hold steady, the pressure flips back.",
+  },
   "truth-or-lie": {
     shell:
       "border-violet-300/25 bg-[radial-gradient(circle_at_top,_rgba(139,92,246,0.24),_rgba(17,13,31,0.93)_58%,_rgba(7,5,14,0.98)_100%)]",
@@ -407,6 +419,7 @@ export default React.memo(function GameContentRenderer(props: any) {
     nameTheSongState,
     nextCatherineCard,
     nextCharadeCard,
+    nextYouLaughYouDrinkCard,
     nextCardCategory,
     nextCardPOD,
     nextQuestion,
@@ -2506,6 +2519,150 @@ export default React.memo(function GameContentRenderer(props: any) {
               )}
           </PartyGameLayout>
         );
+
+      case "you-laugh-you-drink": {
+        const attackerName = room?.playerOneId
+          ? players.find((player) => player.id === room.playerOneId)?.name ||
+            "Unknown Player"
+          : "No player selected";
+        const targetName = room?.playerTwoId
+          ? players.find((player) => player.id === room.playerTwoId)?.name ||
+            "Unknown Player"
+          : "No player selected";
+        const isAttacker = actualPlayer === room?.playerOneId;
+        const isTarget = actualPlayer === room?.playerTwoId;
+
+        return (
+          <PartyGameLayout
+            gameCode="you-laugh-you-drink"
+            eyebrow="You Laugh, You Drink"
+            title={
+              currentQuestion?.text ||
+              "No card available. Please wait for the next round."
+            }
+            subtitle="One attacker performs the bit, one target tries not to crack, and the room scores the face-off."
+            actionSummary={`${attackerName} is attacking ${targetName}.`}
+            actionHint="Attacker resolves the round: laugh means target drinks, stone face means attacker drinks."
+            metrics={[
+              {
+                label: "Attacker",
+                value: attackerName,
+                hint: "Runs the bit",
+                tone: "accent",
+              },
+              { label: "Target", value: targetName, hint: "Must not laugh" },
+              {
+                label: "Stakes",
+                value: "+1",
+                hint: "Point or drink each round",
+                tone: "warning",
+              },
+            ]}
+            aside={
+              <div className="rounded-[1.5rem] border border-yellow-300/15 bg-yellow-400/10 p-4 text-yellow-50/85 backdrop-blur-sm">
+                <p className="text-[11px] uppercase tracking-[0.24em] opacity-65">
+                  Round Rules
+                </p>
+                <div className="mt-3 space-y-3 text-sm leading-6">
+                  <p>
+                    If {targetName} laughs: {targetName} drinks +1 and{" "}
+                    {attackerName} gets 1 point.
+                  </p>
+                  <p>
+                    If {targetName} stays straight: {targetName} gets 1 point
+                    and {attackerName} drinks +1.
+                  </p>
+                </div>
+              </div>
+            }
+          >
+            <div className="w-full max-w-3xl space-y-4 text-center">
+              <div className="rounded-2xl border border-white/15 bg-white/8 px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-white/75">
+                {attackerName} vs {targetName}
+              </div>
+
+              {isAttacker ? (
+                <div className="rounded-3xl border border-amber-300/20 bg-amber-400/10 p-5 text-left text-white shadow-lg">
+                  <p className="text-xs uppercase tracking-[0.24em] text-amber-100/80">
+                    Your Card
+                  </p>
+                  <p className="mt-3 text-lg font-semibold leading-7 text-white">
+                    {currentQuestion?.text ||
+                      "No card available. Please wait for the next round."}
+                  </p>
+                  <p className="mt-3 text-sm text-white/75">
+                    Perform it however you want, watch {targetName}, then lock
+                    in the result.
+                  </p>
+                </div>
+              ) : isTarget ? (
+                <div className="rounded-3xl border border-rose-300/20 bg-rose-400/10 p-5 text-white shadow-lg">
+                  <p className="text-xs uppercase tracking-[0.24em] text-rose-100/80">
+                    Hold The Line
+                  </p>
+                  <p className="mt-3 text-lg font-semibold">
+                    {attackerName} is coming for your straight face. No smiling,
+                    no cracking.
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-3xl border border-white/15 bg-white/8 p-5 text-white shadow-lg">
+                  <p className="text-xs uppercase tracking-[0.24em] text-white/60">
+                    Watch The Face-Off
+                  </p>
+                  <p className="mt-3 text-lg font-semibold">
+                    {attackerName} is trying to break {targetName}. Keep score
+                    honest.
+                  </p>
+                </div>
+              )}
+
+              {isAttacker && !clicked ? (
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <PartyStageButton
+                    tone="danger"
+                    disabled={nextYouLaughYouDrinkCard.isPending}
+                    onClick={() => {
+                      setClicked(true);
+                      nextYouLaughYouDrinkCard.mutate({
+                        roomId: room?.id || "",
+                        result: "LAUGHED",
+                        attackerPlayerId: room?.playerOneId ?? "",
+                        targetPlayerId: room?.playerTwoId ?? "",
+                        currentQuestionId:
+                          room?.currentQuestionId == null
+                            ? ""
+                            : String(room.currentQuestionId),
+                      });
+                    }}
+                  >
+                    They Laughed
+                  </PartyStageButton>
+                  <PartyStageButton
+                    tone="success"
+                    disabled={nextYouLaughYouDrinkCard.isPending}
+                    onClick={() => {
+                      setClicked(true);
+                      nextYouLaughYouDrinkCard.mutate({
+                        roomId: room?.id || "",
+                        result: "STRAIGHT_FACE",
+                        attackerPlayerId: room?.playerOneId ?? "",
+                        targetPlayerId: room?.playerTwoId ?? "",
+                        currentQuestionId:
+                          room?.currentQuestionId == null
+                            ? ""
+                            : String(room.currentQuestionId),
+                      });
+                    }}
+                  >
+                    Stone Face
+                  </PartyStageButton>
+                </div>
+              ) : null}
+            </div>
+          </PartyGameLayout>
+        );
+      }
 
       case "taboo-lite":
         const tabooClueGiver = room?.playerOneId

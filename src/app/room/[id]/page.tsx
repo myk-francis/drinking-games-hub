@@ -2500,6 +2500,20 @@ export default function RoomPage() {
     }),
   );
 
+  const nextYouLaughYouDrinkCard = useMutation(
+    trpc.games.nextYouLaughYouDrinkCard.mutationOptions({
+      onSuccess: () => {
+        toast.success("Round locked in.");
+        setClicked(false);
+      },
+      onError: (error) => {
+        toast.error("Something went wrong. Please try again.");
+        console.error("Error changing card:", error);
+        setClicked(false);
+      },
+    }),
+  );
+
   const handleAddPlayer = React.useCallback(() => {
     if (!newPlayer.trim()) {
       toast.error("Please enter a player name.");
@@ -3719,6 +3733,7 @@ export default function RoomPage() {
                 nameTheSongState,
                 nextCatherineCard,
                 nextCharadeCard,
+                nextYouLaughYouDrinkCard,
                 nextCardCategory,
                 nextCardPOD,
                 nextQuestion,
