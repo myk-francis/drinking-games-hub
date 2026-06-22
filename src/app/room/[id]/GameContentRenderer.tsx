@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 import CoupRoom from "./CoupRoom";
+import Flip7Room from "./Flip7Room";
 import PokerRoom from "./PokerRoom";
 import UnoRoom from "./UnoRoom";
 
@@ -359,6 +360,11 @@ export default React.memo(function GameContentRenderer(props: any) {
     coupRevealInfluence,
     coupRespondDecision,
     coupState,
+    flip7AdvanceRound,
+    flip7ChooseTarget,
+    flip7Hit,
+    flip7State,
+    flip7Stay,
     spinBottleChooseAction,
     spinBottleMode,
     spinBottleSpin,
@@ -6142,6 +6148,46 @@ export default React.memo(function GameContentRenderer(props: any) {
               coupDeclareAction.isPending ||
               coupRevealInfluence.isPending ||
               coupRespondDecision.isPending
+            }
+            players={players}
+          />
+        );
+
+      case "flip-7":
+        return (
+          <Flip7Room
+            actualPlayer={actualPlayer || ""}
+            flip7State={flip7State}
+            onAdvanceRound={() =>
+              flip7AdvanceRound.mutate({
+                roomId: room?.id || "",
+                playerId: actualPlayer || "",
+              })
+            }
+            onChooseTarget={(targetPlayerId) =>
+              flip7ChooseTarget.mutate({
+                roomId: room?.id || "",
+                playerId: actualPlayer || "",
+                targetPlayerId,
+              })
+            }
+            onHit={() =>
+              flip7Hit.mutate({
+                roomId: room?.id || "",
+                playerId: actualPlayer || "",
+              })
+            }
+            onStay={() =>
+              flip7Stay.mutate({
+                roomId: room?.id || "",
+                playerId: actualPlayer || "",
+              })
+            }
+            pending={
+              flip7AdvanceRound.isPending ||
+              flip7ChooseTarget.isPending ||
+              flip7Hit.isPending ||
+              flip7Stay.isPending
             }
             players={players}
           />

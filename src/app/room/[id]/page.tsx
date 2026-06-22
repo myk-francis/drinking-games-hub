@@ -46,6 +46,7 @@ import {
   parseBadChoicesState,
   parseBadPeopleState,
   parseCoupState,
+  parseFlip7State,
   parseSpinBottleState,
   GUESS_THE_MOVIE_TIMER_SECONDS,
   NAME_THE_SONG_TIMER_SECONDS,
@@ -1870,6 +1871,107 @@ export default function RoomPage() {
       },
     }),
   );
+  const flip7Hit = useMutation(
+    trpc.games.flip7Hit.mutationOptions({
+      onSuccess: async (data) => {
+        await queryClient.invalidateQueries(
+          trpc.games.getRoomState.queryFilter({
+            roomId: String(roomId),
+          }),
+        );
+        if (data.winnerPlayerId) {
+          const winnerName =
+            players.find((player) => player.id === data.winnerPlayerId)?.name ||
+            "Winner";
+          toast.success(`${winnerName} wins Flip 7 and gets +1 point.`);
+          return;
+        }
+        toast.success(
+          data.lastAction
+            ? renderFlip7ToastMessage(data.lastAction)
+            : "Card revealed.",
+        );
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not hit in Flip 7.");
+      },
+    }),
+  );
+  const flip7Stay = useMutation(
+    trpc.games.flip7Stay.mutationOptions({
+      onSuccess: async (data) => {
+        await queryClient.invalidateQueries(
+          trpc.games.getRoomState.queryFilter({
+            roomId: String(roomId),
+          }),
+        );
+        if (data.status === "ROUND_OVER") {
+          toast.success("Round locked in. Start the next round when ready.");
+          return;
+        }
+        if (data.winnerPlayerId) {
+          const winnerName =
+            players.find((player) => player.id === data.winnerPlayerId)?.name ||
+            "Winner";
+          toast.success(`${winnerName} wins Flip 7 and gets +1 point.`);
+          return;
+        }
+        toast.success(
+          data.lastAction
+            ? renderFlip7ToastMessage(data.lastAction)
+            : "Round banked.",
+        );
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not stay in Flip 7.");
+      },
+    }),
+  );
+  const flip7ChooseTarget = useMutation(
+    trpc.games.flip7ChooseTarget.mutationOptions({
+      onSuccess: async (data) => {
+        await queryClient.invalidateQueries(
+          trpc.games.getRoomState.queryFilter({
+            roomId: String(roomId),
+          }),
+        );
+        if (data.winnerPlayerId) {
+          const winnerName =
+            players.find((player) => player.id === data.winnerPlayerId)?.name ||
+            "Winner";
+          toast.success(`${winnerName} wins Flip 7 and gets +1 point.`);
+          return;
+        }
+        toast.success(
+          data.lastAction
+            ? renderFlip7ToastMessage(data.lastAction)
+            : "Action target chosen.",
+        );
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not assign the Flip 7 action.");
+      },
+    }),
+  );
+  const flip7AdvanceRound = useMutation(
+    trpc.games.flip7AdvanceRound.mutationOptions({
+      onSuccess: async (data) => {
+        await queryClient.invalidateQueries(
+          trpc.games.getRoomState.queryFilter({
+            roomId: String(roomId),
+          }),
+        );
+        toast.success(
+          data.lastAction
+            ? renderFlip7ToastMessage(data.lastAction)
+            : "Next Flip 7 round started.",
+        );
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not start the next Flip 7 round.");
+      },
+    }),
+  );
   const rideTheBusGuess = useMutation(
     trpc.games.rideTheBusGuess.mutationOptions({
       onSuccess: (data) => {
@@ -1986,6 +2088,14 @@ export default function RoomPage() {
   const currentQuestion = room?.currentQuestion;
 
   const players = React.useMemo(() => room?.players || [], [room?.players]);
+  const renderFlip7ToastMessage = React.useCallback(
+    (message: string) => {
+      return players.reduce((currentMessage, player) => {
+        return currentMessage.replaceAll(player.id, player.name);
+      }, message);
+    },
+    [players],
+  );
 
   const [actualPlayer, setActualPlayer] = React.useState("");
   const [newPlayer, setNewPlayer] = React.useState("");
@@ -2136,6 +2246,9 @@ export default function RoomPage() {
   const coupState = React.useMemo(() => {
     return parseCoupState(room?.currentAnswer);
   }, [room?.currentAnswer]);
+  const flip7State = React.useMemo(() => {
+    return parseFlip7State(room?.currentAnswer);
+  }, [room?.currentAnswer]);
   const badPeopleState = React.useMemo(() => {
     const parsed = parseBadPeopleState(room?.currentAnswer);
     return {
@@ -2168,6 +2281,16 @@ export default function RoomPage() {
   const unoState = React.useMemo(() => {
     return parseUnoState(room?.currentAnswer);
   }, [room?.currentAnswer]);
+  const scoreboardPlayers = React.useMemo(() => {
+    if (selectedGame !== "flip-7") {
+      return players;
+    }
+
+    return players.map((player) => ({
+      ...player,
+      points: flip7State.scoresByPlayerId[player.id] ?? 0,
+    }));
+  }, [flip7State.scoresByPlayerId, players, selectedGame]);
 
   React.useEffect(() => {
     if (selectedGame !== "uno") {
@@ -3724,7 +3847,7 @@ export default function RoomPage() {
           selectedGame={selectedGame}
           playingTeams={room?.playingTeams || []}
           teamStats={TeamPlayerStats}
-          players={players}
+          players={scoreboardPlayers}
           PlayerScoreComponent={PlayerScore}
         />
 
@@ -3757,6 +3880,11 @@ export default function RoomPage() {
                 coupRevealInfluence,
                 coupRespondDecision,
                 coupState,
+                flip7AdvanceRound,
+                flip7ChooseTarget,
+                flip7Hit,
+                flip7State,
+                flip7Stay,
                 spinBottleChooseAction,
                 spinBottleMode: getSpinBottleModeByCode(spinBottleState.mode),
                 spinBottleSpin,

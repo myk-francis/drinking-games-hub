@@ -7,6 +7,10 @@ import {
   isCreateRoomDisabled,
 } from "./game-config";
 
+test("flip 7 uses a three-player minimum in the game config", () => {
+  assert.equal(getGameMinPlayers("flip-7"), 3);
+});
+
 test("coup uses a two-player minimum in the game config", () => {
   assert.equal(getGameMinPlayers("coup"), 2);
 });
@@ -44,5 +48,27 @@ test("create room stays disabled for coup until enough players are added", () =>
       teamsCount: 0,
     }),
     true,
+  );
+});
+
+test("create room stays disabled for flip 7 until three players are added", () => {
+  assert.equal(
+    isCreateRoomDisabled({
+      isCreatingRoom: false,
+      selectedGame: "flip-7",
+      playersCount: 2,
+      teamsCount: 0,
+    }),
+    true,
+  );
+
+  assert.equal(
+    isCreateRoomDisabled({
+      isCreatingRoom: false,
+      selectedGame: "flip-7",
+      playersCount: 3,
+      teamsCount: 0,
+    }),
+    false,
   );
 });

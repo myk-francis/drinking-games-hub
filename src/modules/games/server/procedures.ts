@@ -6,6 +6,7 @@ import {
   parseBadChoicesState,
   parseBadPeopleState,
   parseCoupState,
+  parseFlip7State,
   parseSpinBottleState,
 } from "@/modules/games/lib/room-state";
 import {
@@ -15,6 +16,13 @@ import {
   declareCoupAction,
   respondToCoupDecision,
 } from "@/modules/games/lib/coup-engine";
+import {
+  createInitialFlip7State,
+  flip7AdvanceRound,
+  flip7ChooseTarget,
+  flip7Hit,
+  flip7Stay,
+} from "@/modules/games/lib/flip-7-engine";
 import {
   getSpinBottleModeByValue,
   type SpinBottleMode,
@@ -33,6 +41,54 @@ import type { Prisma } from "../../../../prisma/generated/prisma/client";
 async function saveCoupState(args: {
   roomId: string;
   state: ReturnType<typeof parseCoupState>;
+  tx: Prisma.TransactionClient;
+}) {
+  const { roomId, state, tx } = args;
+
+  if (state.status === "ENDED" && state.winnerPlayerId) {
+    await tx.player.update({
+      where: {
+        id: state.winnerPlayerId,
+      },
+      data: {
+        points: {
+          increment: 1,
+        },
+      },
+    });
+
+    await tx.player.updateMany({
+      where: {
+        roomId,
+        id: {
+          not: state.winnerPlayerId,
+        },
+      },
+      data: {
+        drinks: {
+          increment: 1,
+        },
+      },
+    });
+  }
+
+  await tx.room.update({
+    where: {
+      id: roomId,
+    },
+    data: {
+      currentPlayerId: state.currentPlayerId,
+      currentAnswer: JSON.stringify(state),
+      currentRound: state.roundNumber,
+      gameEnded: state.status === "ENDED",
+      gameEndedAt: state.status === "ENDED" ? new Date() : null,
+    },
+  });
+}
+
+async function saveFlip7State(args: {
+  roomId: string;
+  state: ReturnType<typeof parseFlip7State>;
   tx: Prisma.TransactionClient;
 }) {
   const { roomId, state, tx } = args;
@@ -4774,6 +4830,12 @@ export const gamesRouter = createTRPCRouter({
           throw new Error("Coup allows at most 6 players.");
         }
         if (
+          input.selectedGame === "flip-7" &&
+          (input.players?.length || 0) < 3
+        ) {
+          throw new Error("Flip 7 requires at least 3 players.");
+        }
+        if (
           input.selectedGame === "memory-chain" &&
           (input.players?.length || 0) < 2
         ) {
@@ -4997,6 +5059,7 @@ export const gamesRouter = createTRPCRouter({
           let pokerCurrentPlayerId: string | null = null;
           let unoCurrentPlayerId: string | null = null;
           let coupCurrentPlayerId: string | null = null;
+          let flip7CurrentPlayerId: string | null = null;
           let badChoicesCurrentPlayerId: string | null = null;
           let spinBottleCurrentPlayerId: string | null = null;
 
@@ -5147,6 +5210,13 @@ export const gamesRouter = createTRPCRouter({
             coupCurrentPlayerId = coupState.currentPlayerId;
             currentQuestionId = null;
           }
+          if (input.selectedGame === "flip-7") {
+            const playerIds = createdRoom.players.map((player) => player.id);
+            const flip7State = createInitialFlip7State(playerIds);
+            roomCurrentAnswer = JSON.stringify(flip7State);
+            flip7CurrentPlayerId = flip7State.currentPlayerId;
+            currentQuestionId = null;
+          }
           if (input.selectedGame === "bad-people") {
             const playerIds = createdRoom.players.map((player) => player.id);
             const badPeopleState = createBadPeopleState(
@@ -5199,6 +5269,8 @@ export const gamesRouter = createTRPCRouter({
                     ? unoCurrentPlayerId
                   : input.selectedGame === "coup"
                     ? coupCurrentPlayerId
+                  : input.selectedGame === "flip-7"
+                    ? flip7CurrentPlayerId
                   : input.selectedGame === "bad-choices"
                     ? badChoicesCurrentPlayerId
                   : input.selectedGame === "spin-the-bottle"
@@ -5221,6 +5293,7 @@ export const gamesRouter = createTRPCRouter({
                 input.selectedGame === "blackjack" ||
                 input.selectedGame === "poker" ||
                 input.selectedGame === "coup" ||
+                input.selectedGame === "flip-7" ||
                 input.selectedGame === "bad-choices" ||
                 input.selectedGame === "spin-the-bottle"
                   ? 1
@@ -13460,6 +13533,231 @@ export const gamesRouter = createTRPCRouter({
         currentPlayerId: state.currentPlayerId,
         winnerPlayerId: state.winnerPlayerId,
         lastAction: state.lastAction,
+      };
+    }),
+
+  flip7Hit: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "flip-7") {
+        throw new Error("This room is not Flip 7");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+      if (!room.players.some((player) => player.id === input.playerId)) {
+        throw new Error("Player not found in room");
+      }
+
+      const state = parseFlip7State(room.currentAnswer);
+      flip7Hit({
+        state,
+        playerId: input.playerId,
+      });
+
+      await prisma.$transaction(async (tx) => {
+        await saveFlip7State({
+          roomId: input.roomId,
+          state,
+          tx,
+        });
+      });
+
+      return {
+        status: state.status,
+        currentPlayerId: state.currentPlayerId,
+        winnerPlayerId: state.winnerPlayerId,
+        pointPlayerIds: state.pointPlayerIds,
+        drinkPlayerIds: state.drinkPlayerIds,
+        lastAction: state.lastAction,
+        roundNumber: state.roundNumber,
+      };
+    }),
+
+  flip7Stay: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "flip-7") {
+        throw new Error("This room is not Flip 7");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+      if (!room.players.some((player) => player.id === input.playerId)) {
+        throw new Error("Player not found in room");
+      }
+
+      const state = parseFlip7State(room.currentAnswer);
+      flip7Stay({
+        state,
+        playerId: input.playerId,
+      });
+
+      await prisma.$transaction(async (tx) => {
+        await saveFlip7State({
+          roomId: input.roomId,
+          state,
+          tx,
+        });
+      });
+
+      return {
+        status: state.status,
+        currentPlayerId: state.currentPlayerId,
+        winnerPlayerId: state.winnerPlayerId,
+        pointPlayerIds: state.pointPlayerIds,
+        drinkPlayerIds: state.drinkPlayerIds,
+        lastAction: state.lastAction,
+        roundNumber: state.roundNumber,
+      };
+    }),
+
+  flip7ChooseTarget: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+        targetPlayerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "flip-7") {
+        throw new Error("This room is not Flip 7");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+      if (!room.players.some((player) => player.id === input.playerId)) {
+        throw new Error("Player not found in room");
+      }
+
+      const state = parseFlip7State(room.currentAnswer);
+      flip7ChooseTarget({
+        state,
+        playerId: input.playerId,
+        targetPlayerId: input.targetPlayerId,
+      });
+
+      await prisma.$transaction(async (tx) => {
+        await saveFlip7State({
+          roomId: input.roomId,
+          state,
+          tx,
+        });
+      });
+
+      return {
+        status: state.status,
+        currentPlayerId: state.currentPlayerId,
+        winnerPlayerId: state.winnerPlayerId,
+        pointPlayerIds: state.pointPlayerIds,
+        drinkPlayerIds: state.drinkPlayerIds,
+        lastAction: state.lastAction,
+        roundNumber: state.roundNumber,
+      };
+    }),
+
+  flip7AdvanceRound: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1),
+        playerId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: { id: input.roomId },
+        include: {
+          players: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          game: true,
+        },
+      });
+
+      if (!room) throw new Error("Room not found");
+      if (room.game.code !== "flip-7") {
+        throw new Error("This room is not Flip 7");
+      }
+      if (room.gameEnded) {
+        throw new Error("Game already ended");
+      }
+      if (!room.players.some((player) => player.id === input.playerId)) {
+        throw new Error("Player not found in room");
+      }
+
+      const state = parseFlip7State(room.currentAnswer);
+      flip7AdvanceRound({
+        state,
+      });
+
+      await prisma.$transaction(async (tx) => {
+        await saveFlip7State({
+          roomId: input.roomId,
+          state,
+          tx,
+        });
+      });
+
+      return {
+        status: state.status,
+        currentPlayerId: state.currentPlayerId,
+        winnerPlayerId: state.winnerPlayerId,
+        pointPlayerIds: state.pointPlayerIds,
+        drinkPlayerIds: state.drinkPlayerIds,
+        lastAction: state.lastAction,
+        roundNumber: state.roundNumber,
       };
     }),
 
