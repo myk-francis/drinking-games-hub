@@ -160,6 +160,15 @@ function getActionPreview(actionType: Flip7RoomState["pendingAction"] extends in
   }
 }
 
+function renderHistoryMessage(
+  message: string,
+  players: RoomPlayer[],
+): string {
+  return players.reduce((currentMessage, player) => {
+    return currentMessage.replaceAll(player.id, player.name);
+  }, message);
+}
+
 export default function Flip7Room({
   actualPlayer,
   flip7State,
@@ -196,6 +205,9 @@ export default function Flip7Room({
     playerMap.get(flip7State.currentPlayerId ?? "")?.name ?? "Table";
   const pendingActionPlayerName =
     playerMap.get(flip7State.pendingAction?.sourcePlayerId ?? "")?.name ?? "Player";
+  const lastActionMessage = flip7State.lastAction
+    ? renderHistoryMessage(flip7State.lastAction, players)
+    : "Waiting for the first reveal.";
 
   return (
     <div className="space-y-4">
@@ -250,7 +262,7 @@ export default function Flip7Room({
               </span>
             </div>
             <p className="mt-3 text-sm font-semibold text-white">
-              {flip7State.lastAction ?? "Waiting for the first reveal."}
+              {lastActionMessage}
             </p>
           </div>
         </div>
@@ -486,7 +498,7 @@ export default function Flip7Room({
                 >
                   <div className="flex items-start gap-2">
                     <History className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300" />
-                    <span>{entry.message}</span>
+                    <span>{renderHistoryMessage(entry.message, players)}</span>
                   </div>
                 </div>
               ))
