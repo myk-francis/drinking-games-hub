@@ -124,6 +124,14 @@ test("initial flip 7 state accounts for the whole deck", () => {
   );
 });
 
+test("opening deal gives the first decision to the active round starter", () => {
+  const state = createInitialFlip7State(["a", "b", "c"]);
+
+  if (state.status === "ROUND_DECISION") {
+    assert.equal(state.currentPlayerId, state.roundStarterPlayerId);
+  }
+});
+
 test("stay removes a player from active turns and advances to the next player", () => {
   const state = createDeterministicState();
 
@@ -308,9 +316,18 @@ test("a tie above the target score continues the game into another round", () =>
   assert.equal(state.winnerPlayerId, null);
 
   flip7AdvanceRound({ state });
+  const advancedState: Flip7RoomState = state;
 
-  assert.equal(state.roundNumber, 2);
-  assert.ok(["INITIAL_DEAL", "AWAITING_ACTION_TARGET", "ROUND_DECISION"].includes(state.status));
+  assert.equal(advancedState.roundNumber, 2);
+  assert.equal(advancedState.roundStarterPlayerId, "b");
+  if (advancedState.status === "ROUND_DECISION") {
+    assert.equal(advancedState.currentPlayerId, "b");
+  }
+  assert.ok(
+    ["INITIAL_DEAL", "AWAITING_ACTION_TARGET", "ROUND_DECISION"].includes(
+      advancedState.status,
+    ),
+  );
 });
 
 test("a unique leader above the target score ends the game and assigns points/drinks", () => {

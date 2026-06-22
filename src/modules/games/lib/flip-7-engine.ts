@@ -168,6 +168,32 @@ function getNextActivePlayerId(
   return null;
 }
 
+function getFirstActivePlayerAtOrAfter(
+  state: Flip7RoomState,
+  startingPlayerId: string | null,
+): string | null {
+  const activePlayerIds = getActivePlayerIds(state);
+  if (activePlayerIds.length === 0) return null;
+
+  if (!startingPlayerId) {
+    return activePlayerIds[0] ?? null;
+  }
+
+  const startIndex = state.playerOrder.indexOf(startingPlayerId);
+  if (startIndex === -1) {
+    return activePlayerIds[0] ?? null;
+  }
+
+  for (let offset = 0; offset < state.playerOrder.length; offset += 1) {
+    const playerId = state.playerOrder[(startIndex + offset) % state.playerOrder.length];
+    if (getPlayerState(state, playerId).active) {
+      return playerId;
+    }
+  }
+
+  return null;
+}
+
 function getModifierBonus(playerState: Flip7PlayerState): number {
   return getModifierCards(playerState).reduce((sum, card) => {
     if (card.modifier === "MULTIPLY_TWO") return sum;
@@ -478,7 +504,10 @@ function continueInitialDeal(state: Flip7RoomState) {
   if (state.initialDealIndex >= state.playerOrder.length) {
     state.resolutionContext = null;
     state.status = "ROUND_DECISION";
-    state.currentPlayerId = getNextActivePlayerId(state, state.roundStarterPlayerId);
+    state.currentPlayerId = getFirstActivePlayerAtOrAfter(
+      state,
+      state.roundStarterPlayerId,
+    );
     if (!state.currentPlayerId) {
       finalizeRound(state, "No players remained after the initial deal.");
     }
