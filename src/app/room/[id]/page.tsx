@@ -1886,7 +1886,11 @@ export default function RoomPage() {
           toast.success(`${winnerName} wins Flip 7 and gets +1 point.`);
           return;
         }
-        toast.success(data.lastAction || "Card revealed.");
+        toast.success(
+          data.lastAction
+            ? renderFlip7ToastMessage(data.lastAction)
+            : "Card revealed.",
+        );
       },
       onError: (error) => {
         toast.error(error.message || "Could not hit in Flip 7.");
@@ -1912,7 +1916,11 @@ export default function RoomPage() {
           toast.success(`${winnerName} wins Flip 7 and gets +1 point.`);
           return;
         }
-        toast.success(data.lastAction || "Round banked.");
+        toast.success(
+          data.lastAction
+            ? renderFlip7ToastMessage(data.lastAction)
+            : "Round banked.",
+        );
       },
       onError: (error) => {
         toast.error(error.message || "Could not stay in Flip 7.");
@@ -1934,7 +1942,11 @@ export default function RoomPage() {
           toast.success(`${winnerName} wins Flip 7 and gets +1 point.`);
           return;
         }
-        toast.success(data.lastAction || "Action target chosen.");
+        toast.success(
+          data.lastAction
+            ? renderFlip7ToastMessage(data.lastAction)
+            : "Action target chosen.",
+        );
       },
       onError: (error) => {
         toast.error(error.message || "Could not assign the Flip 7 action.");
@@ -1949,7 +1961,11 @@ export default function RoomPage() {
             roomId: String(roomId),
           }),
         );
-        toast.success(data.lastAction || "Next Flip 7 round started.");
+        toast.success(
+          data.lastAction
+            ? renderFlip7ToastMessage(data.lastAction)
+            : "Next Flip 7 round started.",
+        );
       },
       onError: (error) => {
         toast.error(error.message || "Could not start the next Flip 7 round.");
@@ -2072,6 +2088,14 @@ export default function RoomPage() {
   const currentQuestion = room?.currentQuestion;
 
   const players = React.useMemo(() => room?.players || [], [room?.players]);
+  const renderFlip7ToastMessage = React.useCallback(
+    (message: string) => {
+      return players.reduce((currentMessage, player) => {
+        return currentMessage.replaceAll(player.id, player.name);
+      }, message);
+    },
+    [players],
+  );
 
   const [actualPlayer, setActualPlayer] = React.useState("");
   const [newPlayer, setNewPlayer] = React.useState("");
