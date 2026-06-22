@@ -34,6 +34,7 @@ type GameConfig = {
   color: string;
   icon: LucideIcon;
   minPlayers?: number;
+  maxPlayers?: number;
 };
 
 const DEFAULT_GAME_CONFIG: GameConfig = {
@@ -112,6 +113,12 @@ export const GAME_CONFIG: Record<string, GameConfig> = {
   "kings-cup": {
     color: "from-yellow-500 to-red-700",
     icon: Crown,
+  },
+  coup: {
+    color: "from-amber-500 to-rose-700",
+    icon: Crown,
+    minPlayers: 2,
+    maxPlayers: 6,
   },
   "catherines-special": {
     color: "from-green-500 to-emerald-700",
@@ -210,6 +217,10 @@ export function getGameMinPlayers(gameCode: string): number {
   return GAME_CONFIG[gameCode]?.minPlayers ?? 0;
 }
 
+export function getGameMaxPlayers(gameCode: string): number | null {
+  return GAME_CONFIG[gameCode]?.maxPlayers ?? null;
+}
+
 export function isCreateRoomDisabled({
   isCreatingRoom,
   selectedGame,
@@ -229,5 +240,11 @@ export function isCreateRoomDisabled({
     return teamsCount > 2;
   }
 
-  return playersCount < getGameMinPlayers(selectedGame);
+  const minPlayers = getGameMinPlayers(selectedGame);
+  const maxPlayers = getGameMaxPlayers(selectedGame);
+
+  return (
+    playersCount < minPlayers ||
+    (maxPlayers !== null && playersCount > maxPlayers)
+  );
 }

@@ -45,6 +45,7 @@ import { DRINKING_QUOTES } from "@/lib/quotes";
 import {
   parseBadChoicesState,
   parseBadPeopleState,
+  parseCoupState,
   parseSpinBottleState,
   GUESS_THE_MOVIE_TIMER_SECONDS,
   NAME_THE_SONG_TIMER_SECONDS,
@@ -1082,6 +1083,21 @@ export default function RoomPage() {
     }),
   );
 
+  const badChoicesRedrawCards = useMutation(
+    trpc.games.badChoicesRedrawCards.mutationOptions({
+      onSuccess: (data) => {
+        toast.success(
+          `Hand refreshed. Drew ${data.redrawnCount} new card${
+            data.redrawnCount === 1 ? "" : "s"
+          }.`,
+        );
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not redraw those cards.");
+      },
+    }),
+  );
+
   const badChoicesAnswer = useMutation(
     trpc.games.badChoicesAnswer.mutationOptions({
       onSuccess: (data) => {
@@ -1773,6 +1789,87 @@ export default function RoomPage() {
       },
     }),
   );
+  const coupDeclareAction = useMutation(
+    trpc.games.coupDeclareAction.mutationOptions({
+      onSuccess: async (data) => {
+        await queryClient.invalidateQueries(
+          trpc.games.getRoomState.queryFilter({
+            roomId: String(roomId),
+          }),
+        );
+        if (data.winnerPlayerId) {
+          const winnerName =
+            players.find((player) => player.id === data.winnerPlayerId)?.name ||
+            "Winner";
+          toast.success(`${winnerName} won the Coup.`);
+          return;
+        }
+        toast.success(data.lastAction || "Coup action submitted.");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not submit the Coup action.");
+      },
+    }),
+  );
+  const coupRespondDecision = useMutation(
+    trpc.games.coupRespondDecision.mutationOptions({
+      onSuccess: async (data) => {
+        await queryClient.invalidateQueries(
+          trpc.games.getRoomState.queryFilter({
+            roomId: String(roomId),
+          }),
+        );
+        if (data.winnerPlayerId) {
+          const winnerName =
+            players.find((player) => player.id === data.winnerPlayerId)?.name ||
+            "Winner";
+          toast.success(`${winnerName} won the Coup.`);
+          return;
+        }
+        toast.success(data.lastAction || "Coup response submitted.");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not resolve the Coup response.");
+      },
+    }),
+  );
+  const coupRevealInfluence = useMutation(
+    trpc.games.coupRevealInfluence.mutationOptions({
+      onSuccess: async (data) => {
+        await queryClient.invalidateQueries(
+          trpc.games.getRoomState.queryFilter({
+            roomId: String(roomId),
+          }),
+        );
+        if (data.winnerPlayerId) {
+          const winnerName =
+            players.find((player) => player.id === data.winnerPlayerId)?.name ||
+            "Winner";
+          toast.success(`${winnerName} won the Coup.`);
+          return;
+        }
+        toast.success(data.lastAction || "Influence revealed.");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not reveal influence.");
+      },
+    }),
+  );
+  const coupChooseExchange = useMutation(
+    trpc.games.coupChooseExchange.mutationOptions({
+      onSuccess: async (data) => {
+        await queryClient.invalidateQueries(
+          trpc.games.getRoomState.queryFilter({
+            roomId: String(roomId),
+          }),
+        );
+        toast.success(data.lastAction || "Exchange resolved.");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not complete the exchange.");
+      },
+    }),
+  );
   const rideTheBusGuess = useMutation(
     trpc.games.rideTheBusGuess.mutationOptions({
       onSuccess: (data) => {
@@ -2035,6 +2132,9 @@ export default function RoomPage() {
   }, [room?.currentAnswer]);
   const spinBottleState = React.useMemo(() => {
     return parseSpinBottleState(room?.currentAnswer);
+  }, [room?.currentAnswer]);
+  const coupState = React.useMemo(() => {
+    return parseCoupState(room?.currentAnswer);
   }, [room?.currentAnswer]);
   const badPeopleState = React.useMemo(() => {
     const parsed = parseBadPeopleState(room?.currentAnswer);
@@ -3650,7 +3750,13 @@ export default function RoomPage() {
                 badChoicesAnswer,
                 badChoicesCards: game?.questions || [],
                 badChoicesPlayCard,
+                badChoicesRedrawCards,
                 badChoicesState,
+                coupChooseExchange,
+                coupDeclareAction,
+                coupRevealInfluence,
+                coupRespondDecision,
+                coupState,
                 spinBottleChooseAction,
                 spinBottleMode: getSpinBottleModeByCode(spinBottleState.mode),
                 spinBottleSpin,

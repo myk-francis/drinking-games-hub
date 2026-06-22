@@ -22,6 +22,7 @@ export const MIN_PLAYERS_BY_GAME: Record<string, number> = {
   "bad-choices": 3,
   "spin-the-bottle": 4,
   "kings-cup": 2,
+  coup: 2,
   "taboo-lite": 4,
   "most-likely": 3,
   "verbal-charades": 4,
@@ -41,6 +42,10 @@ export const MIN_PLAYERS_BY_GAME: Record<string, number> = {
   "name-the-song": 2,
   poker: 2,
   uno: 2,
+};
+
+export const MAX_PLAYERS_BY_GAME: Record<string, number> = {
+  coup: 6,
 };
 
 const uniqueTrimmed = (items: string[]) =>
@@ -99,6 +104,11 @@ export function getSelfServiceValidationError(
   const requiredPlayers = MIN_PLAYERS_BY_GAME[payload.selectedGame];
   if (requiredPlayers && payload.players.length < requiredPlayers) {
     return `This game needs at least ${requiredPlayers} players.`;
+  }
+
+  const maximumPlayers = MAX_PLAYERS_BY_GAME[payload.selectedGame];
+  if (maximumPlayers && payload.players.length > maximumPlayers) {
+    return `This game allows at most ${maximumPlayers} players.`;
   }
 
   return null;
