@@ -295,7 +295,7 @@ function EndGameFeedback({
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-md bg-zinc-950 border border-white/10 text-white">
+      <DialogContent className="top-[50%] bottom-auto max-h-[85dvh] w-[calc(100%-2rem)] -translate-y-1/2 overflow-y-auto border border-white/10 bg-zinc-950 text-white sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-white">Rate this game</DialogTitle>
         </DialogHeader>
@@ -1799,13 +1799,13 @@ export default function RoomPage() {
           }),
         );
         if (data.winnerPlayerId) {
-          const winnerName =
-            players.find((player) => player.id === data.winnerPlayerId)?.name ||
-            "Winner";
-          toast.success(`${winnerName} won the Coup.`);
           return;
         }
-        toast.success(data.lastAction || "Coup action submitted.");
+        toast.success(
+          data.lastAction
+            ? renderCoupToastMessage(data.lastAction)
+            : "Coup action submitted.",
+        );
       },
       onError: (error) => {
         toast.error(error.message || "Could not submit the Coup action.");
@@ -1821,13 +1821,13 @@ export default function RoomPage() {
           }),
         );
         if (data.winnerPlayerId) {
-          const winnerName =
-            players.find((player) => player.id === data.winnerPlayerId)?.name ||
-            "Winner";
-          toast.success(`${winnerName} won the Coup.`);
           return;
         }
-        toast.success(data.lastAction || "Coup response submitted.");
+        toast.success(
+          data.lastAction
+            ? renderCoupToastMessage(data.lastAction)
+            : "Coup response submitted.",
+        );
       },
       onError: (error) => {
         toast.error(error.message || "Could not resolve the Coup response.");
@@ -1843,13 +1843,13 @@ export default function RoomPage() {
           }),
         );
         if (data.winnerPlayerId) {
-          const winnerName =
-            players.find((player) => player.id === data.winnerPlayerId)?.name ||
-            "Winner";
-          toast.success(`${winnerName} won the Coup.`);
           return;
         }
-        toast.success(data.lastAction || "Influence revealed.");
+        toast.success(
+          data.lastAction
+            ? renderCoupToastMessage(data.lastAction)
+            : "Influence revealed.",
+        );
       },
       onError: (error) => {
         toast.error(error.message || "Could not reveal influence.");
@@ -2088,6 +2088,23 @@ export default function RoomPage() {
   const currentQuestion = room?.currentQuestion;
 
   const players = React.useMemo(() => room?.players || [], [room?.players]);
+  const renderCoupToastMessage = React.useCallback(
+    (message: string) => {
+      return players.reduce((currentMessage, player) => {
+        return currentMessage.replaceAll(player.id, player.name);
+      }, message);
+    },
+    [players],
+  );
+  const renderCoupGameOverMessage = React.useCallback(
+    (winnerPlayerId: string | null, lastAction: string | null) => {
+      const winnerName =
+        players.find((player) => player.id === winnerPlayerId)?.name || "Winner";
+      const reason = lastAction ? renderCoupToastMessage(lastAction) : "Coup ended.";
+      return `${winnerName} won the Coup. ${reason}`;
+    },
+    [players, renderCoupToastMessage],
+  );
   const renderFlip7ToastMessage = React.useCallback(
     (message: string) => {
       return players.reduce((currentMessage, player) => {
@@ -2501,6 +2518,7 @@ export default function RoomPage() {
   const gameOverSoundRef = React.useRef<HTMLAudioElement | null>(null);
   const gameOverSoundPoolRef = React.useRef<Set<HTMLAudioElement>>(new Set());
   const hasPlayedGameOverSoundRef = React.useRef(false);
+  const lastCoupEndToastKeyRef = React.useRef<string | null>(null);
   const previousDrinksByPlayerRef = React.useRef<Record<string, number>>({});
   const connectLettersAutoStopRef = React.useRef<string | null>(null);
   const prefersReducedMotion = useReducedMotion();
@@ -2983,6 +3001,11 @@ export default function RoomPage() {
   }, [whoAmINoteDraft, whoAmINotesStorageKey]);
 
   React.useEffect(() => {
+    if (!room?.id) return;
+    lastCoupEndToastKeyRef.current = null;
+  }, [room?.id]);
+
+  React.useEffect(() => {
     // Reset one-time guard for each page load of a room,
     // so a browser refresh can replay the game-over music once.
     if (!room?.id) return;
@@ -3016,6 +3039,35 @@ export default function RoomPage() {
         // Ignore autoplay/permission errors silently.
       });
   }, [room?.gameEnded, room?.id]);
+
+  React.useEffect(() => {
+    if (
+      selectedGame !== "coup" ||
+      !room?.gameEnded ||
+      coupState.status !== "ENDED" ||
+      !coupState.winnerPlayerId
+    ) {
+      return;
+    }
+
+    const toastKey = `${room.id}:${coupState.winnerPlayerId}:${coupState.lastAction ?? ""}`;
+    if (lastCoupEndToastKeyRef.current === toastKey) {
+      return;
+    }
+
+    lastCoupEndToastKeyRef.current = toastKey;
+    toast.success(
+      renderCoupGameOverMessage(coupState.winnerPlayerId, coupState.lastAction),
+    );
+  }, [
+    coupState.lastAction,
+    coupState.status,
+    coupState.winnerPlayerId,
+    renderCoupGameOverMessage,
+    room?.gameEnded,
+    room?.id,
+    selectedGame,
+  ]);
 
   React.useEffect(() => {
     const audio = gameOverSoundRef.current;

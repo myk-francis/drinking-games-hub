@@ -667,12 +667,10 @@ export function respondToCoupDecision(args: {
         (id) => id !== playerId,
       );
       if (block.respondersPendingIds.length === 0) {
+        state.pendingAction = null;
+        state.pendingBlock = null;
         return beginNextTurn(
-          {
-            ...state,
-            pendingAction: null,
-            pendingBlock: null,
-          },
+          state,
           getNextActivePlayerId(state, action.actorId),
           "The block stood and the action was stopped.",
         );

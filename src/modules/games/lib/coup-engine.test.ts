@@ -154,6 +154,63 @@ test("a false assassination block causes the target to lose two influence and en
   assert.ok(state.handsByPlayerId.b.every((entry) => entry.revealed));
 });
 
+test("allowing a Duke block on foreign aid advances the turn instead of freezing the game", () => {
+  const state = createDeterministicState();
+
+  declareCoupAction({
+    state,
+    playerId: "a",
+    actionType: "FOREIGN_AID",
+  });
+
+  respondToCoupDecision({
+    state,
+    playerId: "b",
+    response: "BLOCK_DUKE",
+  });
+
+  respondToCoupDecision({
+    state,
+    playerId: "a",
+    response: "ALLOW",
+  });
+
+  assert.equal(state.status, "ACTION");
+  assert.equal(state.currentPlayerId, "b");
+  assert.equal(state.pendingAction, null);
+  assert.equal(state.pendingBlock, null);
+  assert.equal(state.coinsByPlayerId.a, 2);
+  assert.match(state.lastAction ?? "", /block stood/i);
+});
+
+test("losing one influence does not end the game if the player still has another hidden card", () => {
+  const state = createDeterministicState();
+  state.coinsByPlayerId.a = 7;
+
+  declareCoupAction({
+    state,
+    playerId: "a",
+    actionType: "COUP",
+    targetPlayerId: "b",
+  });
+
+  assert.equal(state.status, "REVEAL_INFLUENCE");
+
+  chooseCoupReveal({
+    state,
+    playerId: "b",
+    cardId: "b-1",
+  });
+
+  assert.equal(state.status, "ACTION");
+  assert.equal(state.winnerPlayerId, null);
+  assert.equal(state.currentPlayerId, "b");
+  assert.equal(
+    state.handsByPlayerId.b.filter((entry) => !entry.revealed).length,
+    1,
+  );
+});
+
 test("exchange lets the acting player keep the chosen hidden influences", () => {
   const state = createDeterministicState();
 
