@@ -8,8 +8,8 @@ import {
   normalizeSelfServicePayload,
 } from "./self-service";
 
-test("flip 7 is listed with a three-player minimum for self-service", () => {
-  assert.equal(MIN_PLAYERS_BY_GAME["flip-7"], 3);
+test("flip 7 is listed with a two-player minimum for self-service", () => {
+  assert.equal(MIN_PLAYERS_BY_GAME["flip-7"], 2);
 });
 
 test("coup is listed with a two-player minimum for self-service", () => {
@@ -60,15 +60,15 @@ test("self-service validation blocks coup rooms with more than six players", () 
   assert.equal(error, "This game allows at most 6 players.");
 });
 
-test("self-service validation blocks flip 7 rooms with fewer than three players", () => {
+test("self-service validation blocks flip 7 rooms with fewer than two players", () => {
   const error = getSelfServiceValidationError({
     version: 1,
     selectedGame: "flip-7",
-    players: ["A", "B"],
+    players: ["A"],
     selectedRounds: 0,
     selectedStake: 10000,
     teamsInfo: [],
   });
 
-  assert.equal(error, "This game needs at least 3 players.");
+  assert.equal(error, "This game needs at least 2 players.");
 });

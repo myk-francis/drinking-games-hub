@@ -123,7 +123,7 @@ export const GAME_CONFIG: Record<string, GameConfig> = {
   "flip-7": {
     color: "from-cyan-500 to-indigo-700",
     icon: Hash,
-    minPlayers: 3,
+    minPlayers: 2,
   },
   "catherines-special": {
     color: "from-green-500 to-emerald-700",

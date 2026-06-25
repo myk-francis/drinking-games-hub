@@ -4831,9 +4831,9 @@ export const gamesRouter = createTRPCRouter({
         }
         if (
           input.selectedGame === "flip-7" &&
-          (input.players?.length || 0) < 3
+          (input.players?.length || 0) < 2
         ) {
-          throw new Error("Flip 7 requires at least 3 players.");
+          throw new Error("Flip 7 requires at least 2 players.");
         }
         if (
           input.selectedGame === "memory-chain" &&

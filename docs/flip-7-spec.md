@@ -108,8 +108,8 @@ Conventions:
 
 ### Supported Player Count
 
-- Enforce `3+` players to match the official game.
-- Do not support a `2-player` adaptation in v1.
+- Enforce `2+` players.
+- Support `2-player` games in v1.
 
 ### Win Condition
 
