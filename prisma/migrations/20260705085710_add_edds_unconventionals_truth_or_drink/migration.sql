@@ -4,7 +4,7 @@ WHERE NOT EXISTS (
   SELECT 1
   FROM "Parms"
   WHERE "type" = 'EDITIONS'
-    AND "name" = 'Edd''s Unconventionals'
+    AND "value" = 9
 );
 
 INSERT INTO "Question" ("text", "gameId", "edition", "createdAt", "updatedAt")
@@ -315,7 +315,7 @@ FROM (
 JOIN "Game" g ON g."code" = 'truth-or-drink'
 JOIN "Parms" edition
   ON edition."type" = 'EDITIONS'
- AND edition."name" = 'Edd''s Unconventionals'
+ AND edition."value" = 9
 WHERE NOT EXISTS (
   SELECT 1
   FROM "Question" q
