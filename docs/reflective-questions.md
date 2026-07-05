@@ -1,0 +1,302 @@
+# Reflective Questions
+
+- What's a compliment that would actually hurt your feelings?
+- What is something you achieved that didn't feel as good as you thought it would?
+- What's a completely normal thing that people do that makes you irrationally angry?
+- What's something that you do now that your 18-year-old self would be embarrassed that you do?
+- What's something you're proud of that nobody ever asks you about?
+- What's something you tell people you're working on but you haven't touched in months?
+- What's a pattern in your life that you can name perfectly but still haven't broken?
+- What's a label that people put on you that you secretly hate?
+- What's something you used to judge people for but now completely understand?
+- What is something that you know is bad for you and you know you will absolutely do again?
+- What is the most recent moment where you acted unbothered but you were extremely bothered?
+- What is something you have zero business being as good at as you are?
+- What is something you have a strong opinion on that you have no experience with whatsoever?
+- What's a personality trait that you're proud of that people who've dated you would describe completely differently?
+- What's something small you do in private that would genuinely confuse the people who think they know you?
+- What is something that you thought you did for self-care but was actually self-sabotage?
+- Is there a compliment you've given to someone that you immediately wanted to take back? What was it, and who was it?
+- Which one would your Google search history prove: that you're smart, ignorant, or slow?
+- What's the worst version of yourself that a specific city or person brings out?
+- What's the most recent compliment that made you paranoid instead of happy?
+- What's something you pretend not to care about because caring would make you look weak?
+- What is a life lesson you learned way too late?
+- What's something you miss even though you know it was terrible for you?
+- What do you over-explain because you're scared of being misunderstood?
+- What's a red flag you ignored because the attention felt good?
+- What's something people praise you for that actually comes from a coping mechanism?
+- What is a boundary you only enforce when you're already fed up?
+- What's something you've forgiven in others that you still wouldn't forgive in yourself?
+- What is one lie you tell that feels harmless but probably says a lot about you?
+- What's something you romanticized until you actually got it?
+- What's a version of success that no longer impresses you?
+- What is something you keep proving to people who are no longer watching?
+- What's a habit that makes your life harder but still feels comforting?
+- What's a conversation you're overdue to have with yourself?
+- What do you think people misunderstand about your confidence?
+- What's one thing you do when you're jealous that you'd never admit in the moment?
+- What's a fear you disguise as a preference?
+- What's something you call standards that might actually be avoidance?
+- What's a warning about yourself that people should probably take more seriously?
+- What's something you do for closure that never actually gives you closure?
+- What kind of disappointment hits you harder than it should?
+- What's a tiny rejection that stayed with you way longer than it should have?
+- What is something you envy in people you don't even like?
+- What's something you perform well emotionally but don't actually feel?
+- What do you think you're over by now that you're clearly not over?
+- What's something you've outgrown but still revisit out of habit?
+- What's a trait you criticize in others because you recognize it in yourself?
+- What part of your personality only shows up when you're deeply insecure?
+- What's something you thought was maturity that was really just emotional shutdown?
+- What's something you keep calling bad timing even though it might be avoidance?
+- What's the pettiest reason you've ever disliked someone?
+- What's something you want credit for even if you act like you don't care?
+- What is the meanest thought you've had about someone for no real reason?
+- What's something you hate being called out for because it's usually true?
+- What's a version of yourself that still secretly runs your decisions?
+- What's something you did for love that you would never recommend to anyone else?
+- What's a comfort behavior that started as survival and never really left?
+- What's something you keep chasing that only feels good in theory?
+- What kind of apology do you find hardest to believe?
+- What's something you resent people for needing from you?
+- What's a moment where you knew you were wrong but committed to the bit anyway?
+- What's a soft spot of yours that people rarely notice?
+- What is something you fake being chill about because the alternative feels embarrassing?
+- What's something people assume you're good at emotionally that you're actually terrible at?
+- What kind of person can still ruin your mood in seconds?
+- What's something you only admit to yourself when you're alone?
+- What's a compliment you never believed, no matter who said it?
+- What kind of attention do you act annoyed by but secretly enjoy?
+- What's a decision you defend mostly because it's too late to undo it?
+- What's something you learned from a relationship you wish you had learned anywhere else?
+- What do you do when you want distance from someone but don't want to say it directly?
+- What's a situation where you were absolutely the problem but felt justified at the time?
+- What's something you keep calling a phase that's clearly part of who you are?
+- What's a standard you expect from others that you don't always meet yourself?
+- What's one thing you always notice about people immediately?
+- What's the strangest thing that makes you feel rejected?
+- What's a need you have that you struggle to say out loud?
+- What's something you laugh about now that genuinely wrecked you at the time?
+- What's a role you always end up playing in friendships whether you want to or not?
+- What's something you've made peace with that still stings a little?
+- What is something you're better at giving than receiving?
+- What's a version of honesty you only use when you're angry?
+- What's something you only recognize as loneliness after the fact?
+- What's one thing you think people should apologize to you for that they never will?
+- What kind of behavior makes you lose respect for someone immediately?
+- What's something you still take personally even though you know better?
+- What's a rule you made for yourself after one bad experience?
+- What part of being understood feels uncomfortable to you?
+- What do people assume is easy for you that actually drains you?
+- What's something you wish people asked you about more often?
+- What's one thing you secretly want to be chosen for?
+- What's an insecurity that shows up as control?
+- What's something you never post because it feels too revealing?
+- What kind of person brings out your most immature side?
+- What's a mistake you keep making in slightly different outfits?
+- What is something you find hard to celebrate in yourself without downplaying it?
+- What's a truth about your life that sounds dramatic but is accurate?
+- What's something you don't regret, but definitely wouldn't do again?
+- What's an emotional risk you act above but are actually terrified of?
+- What's something you keep expecting from people who have already shown you they can't give it?
+- What's a part of your personality that only comes out when you feel safe?
+- What's something you learned to laugh off because explaining the hurt took too much energy?
+- What kind of silence makes you spiral the fastest?
+- What's one way you sabotage good things before they get the chance to disappoint you?
+- What do you cling to long after it has stopped being kind to you?
+- What's a compliment you wanted from one specific person and never got?
+- What's something you inherited emotionally that you're still trying to unlearn?
+- What's the difference between how people see you and how you experience yourself?
+- What's a choice you made out of fear that changed your life more than you'd like to admit?
+- What's something you call independence that might actually be isolation?
+- What's a promise you keep making to yourself and breaking quietly?
+- What's something you're oddly defensive about even though no one is attacking you?
+- What's one memory you revisit when you need proof that you mattered to someone?
+- What's something you made fun of until you needed it yourself?
+- What's a form of validation you know you shouldn't need but still crave?
+- What's a type of person you attract when you're not doing well?
+- What's something you miss about a version of yourself you don't want back?
+- What's a situation where your pride cost you something real?
+- What's the kindest thing you've done for someone while secretly resenting it?
+- What's one thing you hope people never notice about the way you cope?
+- What's a moment you looked composed on the outside and fell apart later?
+- What's something you protect in yourself like it's fragile glass?
+- What's a standard you created to avoid ever feeling foolish again?
+- What's a way you punish yourself that doesn't look like punishment from the outside?
+- What kind of affection makes you suspicious instead of comforted?
+- What's a part of adulthood you still feel emotionally unprepared for?
+- What's one thing people rely on you for that you're tired of providing?
+- What's something you had to lose before you understood its value?
+- What's a version of yourself you perform at work, online, or in public?
+- What's one thing you wish people noticed without you having to ask?
+- What's something that bruises your ego faster than it should?
+- What's a dynamic you know is unhealthy but still understand too well?
+- What's a piece of advice you give others but avoid taking yourself?
+- What do you think your younger self would be relieved to know about you now?
+- What's something you resent being good at because people now expect it from you?
+- What's a kind of confrontation that makes you instantly shut down?
+- What's one thing you pretend is no big deal because you don't want to seem needy?
+- What's a role model disappointment that changed how you trust people?
+- What's something you turned into a joke so no one would realize it mattered?
+- What's an insecurity you disguise as being selective?
+- What's a sacrifice you made that nobody fully appreciated?
+- What's something you keep trying to earn that should probably be given freely?
+- What's one thing you're still waiting to hear from someone who has moved on?
+- What's a version of closure you've had to create for yourself?
+- What's something you judged yourself for while everyone else gave you grace?
+- What's a skill you developed because you had to read the room early?
+- What's a kind of chaos that feels strangely familiar to you?
+- What's one thing you keep private because once it's spoken, it becomes too real?
+- What's a place, song, or smell that immediately changes your emotional weather?
+- What's something you confuse with love because it used to mean safety?
+- What's an argument you've replayed so often that you've rewritten it in your head?
+- What's one thing you know about yourself now that would have scared the old you?
+- What's a way you know you're overwhelmed before you admit it out loud?
+- What's something you said you were okay with and definitely weren't?
+- What's a trait you admire in others but have a hard time accepting in yourself?
+- What's a pattern you mistake for chemistry?
+- What's something you do when you want reassurance without asking for reassurance?
+- What's the smallest act of kindness you've never forgotten?
+- What's one thing you keep almost saying and then decide not to?
+- What's a fear that shows up most when things are finally going well?
+- What's something you romanticize only because you never had enough of it?
+- What's a place in your life where you've confused loyalty with self-abandonment?
+- What's one thing you keep returning to even though you know exactly how it ends?
+- What's a reaction from someone that can still make you feel twelve years old?
+- What's a hard truth that got easier only after it got embarrassing?
+- What's something you've made peace with intellectually but not emotionally?
+- What's a behavior from other people that instantly makes you guard yourself?
+- What's one thing you'd change about how you ask for help?
+- What's a soft habit of yours that actually means you're not okay?
+- What's something you want to be admired for but rarely let people see?
+- What's a compliment that sounds nice but lands like pressure?
+- What's one thing you do when you're trying not to look hurt?
+- What's an area of your life where you've confused progress with distraction?
+- What's a kind of person you stop being around when you're genuinely happy?
+- What's something you secretly hope people notice when you go quiet?
+- What's one thing you wish you had handled worse in the moment and better afterward?
+- What's a kind of misunderstanding that feels impossible for you to tolerate?
+- What's something you find difficult to forgive because it exposed your own desperation?
+- What's one thing you still overcompensate for from years ago?
+- What's a situation where you wanted honesty but only the flattering kind?
+- What's a belief about yourself that gets stronger when you're tired?
+- What's one thing you miss about being less self-aware?
+- What's something you say is complicated when the truth is just uncomfortable?
+- What's a personal win that felt lonelier than it should have?
+- What's one thing you stay loyal to because leaving would force you to redefine yourself?
+- What's a quality in yourself that only feels valuable when someone else points it out?
+- What's a type of rejection you've gotten good at predicting?
+- What's something you fear becoming even though parts of it already live in you?
+- What's one way stress changes your personality?
+- What's a place in your life where you've accepted crumbs and called it patience?
+- What's something you only admit in your notes app, drafts, or unsent messages?
+- What's a piece of your healing that still feels ugly to witness?
+- What's one thing you want forgiven without ever having to explain it?
+- What's a kind of generosity that drains you more than it fulfills you?
+- What's something you avoid because being bad at it feels unbearable?
+- What's a fantasy about your future that says a lot about what you're missing now?
+- What's one thing you treat like a flaw because someone once mocked it?
+- What's a recurring argument you keep having with reality?
+- What's something you hope your friends understand about you without you spelling it out?
+- What's one thing you do when you're trying to seem unaffected?
+- What's a life update you dread people asking about?
+- What's something you still think you'd be better at if you had been loved differently?
+- What's one thing you learned to hide because it changed how people treated you?
+- What's a way you act when you're trying not to get too attached?
+- What's a kindness you rejected because you didn't trust the intention behind it?
+- What's something you want to be known for that your current life doesn't show yet?
+- What's one rule you live by that came from a wound, not wisdom?
+- What's a side of yourself that appears only when you're deeply comfortable?
+- What's something you keep calling random when it follows the same emotional script every time?
+- What's one thing you do to create distance while pretending everything is normal?
+- What's a compliment you struggle to accept because it raises the bar?
+- What's something you think you're too old, too smart, or too healed to still be doing?
+- What's a hurt that only shows up when someone gets close in the right way?
+- What's one thing you've made your whole personality in certain seasons of your life?
+- What's something you wish people understood about your anger?
+- What's a decision you keep defending because admitting regret would crack something open?
+- What's one thing that makes you feel replaceable instantly?
+- What's a version of yourself you bring out to survive family spaces?
+- What's something you over-give because you're scared your presence alone isn't enough?
+- What's a conversation topic that makes you feel exposed no matter how casually it comes up?
+- What's one thing you don't like about the person you become when you're lonely?
+- What's a way you test people without telling them they're being tested?
+- What's something you keep trying to prove through your work, style, body, or choices?
+- What's one thing you've survived that still doesn't feel fully over?
+- What's a kind of stability you once found boring and now deeply respect?
+- What's something you avoided grieving by immediately turning it into a lesson?
+- What's one thing your instincts were right about before your logic caught up?
+- What's a behavior you excuse in people you want to keep around?
+- What's something you wish you could ask for without feeling dramatic?
+- What's one thing you accepted because asking for more felt too risky?
+- What's a version of attention that feels like care to you even when it isn't?
+- What's something you outgrew emotionally before you outgrew it physically or socially?
+- What's one thing you keep preparing for that may never happen?
+- What's a personality trait people reward in you that you think might be hurting you?
+- What's a type of praise that makes you feel seen in the wrong way?
+- What's something you regret normalizing in your own life?
+- What's one thing you still believe about yourself on your worst days?
+- What's a kind of effort you stopped making because nobody seemed to notice it anyway?
+- What's something you keep organized because chaos there would expose more than mess?
+- What's one thing you'd like to tell your past self without softening the truth?
+- What's a tension between who you are and who people expect you to be?
+- What's something you looked down on until life humbled you into understanding it?
+- What's one thing you do when you want someone to miss you?
+- What's a way your humor protects you from being fully known?
+- What's something you deeply value that your lifestyle doesn't fully reflect yet?
+- What's one thing you haven't forgiven yourself for misunderstanding sooner?
+- What's a behavior you call independence that others might experience as distance?
+- What's something that instantly makes you feel emotionally homeless?
+- What's one thing you wish someone had taught you about love before you improvised your way through it?
+- What's a goal you chased mostly because it looked like proof?
+- What's something you keep private because you don't want advice, just witness?
+- What's one thing that makes your chest tighten before your brain understands why?
+- What's a version of failure you're still trying not to repeat?
+- What's something you can forgive in strangers but not in people you love?
+- What's one thing you do when you're trying not to need anybody?
+- What's a dream you've quietly downgraded so it would hurt less if it never happened?
+- What's something you keep polished on the outside because the inside feels messier?
+- What's one thing you romanticize because it would excuse your current restlessness?
+- What's a kind of honesty you appreciate in theory and hate in practice?
+- What's something you used to think was weakness that now feels emotionally advanced?
+- What's one thing that made you realize you were lonelier than you thought?
+- What's a boundary you set only after you let too much slide?
+- What's something you keep waiting to enjoy once you've earned it enough?
+- What's one thing you're scared people only tolerate about you instead of loving?
+- What's a piece of your identity that feels harder to carry in some rooms than others?
+- What's something you feel guilty for wanting more of?
+- What's one way your body tells the truth before your mouth does?
+- What's a situation where you confused being wanted with being valued?
+- What's something you've become really good at because you never felt safe being bad at it?
+- What's one thing you pretend is temporary because making it permanent would force a bigger decision?
+- What's a quality in other people that makes you feel instantly softer?
+- What's something you keep comparing your life to even though you know the comparison is unfair?
+- What's one thing you'd stop doing if you truly believed you were enough already?
+- What's a feeling you only know how to process by moving, cleaning, scrolling, or disappearing?
+- What's something you think would break your heart more now than it would have before?
+- What's one thing you've had to teach yourself because no one around you modeled it well?
+- What's a kind of loss that doesn't sound dramatic until you live through it?
+- What's something you keep making jokes about because the real version is still tender?
+- What's one thing people think is natural for you that is actually carefully managed?
+- What's a moment where you realized you were asking for too little?
+- What's something you say you're over because admitting hope would feel riskier?
+- What's one thing you admire in people who are emotionally uncomplicated?
+- What's a way you make yourself smaller in rooms where you don't feel secure?
+- What's something you miss from a chapter of life you would never actually return to?
+- What's one thing you wish people believed the first time you said it?
+- What's a lie you tell yourself when you want to avoid making a change?
+- What's something you've mistaken for intuition that was really fear wearing a smarter outfit?
+- What's one thing you keep doing because it protects you from embarrassment more than harm?
+- What's a version of intimacy that still feels unfamiliar even when you want it?
+- What's something you want to unlearn before it starts shaping the rest of your life?
+- What's one thing you hope the people who hurt you never get to feel too certain about?
+- What's a kind of grief that sneaks up on you when life finally gets quiet?
+- What's something you've had to relearn because survival taught you the opposite?
+- What's one thing you want to be brave about before this year ends?
+- What's something you still need permission to stop carrying?
+- What's a part of your life that looks settled from the outside but doesn't feel settled to you?
+- What's one thing you wish you could believe about yourself without needing evidence first?
+- What's a kind of tenderness you still don't fully know how to receive?
+- What's something you keep postponing because doing it would confirm how much it matters?
+- What's one truth about your current season of life that you're only just beginning to accept?
