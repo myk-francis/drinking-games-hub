@@ -245,14 +245,15 @@ export default function ProfilePage() {
         </Card>
 
         {/* Stats */}
-        <div className="mt-6 flex items-center justify-between gap-4">
-          <p className="text-sm font-medium text-muted-foreground">
+        <div className="mt-6 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-medium text-muted-foreground sm:flex-1">
             Monthly stats for {selectedMonths}
           </p>
           <UserComboBox
             options={monthOptions}
             handleSelect={setSelectedMonths}
             value={selectedMonths}
+            className="w-full sm:w-56"
           />
         </div>
         <div className="grid grid-cols-3 gap-3 mt-6">

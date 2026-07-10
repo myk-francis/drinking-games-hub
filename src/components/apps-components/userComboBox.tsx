@@ -26,12 +26,14 @@ type UserComboBoxProps = {
   options: Option[];
   value: string;
   handleSelect: (value: string) => void;
+  className?: string;
 };
 
 export function UserComboBox({
   options,
   value,
   handleSelect,
+  className,
 }: UserComboBoxProps) {
   const [open, setOpen] = React.useState(false);
   return (
@@ -40,13 +42,15 @@ export function UserComboBox({
         <Button
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between"
+          className={cn("w-full justify-between gap-2", className)}
         >
-          {options.find((option) => option.value === value)?.name}
-          <ChevronsUpDown className="opacity-50" />
+          <span className="truncate">
+            {options.find((option) => option.value === value)?.name}
+          </span>
+          <ChevronsUpDown className="shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-full p-0">
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] min-w-[12rem] p-0">
         <Command>
           <CommandList>
             <CommandEmpty>No option found.</CommandEmpty>
