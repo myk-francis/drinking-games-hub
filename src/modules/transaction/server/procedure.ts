@@ -82,7 +82,10 @@ export const transactionRouter = createTRPCRouter({
 
       const transactions = await prisma.transaction.findMany({
         take: limit + 1,
-        where: userId ? { userId } : undefined,
+        where: {
+          ...(userId ? { userId } : {}),
+          closed: false,
+        },
         cursor: cursor ? { id: cursor } : undefined,
         orderBy: { createdAt: "desc" },
       });

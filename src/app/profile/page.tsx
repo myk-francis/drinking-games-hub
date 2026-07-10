@@ -64,6 +64,45 @@ function convertTime(timeStr: string): string {
   return result.trim();
 }
 
+function formatGroupDate(date: Date): string {
+  return date.toLocaleDateString("en-US", {
+    weekday: "long",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function groupRoomsByCreatedDate<
+  T extends {
+    id: string;
+    createdAt: Date;
+  },
+>(rooms: T[] | undefined) {
+  const groups = new Map<string, { label: string; rooms: T[] }>();
+
+  for (const room of rooms ?? []) {
+    const createdAt = new Date(room.createdAt);
+    const groupKey = createdAt.toISOString().slice(0, 10);
+    const existingGroup = groups.get(groupKey);
+
+    if (existingGroup) {
+      existingGroup.rooms.push(room);
+      continue;
+    }
+
+    groups.set(groupKey, {
+      label: formatGroupDate(createdAt),
+      rooms: [room],
+    });
+  }
+
+  return Array.from(groups.entries()).map(([dateKey, group]) => ({
+    dateKey,
+    ...group,
+  }));
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const trpc = useTRPC();
@@ -94,13 +133,18 @@ export default function ProfilePage() {
   );
 
   const { data: rooms, isLoading: roomsLoading } = useQuery(
-    trpc.profile.myRoomsPerMonth.queryOptions({
-      userId: currentUser?.id || "",
-      month: selectedMonths,
-    }, {
+    trpc.profile.myRoomsPerMonth.queryOptions(
+      {
+        userId: currentUser?.id || "",
+        month: selectedMonths,
+      },
+      {
       enabled: !!currentUser,
-    }),
+      },
+    ),
   );
+
+  const groupedRooms = React.useMemo(() => groupRoomsByCreatedDate(rooms), [rooms]);
 
   React.useEffect(() => {
     if (!userLoading) {
@@ -197,6 +241,16 @@ export default function ProfilePage() {
         </Card>
 
         {/* Stats */}
+        <div className="mt-6 flex items-center justify-between gap-4">
+          <p className="text-sm font-medium text-muted-foreground">
+            Monthly stats for {selectedMonths}
+          </p>
+          <UserComboBox
+            options={monthOptions}
+            handleSelect={setSelectedMonths}
+            value={selectedMonths}
+          />
+        </div>
         <div className="grid grid-cols-3 gap-3 mt-6">
           <StatCard
             icon={<Gamepad2 />}
@@ -233,53 +287,55 @@ export default function ProfilePage() {
         {/* Games List */}
         <Card className="mt-6 dark">
           <CardHeader>
-            <div className="flex flex-row items-center justify-between ">
-              <p className="text-lg font-bold">My Games</p>
-              <div className="">
-                <UserComboBox
-                  options={monthOptions}
-                  handleSelect={setSelectedMonths}
-                  value={selectedMonths}
-                />
-              </div>
-            </div>
+            <p className="text-lg font-bold">Games Grouped By Date</p>
           </CardHeader>
           <CardContent>
             <ScrollArea className="flex-1 pr-2">
               <div className="space-y-3">
-                {rooms?.map((room) => (
-                  <Link
-                    href={`/room/${room.id}`}
-                    key={room.id}
-                    className="flex items-center justify-between rounded-lg border p-3"
-                  >
-                    <div>
-                      <p className="font-medium">{room.game?.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Created {room?.createdAt.toDateString()}
-                      </p>
+                {groupedRooms.map((group) => (
+                  <div key={group.dateKey} className="space-y-3">
+                    <div className="sticky top-0 z-10 flex items-center justify-between rounded-md border bg-background/80 px-3 py-2 text-sm font-semibold backdrop-blur">
+                      <span>{group.label}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {group.rooms.length} room
+                        {group.rooms.length === 1 ? "" : "s"}
+                      </span>
                     </div>
+                    {group.rooms.map((room) => (
+                      <Link
+                        href={`/room/${room.id}`}
+                        key={room.id}
+                        className="flex items-center justify-between rounded-lg border p-3"
+                      >
+                        <div>
+                          <p className="font-medium">{room.game?.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Created {room.createdAt.toDateString()}
+                          </p>
+                        </div>
 
-                    <div className="flex gap-2 flex-col">
-                      <div className="flex gap-2">
-                        <Badge variant="secondary">
-                          {room.players?.length} players
-                        </Badge>
-                        <Badge variant="outline">
-                          {room.players?.reduce(
-                            (acc, player) => acc + (player.drinks || 0),
-                            0,
-                          )}{" "}
-                          drinks
-                        </Badge>
-                      </div>
-                      <Badge variant="default">
-                        {room.comments?.length || 0} comments
-                      </Badge>
-                    </div>
-                  </Link>
+                        <div className="flex gap-2 flex-col">
+                          <div className="flex gap-2">
+                            <Badge variant="secondary">
+                              {room.players?.length} players
+                            </Badge>
+                            <Badge variant="outline">
+                              {room.players?.reduce(
+                                (acc, player) => acc + (player.drinks || 0),
+                                0,
+                              )}{" "}
+                              drinks
+                            </Badge>
+                          </div>
+                          <Badge variant="default">
+                            {room.comments?.length || 0} comments
+                          </Badge>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
                 ))}
-                {rooms?.length === 0 && (
+                {groupedRooms.length === 0 && (
                   <p className="text-center text-muted-foreground">
                     No rooms found for the selected month.
                   </p>
