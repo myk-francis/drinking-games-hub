@@ -48,9 +48,9 @@ const getLastSixMonths = () => {
 
 function convertTime(timeStr: string): string {
   // Split the time string into hours, minutes, and seconds
-  const [hours, minutes, seconds] = timeStr.split(":").map(Number);
+  const [hours, minutes] = timeStr.split(":").map(Number);
 
-  // Calculate days, hours, minutes, and seconds
+  // Calculate days, hours, and minutes
   const days = Math.floor(hours / 24);
   const hoursNew = hours % 24;
 
@@ -59,7 +59,7 @@ function convertTime(timeStr: string): string {
   if (days > 0) {
     result += `${days}D`;
   }
-  result += `${String(hoursNew).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  result += `${String(hoursNew).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 
   return result.trim();
 }

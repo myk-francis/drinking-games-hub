@@ -13806,18 +13806,28 @@ export const gamesRouter = createTRPCRouter({
   closeOpenRooms: baseProcedure.mutation(async () => {
     try {
       const twoHoursAgo = new Date(Date.now() - 120 * 60 * 1000);
-      await prisma.room.updateMany({
+      const openRooms = await prisma.room.findMany({
         where: {
           gameEnded: false,
           createdAt: {
             lte: twoHoursAgo,
           },
         },
-        data: {
-          gameEnded: true,
-          gameEndedAt: new Date(),
-        },
       });
+
+      await prisma.$transaction(
+        openRooms.map((room) =>
+          prisma.room.update({
+            where: { id: room.id },
+            data: {
+              gameEnded: true,
+              gameEndedAt: new Date(
+                room.createdAt.getTime() + 120 * 60 * 1000,
+              ),
+            },
+          }),
+        ),
+      );
 
       return true;
     } catch (error) {
