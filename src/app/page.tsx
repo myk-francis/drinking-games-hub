@@ -55,53 +55,103 @@ const pokerStakeOptions = [
   { id: 5, name: "50000 chips", value: 50000 },
 ];
 
-const scheduleHourOptions = Array.from({ length: 24 }, (_, index) =>
-  String(index).padStart(2, "0"),
-);
-const scheduleMinuteOptions = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
+type ScheduleSlotOption = {
+  value: string;
+  label: string;
+  helper: string;
+};
 
-function buildScheduledDate({
-  date,
-  hour,
-  minute,
-}: {
-  date: Date | undefined;
-  hour: string;
-  minute: string;
-}) {
-  if (!date) {
-    return null;
-  }
+function isSameCalendarDay(left: Date, right: Date) {
+  return (
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
+  );
+}
 
+function getBaseHalfHourSlot(date: Date) {
   const next = new Date(date);
   next.setSeconds(0, 0);
-  next.setHours(Number(hour), Number(minute), 0, 0);
+  const minutes = next.getMinutes();
+
+  if (minutes === 0 || minutes === 30) {
+    next.setMinutes(minutes + 30);
+    return next;
+  }
+
+  if (minutes < 30) {
+    next.setMinutes(30);
+    return next;
+  }
+
+  next.setHours(next.getHours() + 1, 0, 0, 0);
   return next;
+}
+
+function getScheduleSlotOptions(date: Date | undefined): ScheduleSlotOption[] {
+  if (!date) {
+    return [];
+  }
+
+  const now = new Date();
+  const base = new Date(date);
+
+  if (isSameCalendarDay(base, now)) {
+    base.setHours(now.getHours(), now.getMinutes(), 0, 0);
+  } else {
+    base.setHours(0, 0, 0, 0);
+  }
+
+  const firstSlot = getBaseHalfHourSlot(base);
+
+  return Array.from({ length: 10 }, (_, index) => {
+    const slot = new Date(firstSlot);
+    slot.setMinutes(firstSlot.getMinutes() + index * 30);
+    const minutesFromBase = (index + 1) * 30;
+    const hours = Math.floor(minutesFromBase / 60);
+    const minutes = minutesFromBase % 60;
+    const relativeLabel =
+      hours === 0
+        ? `${minutes} mins`
+        : minutes === 0
+          ? `${hours} hour${hours === 1 ? "" : "s"}`
+      : `${hours} hr ${minutes} mins`;
+
+    return {
+      value: slot.toISOString(),
+      label: relativeLabel,
+      helper: slot.toLocaleString([], {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      }),
+    };
+  });
 }
 
 function ScheduledStartPicker({
   date,
-  hour,
-  minute,
+  selectedSlot,
+  slotOptions,
   onDateChange,
-  onHourChange,
-  onMinuteChange,
+  onSlotChange,
 }: {
   date: Date | undefined;
-  hour: string;
-  minute: string;
+  selectedSlot: string;
+  slotOptions: ScheduleSlotOption[];
   onDateChange: (value: Date | undefined) => void;
-  onHourChange: (value: string) => void;
-  onMinuteChange: (value: string) => void;
+  onSlotChange: (value: string) => void;
 }) {
-  const selectedDateTime = buildScheduledDate({ date, hour, minute });
+  const selectedDateTime = selectedSlot ? new Date(selectedSlot) : null;
 
   return (
     <div className="mt-4">
       <label className="mb-2 block text-sm font-medium text-white/80">
         Scheduled start time
       </label>
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1.5fr)_minmax(0,0.75fr)_minmax(0,0.75fr)]">
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <Popover>
           <PopoverTrigger asChild>
             <Button
@@ -138,27 +188,14 @@ function ScheduledStartPicker({
           </PopoverContent>
         </Popover>
 
-        <Select value={hour} onValueChange={onHourChange}>
+        <Select value={selectedSlot} onValueChange={onSlotChange}>
           <SelectTrigger className="w-full border-white/15 bg-white text-black">
-            <SelectValue placeholder="Hour" />
+            <SelectValue placeholder="Choose a time slot" />
           </SelectTrigger>
           <SelectContent>
-            {scheduleHourOptions.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={minute} onValueChange={onMinuteChange}>
-          <SelectTrigger className="w-full border-white/15 bg-white text-black">
-            <SelectValue placeholder="Minute" />
-          </SelectTrigger>
-          <SelectContent>
-            {scheduleMinuteOptions.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
+            {slotOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label} ({option.helper})
               </SelectItem>
             ))}
           </SelectContent>
@@ -167,7 +204,7 @@ function ScheduledStartPicker({
       <p className="mt-2 text-xs text-white/60">
         {selectedDateTime
           ? `Players will wait in the lobby until ${selectedDateTime.toLocaleString()}.`
-          : "Choose the day and time players should be allowed into the live game."}
+          : "Choose the day, then pick one of the next 10 half-hour start slots."}
       </p>
     </div>
   );
@@ -229,13 +266,13 @@ export default function HomePage() {
   const [scheduledStartDate, setScheduledStartDate] = React.useState<Date | undefined>(
     undefined,
   );
-  const [scheduledStartHour, setScheduledStartHour] = React.useState("20");
-  const [scheduledStartMinute, setScheduledStartMinute] = React.useState("00");
+  const [scheduledStartSlot, setScheduledStartSlot] = React.useState("");
   const [showJsonImport, setShowJsonImport] = React.useState(false);
   const [jsonImportInput, setJsonImportInput] = React.useState("");
   const [roomCreateSource, setRoomCreateSource] = React.useState<
     "manual" | "self-service" | null
   >(null);
+  const hasInitializedScheduledDefaults = React.useRef(false);
 
   const normalizeAppUrl = (rawUrl?: string) => {
     let value = (rawUrl ?? "").trim();
@@ -318,14 +355,47 @@ export default function HomePage() {
     }
   }, [transactionProfile]);
 
+  const scheduleSlotOptions = React.useMemo(
+    () => getScheduleSlotOptions(scheduledStartDate),
+    [scheduledStartDate],
+  );
+
+  const scheduledStartAt = React.useMemo(() => {
+    if (!scheduledStartSlot) {
+      return null;
+    }
+
+    const next = new Date(scheduledStartSlot);
+    return Number.isNaN(next.getTime()) ? null : next;
+  }, [scheduledStartSlot]);
+
+  React.useEffect(() => {
+    if (scheduleMode !== "LATER") {
+      hasInitializedScheduledDefaults.current = false;
+      return;
+    }
+
+    if (!hasInitializedScheduledDefaults.current && !scheduledStartDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      hasInitializedScheduledDefaults.current = true;
+      setScheduledStartDate(today);
+      return;
+    }
+
+    const slotStillValid = scheduleSlotOptions.some(
+      (option) => option.value === scheduledStartSlot,
+    );
+
+    if (slotStillValid) {
+      return;
+    }
+
+    setScheduledStartSlot(scheduleSlotOptions[0]?.value ?? "");
+  }, [scheduleMode, scheduleSlotOptions, scheduledStartDate, scheduledStartSlot]);
+
   if (isLoading) return <Loading />;
   if (error) return <div>Error: {error.message}</div>;
-
-  const scheduledStartAt = buildScheduledDate({
-    date: scheduledStartDate,
-    hour: scheduledStartHour,
-    minute: scheduledStartMinute,
-  });
 
   const createRoomFromPayload = (
     payload: SelfServicePayload,
@@ -829,11 +899,10 @@ export default function HomePage() {
                   {scheduleMode === "LATER" && (
                     <ScheduledStartPicker
                       date={scheduledStartDate}
-                      hour={scheduledStartHour}
-                      minute={scheduledStartMinute}
+                      selectedSlot={scheduledStartSlot}
+                      slotOptions={scheduleSlotOptions}
                       onDateChange={setScheduledStartDate}
-                      onHourChange={setScheduledStartHour}
-                      onMinuteChange={setScheduledStartMinute}
+                      onSlotChange={setScheduledStartSlot}
                     />
                   )}
                 </div>
