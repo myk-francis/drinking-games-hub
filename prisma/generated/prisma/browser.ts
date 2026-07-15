@@ -67,3 +67,8 @@ export type Comment = Prisma.CommentModel
  * 
  */
 export type Reaction = Prisma.ReactionModel
+/**
+ * Model LobbyMessage
+ * 
+ */
+export type LobbyMessage = Prisma.LobbyMessageModel

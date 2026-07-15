@@ -4,6 +4,7 @@ import { authRouter } from "@/modules/auth/server/procedures";
 import { profileRouter } from "@/modules/profile/server/procedures";
 import { transactionRouter } from "@/modules/transaction/server/procedure";
 import { commentsRouter } from "@/modules/comments/server/procedure";
+import { lobbyRouter } from "@/modules/lobby/server/procedure";
 
 export const appRouter = createTRPCRouter({
   auth: authRouter,
@@ -11,6 +12,7 @@ export const appRouter = createTRPCRouter({
   profile: profileRouter,
   transaction: transactionRouter,
   comments: commentsRouter,
+  lobby: lobbyRouter,
 });
 // export type definition of API
 export type AppRouter = typeof appRouter;

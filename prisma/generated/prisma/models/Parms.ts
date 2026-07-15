@@ -196,7 +196,7 @@ export type ParmsGroupByOutputType = {
   _max: ParmsMaxAggregateOutputType | null
 }
 
-type GetParmsGroupByPayload<T extends ParmsGroupByArgs> = Prisma.PrismaPromise<
+export type GetParmsGroupByPayload<T extends ParmsGroupByArgs> = Prisma.PrismaPromise<
   Array<
     Prisma.PickEnumerable<ParmsGroupByOutputType, T['by']> &
       {
@@ -1001,6 +1001,11 @@ export type ParmsFindManyArgs<ExtArgs extends runtime.Types.Extensions.InternalA
    * Skip the first `n` Parms.
    */
   skip?: number
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+   * 
+   * Filter by unique combinations of Parms.
+   */
   distinct?: Prisma.ParmsScalarFieldEnum | Prisma.ParmsScalarFieldEnum[]
 }
 

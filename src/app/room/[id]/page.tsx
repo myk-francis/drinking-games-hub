@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import AddPlayerModal from "./addPlayerModal";
 import GameContentRenderer from "./GameContentRenderer";
+import PreGameLobby from "./PreGameLobby";
 import { QRCodeCanvas } from "qrcode.react";
 import {
   Dialog,
@@ -789,6 +790,16 @@ export default function RoomPage() {
       { roomId: String(roomId) },
       {
         refetchInterval: room?.gameEnded || whoAmINotesOpen ? false : 2000,
+        refetchIntervalInBackground: true,
+      },
+    ),
+  );
+  const { data: lobbyMessages = [] } = useQuery(
+    trpc.lobby.getLobbyMessagesByRoomId.queryOptions(
+      { roomId: String(roomId) },
+      {
+        enabled: Boolean(room?.scheduleState?.status === "LOBBY"),
+        refetchInterval: room?.scheduleState?.status === "LOBBY" ? 2000 : false,
         refetchIntervalInBackground: true,
       },
     ),
@@ -2096,6 +2107,20 @@ export default function RoomPage() {
     },
     [players],
   );
+  const sendLobbyMessage = useMutation(
+    trpc.lobby.sendLobbyMessage.mutationOptions({
+      onSuccess: async () => {
+        await queryClient.invalidateQueries(
+          trpc.lobby.getLobbyMessagesByRoomId.queryFilter({
+            roomId: String(roomId),
+          }),
+        );
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not send lobby message.");
+      },
+    }),
+  );
   const renderCoupGameOverMessage = React.useCallback(
     (winnerPlayerId: string | null, lastAction: string | null) => {
       const winnerName =
@@ -2168,6 +2193,13 @@ export default function RoomPage() {
     () => players.find((player) => player.id === actualPlayer),
     [players, actualPlayer],
   );
+  const actualPlayerStorageKey = React.useMemo(() => {
+    if (!room?.id) {
+      return "actualPlayerId";
+    }
+
+    return `actualPlayerId:${room.id}`;
+  }, [room?.id]);
   const whoAmINotesStorageKey = React.useMemo(() => {
     if (selectedGame !== "who-am-i" || !room?.id || !actualPlayer) {
       return null;
@@ -2725,6 +2757,26 @@ export default function RoomPage() {
     });
   };
 
+  const handleSendLobbyMessage = React.useCallback(
+    (content: string) => {
+      if (!room?.id || !actualPlayer) {
+        toast.error("Choose your player name before chatting.");
+        return;
+      }
+
+      const selectedPlayerName =
+        players.find((player) => player.id === actualPlayer)?.name || "";
+
+      sendLobbyMessage.mutate({
+        roomId: room.id,
+        playerId: actualPlayer,
+        playerName: selectedPlayerName,
+        content,
+      });
+    },
+    [actualPlayer, players, room?.id, sendLobbyMessage],
+  );
+
   const nextCatherineCard = useMutation(
     trpc.games.nextCatherineCard.mutationOptions({
       onSuccess: () => {
@@ -2808,11 +2860,11 @@ export default function RoomPage() {
         team: team.trim() as "RED" | "BLUE",
       });
       setActualPlayer(playerId.trim());
-      localStorage.setItem("actualPlayerId", playerId.trim());
+      localStorage.setItem(actualPlayerStorageKey, playerId.trim());
       setSelectedTeamPlayerId("");
       setOpenAddPlayerModal(false);
     },
-    [assignPlayerTeam, room?.id],
+    [actualPlayerStorageKey, assignPlayerTeam, room?.id],
   );
 
   const canAddPlayers =
@@ -2872,7 +2924,7 @@ export default function RoomPage() {
 
   const handleActualSelectPlayer = (id: string) => {
     setActualPlayer(id);
-    localStorage.setItem("actualPlayerId", id);
+    localStorage.setItem(actualPlayerStorageKey, id);
     setShowAddPlayerModal(false);
   };
 
@@ -2893,9 +2945,9 @@ export default function RoomPage() {
 
       if (isReload) {
         setActualPlayer("");
-        localStorage.removeItem("actualPlayerId");
+        localStorage.removeItem(actualPlayerStorageKey);
       } else {
-        const storedPlayerId = localStorage.getItem("actualPlayerId");
+        const storedPlayerId = localStorage.getItem(actualPlayerStorageKey);
         if (storedPlayerId) {
           setActualPlayer(storedPlayerId);
         }
@@ -2907,19 +2959,19 @@ export default function RoomPage() {
 
     codenamesIdentityInitializedRef.current = false;
 
-    const storedPlayerId = localStorage.getItem("actualPlayerId");
+    const storedPlayerId = localStorage.getItem(actualPlayerStorageKey);
     if (storedPlayerId) {
       setActualPlayer(storedPlayerId);
     }
 
     if (room?.gameEnded) {
-      localStorage.removeItem("actualPlayerId");
+      localStorage.removeItem(actualPlayerStorageKey);
     }
 
     return () => {
-      localStorage.removeItem("actualPlayerId");
+      localStorage.removeItem(actualPlayerStorageKey);
     };
-  }, [room, selectedGame]);
+  }, [actualPlayerStorageKey, room, selectedGame]);
 
   React.useEffect(() => {
     if (selectedGame !== "codenames" || room?.gameEnded) {
@@ -2932,6 +2984,22 @@ export default function RoomPage() {
 
     setOpenAddPlayerModal(needsTeamSelection);
   }, [actualPlayer, players, room?.gameEnded, selectedGame]);
+
+  React.useEffect(() => {
+    if (!actualPlayer) {
+      return;
+    }
+
+    const playerStillExists = players.some((player) => player.id === actualPlayer);
+    if (playerStillExists) {
+      return;
+    }
+
+    setActualPlayer("");
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(actualPlayerStorageKey);
+    }
+  }, [actualPlayer, actualPlayerStorageKey, players]);
 
   React.useEffect(() => {
     if (!whoAmINotesStorageKey || typeof window === "undefined") {
@@ -3771,6 +3839,35 @@ export default function RoomPage() {
           </div>
         )}
       </div>
+    );
+  }
+
+  if (room.scheduleState?.status === "LOBBY") {
+    return (
+      <>
+        {actualPlayer === "" && (
+          <UserConfirmModal
+            players={players}
+            handleActualSelectPlayer={handleActualSelectPlayer}
+            selectedGame={selectedGame}
+          />
+        )}
+        {actualPlayer !== "" && (
+          <PreGameLobby
+            roomId={room.id}
+            gameName={game?.name ?? "Scheduled Game"}
+            scheduledStartAt={room.scheduledStartAt}
+            players={players.map((player) => ({
+              id: player.id,
+              name: player.name,
+            }))}
+            actualPlayerId={actualPlayer}
+            messages={lobbyMessages}
+            onSendMessage={handleSendLobbyMessage}
+            isSendingMessage={sendLobbyMessage.isPending}
+          />
+        )}
+      </>
     );
   }
 

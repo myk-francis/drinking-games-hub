@@ -6,6 +6,8 @@ import {
   Share2,
   ClipboardPaste,
   Loader2,
+  CalendarClock,
+  Calendar as CalendarIcon,
 } from "lucide-react";
 import React from "react";
 import { useTRPC } from "@/trpc/client";
@@ -13,6 +15,15 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loading } from "@/components/ui/loading";
@@ -29,6 +40,7 @@ import {
   isCreateRoomDisabled,
 } from "@/modules/games/lib/game-config";
 import { SPIN_BOTTLE_MODE_OPTIONS } from "@/modules/games/lib/spin-the-bottle";
+import { cn } from "@/lib/utils";
 
 interface TeamsInfo {
   teamName: string;
@@ -42,6 +54,161 @@ const pokerStakeOptions = [
   { id: 4, name: "40000 chips", value: 40000 },
   { id: 5, name: "50000 chips", value: 50000 },
 ];
+
+type ScheduleSlotOption = {
+  value: string;
+  label: string;
+  helper: string;
+};
+
+function isSameCalendarDay(left: Date, right: Date) {
+  return (
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
+  );
+}
+
+function getBaseHalfHourSlot(date: Date) {
+  const next = new Date(date);
+  next.setSeconds(0, 0);
+  const minutes = next.getMinutes();
+
+  if (minutes === 0 || minutes === 30) {
+    next.setMinutes(minutes + 30);
+    return next;
+  }
+
+  if (minutes < 30) {
+    next.setMinutes(30);
+    return next;
+  }
+
+  next.setHours(next.getHours() + 1, 0, 0, 0);
+  return next;
+}
+
+function getScheduleSlotOptions(date: Date | undefined): ScheduleSlotOption[] {
+  if (!date) {
+    return [];
+  }
+
+  const now = new Date();
+  const base = new Date(date);
+
+  if (isSameCalendarDay(base, now)) {
+    base.setHours(now.getHours(), now.getMinutes(), 0, 0);
+  } else {
+    base.setHours(0, 0, 0, 0);
+  }
+
+  const firstSlot = getBaseHalfHourSlot(base);
+
+  return Array.from({ length: 10 }, (_, index) => {
+    const slot = new Date(firstSlot);
+    slot.setMinutes(firstSlot.getMinutes() + index * 30);
+    const minutesFromBase = (index + 1) * 30;
+    const hours = Math.floor(minutesFromBase / 60);
+    const minutes = minutesFromBase % 60;
+    const relativeLabel =
+      hours === 0
+        ? `${minutes} mins`
+        : minutes === 0
+          ? `${hours} hour${hours === 1 ? "" : "s"}`
+      : `${hours} hr ${minutes} mins`;
+
+    return {
+      value: slot.toISOString(),
+      label: relativeLabel,
+      helper: slot.toLocaleString([], {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      }),
+    };
+  });
+}
+
+function ScheduledStartPicker({
+  date,
+  selectedSlot,
+  slotOptions,
+  onDateChange,
+  onSlotChange,
+}: {
+  date: Date | undefined;
+  selectedSlot: string;
+  slotOptions: ScheduleSlotOption[];
+  onDateChange: (value: Date | undefined) => void;
+  onSlotChange: (value: string) => void;
+}) {
+  const selectedDateTime = selectedSlot ? new Date(selectedSlot) : null;
+
+  return (
+    <div className="mt-4">
+      <label className="mb-2 block text-sm font-medium text-white/80">
+        Scheduled start time
+      </label>
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className={cn(
+                "justify-start border-white/15 bg-white text-left text-black hover:bg-white/90",
+                !date && "text-black/60",
+              )}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {selectedDateTime
+                ? selectedDateTime.toLocaleString([], {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                    weekday: "short",
+                  })
+                : "Pick a date"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={date}
+              onSelect={onDateChange}
+              disabled={(currentDate) => {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                return currentDate < today;
+              }}
+              captionLayout="dropdown"
+            />
+          </PopoverContent>
+        </Popover>
+
+        <Select value={selectedSlot} onValueChange={onSlotChange}>
+          <SelectTrigger className="w-full border-white/15 bg-white text-black">
+            <SelectValue placeholder="Choose a time slot" />
+          </SelectTrigger>
+          <SelectContent>
+            {slotOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label} ({option.helper})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <p className="mt-2 text-xs text-white/60">
+        {selectedDateTime
+          ? `Players will wait in the lobby until ${selectedDateTime.toLocaleString()}.`
+          : "Choose the day, then pick one of the next 10 half-hour start slots."}
+      </p>
+    </div>
+  );
+}
 
 export default function HomePage() {
   const router = useRouter();
@@ -95,11 +262,17 @@ export default function HomePage() {
   const [selectedRounds, setSelectedRounds] = React.useState<number>(0);
   const [selectedEdition, setSelectedEdition] = React.useState<number>(0);
   const [selectedPokerStake, setSelectedPokerStake] = React.useState<number>(10000);
+  const [scheduleMode, setScheduleMode] = React.useState<"NOW" | "LATER">("NOW");
+  const [scheduledStartDate, setScheduledStartDate] = React.useState<Date | undefined>(
+    undefined,
+  );
+  const [scheduledStartSlot, setScheduledStartSlot] = React.useState("");
   const [showJsonImport, setShowJsonImport] = React.useState(false);
   const [jsonImportInput, setJsonImportInput] = React.useState("");
   const [roomCreateSource, setRoomCreateSource] = React.useState<
     "manual" | "self-service" | null
   >(null);
+  const hasInitializedScheduledDefaults = React.useRef(false);
 
   const normalizeAppUrl = (rawUrl?: string) => {
     let value = (rawUrl ?? "").trim();
@@ -182,12 +355,55 @@ export default function HomePage() {
     }
   }, [transactionProfile]);
 
+  const scheduleSlotOptions = React.useMemo(
+    () => getScheduleSlotOptions(scheduledStartDate),
+    [scheduledStartDate],
+  );
+
+  const scheduledStartAt = React.useMemo(() => {
+    if (!scheduledStartSlot) {
+      return null;
+    }
+
+    const next = new Date(scheduledStartSlot);
+    return Number.isNaN(next.getTime()) ? null : next;
+  }, [scheduledStartSlot]);
+
+  React.useEffect(() => {
+    if (scheduleMode !== "LATER") {
+      hasInitializedScheduledDefaults.current = false;
+      return;
+    }
+
+    if (!hasInitializedScheduledDefaults.current && !scheduledStartDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      hasInitializedScheduledDefaults.current = true;
+      setScheduledStartDate(today);
+      return;
+    }
+
+    const slotStillValid = scheduleSlotOptions.some(
+      (option) => option.value === scheduledStartSlot,
+    );
+
+    if (slotStillValid) {
+      return;
+    }
+
+    setScheduledStartSlot(scheduleSlotOptions[0]?.value ?? "");
+  }, [scheduleMode, scheduleSlotOptions, scheduledStartDate, scheduledStartSlot]);
+
   if (isLoading) return <Loading />;
   if (error) return <div>Error: {error.message}</div>;
 
   const createRoomFromPayload = (
     payload: SelfServicePayload,
     source: "manual" | "self-service",
+    scheduleOptions?: {
+      scheduleMode: "NOW" | "LATER";
+      scheduledStartAt?: string;
+    },
   ) => {
     const validationError = getSelfServiceValidationError(payload);
     if (validationError) {
@@ -200,6 +416,8 @@ export default function HomePage() {
       players: payload.players,
       userId: currentUser?.id || "",
       selectedRounds: payload.selectedRounds,
+      scheduleMode: scheduleOptions?.scheduleMode ?? "NOW",
+      scheduledStartAt: scheduleOptions?.scheduledStartAt,
       selectedStake: payload.selectedStake,
       teamsInfo: payload.teamsInfo,
     });
@@ -209,6 +427,18 @@ export default function HomePage() {
     if (!selectedGame) {
       toast.warning("Please select a game and add at least two players.");
       return;
+    }
+
+    if (scheduleMode === "LATER") {
+      if (!scheduledStartAt) {
+        toast.warning("Please choose a future start time.");
+        return;
+      }
+
+      if (Number.isNaN(scheduledStartAt.getTime()) || scheduledStartAt <= new Date()) {
+        toast.warning("Scheduled rooms need a future start time.");
+        return;
+      }
     }
 
     createRoomFromPayload(
@@ -222,6 +452,13 @@ export default function HomePage() {
         teamsInfo,
       },
       "manual",
+      {
+        scheduleMode,
+        scheduledStartAt:
+          scheduleMode === "LATER"
+            ? scheduledStartAt?.toISOString()
+            : undefined,
+      },
     );
   };
 
@@ -233,7 +470,9 @@ export default function HomePage() {
     }
 
     const payload = parsedPayload.data;
-    createRoomFromPayload(payload, "self-service");
+    createRoomFromPayload(payload, "self-service", {
+      scheduleMode: "NOW",
+    });
   };
 
   const addPlayer = () => {
@@ -616,6 +855,57 @@ export default function HomePage() {
                     </p>
                   </div>
                 )}
+
+                <div className="mt-6 rounded-2xl border border-white/15 bg-white/10 p-4 text-left backdrop-blur-sm">
+                  <div className="flex items-center gap-2 text-lg font-semibold text-white">
+                    <CalendarClock className="h-5 w-5" />
+                    Event timing
+                  </div>
+                  <p className="mt-1 text-sm text-white/70">
+                    Choose whether the room should open immediately or become a
+                    scheduled lobby with a countdown.
+                  </p>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setScheduleMode("NOW")}
+                      className={`rounded-xl border px-4 py-3 text-left transition ${
+                        scheduleMode === "NOW"
+                          ? "border-emerald-300 bg-emerald-400/20 text-white"
+                          : "border-white/15 bg-black/20 text-white/80 hover:bg-black/30"
+                      }`}
+                    >
+                      <div className="font-semibold">Play now</div>
+                      <div className="mt-1 text-sm text-white/70">
+                        Create a live room right away.
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setScheduleMode("LATER")}
+                      className={`rounded-xl border px-4 py-3 text-left transition ${
+                        scheduleMode === "LATER"
+                          ? "border-cyan-300 bg-cyan-400/20 text-white"
+                          : "border-white/15 bg-black/20 text-white/80 hover:bg-black/30"
+                      }`}
+                    >
+                      <div className="font-semibold">Schedule for later</div>
+                      <div className="mt-1 text-sm text-white/70">
+                        Share the link now and let players wait in the lobby.
+                      </div>
+                    </button>
+                  </div>
+
+                  {scheduleMode === "LATER" && (
+                    <ScheduledStartPicker
+                      date={scheduledStartDate}
+                      selectedSlot={scheduledStartSlot}
+                      slotOptions={scheduleSlotOptions}
+                      onDateChange={setScheduledStartDate}
+                      onSlotChange={setScheduledStartSlot}
+                    />
+                  )}
+                </div>
               </div>
 
               {permissionToCreateRoooms && (
@@ -676,11 +966,11 @@ export default function HomePage() {
                       selectedGame,
                       playersCount: players.length,
                       teamsCount: teams.length,
-                    })}
+                    }) || (scheduleMode === "LATER" && !scheduledStartAt)}
                     className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
                   >
                     <Building className="w-5 h-5" />
-                    Create Room
+                    {scheduleMode === "LATER" ? "Create Event Room" : "Create Room"}
                   </button>
                 )}
 
@@ -711,7 +1001,7 @@ export default function HomePage() {
                     className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
                   >
                     <Play className="w-5 h-5" />
-                    Start Game
+                    {scheduleMode === "LATER" ? "Open Lobby" : "Start Game"}
                   </button>
                 </div>
               )}
