@@ -6,6 +6,7 @@ import {
   Share2,
   ClipboardPaste,
   Loader2,
+  CalendarClock,
 } from "lucide-react";
 import React from "react";
 import { useTRPC } from "@/trpc/client";
@@ -95,6 +96,8 @@ export default function HomePage() {
   const [selectedRounds, setSelectedRounds] = React.useState<number>(0);
   const [selectedEdition, setSelectedEdition] = React.useState<number>(0);
   const [selectedPokerStake, setSelectedPokerStake] = React.useState<number>(10000);
+  const [scheduleMode, setScheduleMode] = React.useState<"NOW" | "LATER">("NOW");
+  const [scheduledStartAt, setScheduledStartAt] = React.useState("");
   const [showJsonImport, setShowJsonImport] = React.useState(false);
   const [jsonImportInput, setJsonImportInput] = React.useState("");
   const [roomCreateSource, setRoomCreateSource] = React.useState<
@@ -188,6 +191,10 @@ export default function HomePage() {
   const createRoomFromPayload = (
     payload: SelfServicePayload,
     source: "manual" | "self-service",
+    scheduleOptions?: {
+      scheduleMode: "NOW" | "LATER";
+      scheduledStartAt?: string;
+    },
   ) => {
     const validationError = getSelfServiceValidationError(payload);
     if (validationError) {
@@ -200,6 +207,8 @@ export default function HomePage() {
       players: payload.players,
       userId: currentUser?.id || "",
       selectedRounds: payload.selectedRounds,
+      scheduleMode: scheduleOptions?.scheduleMode ?? "NOW",
+      scheduledStartAt: scheduleOptions?.scheduledStartAt,
       selectedStake: payload.selectedStake,
       teamsInfo: payload.teamsInfo,
     });
@@ -209,6 +218,19 @@ export default function HomePage() {
     if (!selectedGame) {
       toast.warning("Please select a game and add at least two players.");
       return;
+    }
+
+    if (scheduleMode === "LATER") {
+      if (!scheduledStartAt) {
+        toast.warning("Please choose a future start time.");
+        return;
+      }
+
+      const scheduledDate = new Date(scheduledStartAt);
+      if (Number.isNaN(scheduledDate.getTime()) || scheduledDate <= new Date()) {
+        toast.warning("Scheduled rooms need a future start time.");
+        return;
+      }
     }
 
     createRoomFromPayload(
@@ -222,6 +244,13 @@ export default function HomePage() {
         teamsInfo,
       },
       "manual",
+      {
+        scheduleMode,
+        scheduledStartAt:
+          scheduleMode === "LATER"
+            ? new Date(scheduledStartAt).toISOString()
+            : undefined,
+      },
     );
   };
 
@@ -233,7 +262,9 @@ export default function HomePage() {
     }
 
     const payload = parsedPayload.data;
-    createRoomFromPayload(payload, "self-service");
+    createRoomFromPayload(payload, "self-service", {
+      scheduleMode: "NOW",
+    });
   };
 
   const addPlayer = () => {
@@ -616,6 +647,70 @@ export default function HomePage() {
                     </p>
                   </div>
                 )}
+
+                <div className="mt-6 rounded-2xl border border-white/15 bg-white/10 p-4 text-left backdrop-blur-sm">
+                  <div className="flex items-center gap-2 text-lg font-semibold text-white">
+                    <CalendarClock className="h-5 w-5" />
+                    Event timing
+                  </div>
+                  <p className="mt-1 text-sm text-white/70">
+                    Choose whether the room should open immediately or become a
+                    scheduled lobby with a countdown.
+                  </p>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setScheduleMode("NOW")}
+                      className={`rounded-xl border px-4 py-3 text-left transition ${
+                        scheduleMode === "NOW"
+                          ? "border-emerald-300 bg-emerald-400/20 text-white"
+                          : "border-white/15 bg-black/20 text-white/80 hover:bg-black/30"
+                      }`}
+                    >
+                      <div className="font-semibold">Play now</div>
+                      <div className="mt-1 text-sm text-white/70">
+                        Create a live room right away.
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setScheduleMode("LATER")}
+                      className={`rounded-xl border px-4 py-3 text-left transition ${
+                        scheduleMode === "LATER"
+                          ? "border-cyan-300 bg-cyan-400/20 text-white"
+                          : "border-white/15 bg-black/20 text-white/80 hover:bg-black/30"
+                      }`}
+                    >
+                      <div className="font-semibold">Schedule for later</div>
+                      <div className="mt-1 text-sm text-white/70">
+                        Share the link now and let players wait in the lobby.
+                      </div>
+                    </button>
+                  </div>
+
+                  {scheduleMode === "LATER" && (
+                    <div className="mt-4">
+                      <label
+                        htmlFor="scheduledStartAt"
+                        className="mb-2 block text-sm font-medium text-white/80"
+                      >
+                        Scheduled start time
+                      </label>
+                      <Input
+                        id="scheduledStartAt"
+                        type="datetime-local"
+                        value={scheduledStartAt}
+                        onChange={(event) => setScheduledStartAt(event.target.value)}
+                        className="bg-white text-black"
+                        min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
+                      />
+                      <p className="mt-2 text-xs text-white/60">
+                        Players can open the room before this time, choose their
+                        name, and wait for the game to unlock automatically.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {permissionToCreateRoooms && (
@@ -676,11 +771,11 @@ export default function HomePage() {
                       selectedGame,
                       playersCount: players.length,
                       teamsCount: teams.length,
-                    })}
+                    }) || (scheduleMode === "LATER" && scheduledStartAt.trim() === "")}
                     className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
                   >
                     <Building className="w-5 h-5" />
-                    Create Room
+                    {scheduleMode === "LATER" ? "Create Event Room" : "Create Room"}
                   </button>
                 )}
 
@@ -711,7 +806,7 @@ export default function HomePage() {
                     className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
                   >
                     <Play className="w-5 h-5" />
-                    Start Game
+                    {scheduleMode === "LATER" ? "Open Lobby" : "Start Game"}
                   </button>
                 </div>
               )}

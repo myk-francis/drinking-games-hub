@@ -80,12 +80,12 @@ export type PrismaVersion = {
 }
 
 /**
- * Prisma Client JS version: 7.4.2
- * Query Engine version: 94a226be1cf2967af2541cca5529f0f7ba866919
+ * Prisma Client JS version: 7.8.0
+ * Query Engine version: 3c6e192761c0362d496ed980de936e2f3cebcd3a
  */
 export const prismaVersion: PrismaVersion = {
-  client: "7.4.2",
-  engine: "94a226be1cf2967af2541cca5529f0f7ba866919"
+  client: "7.8.0",
+  engine: "3c6e192761c0362d496ed980de936e2f3cebcd3a"
 }
 
 /**
@@ -393,7 +393,8 @@ export const ModelName = {
   Parms: 'Parms',
   Transaction: 'Transaction',
   Comment: 'Comment',
-  Reaction: 'Reaction'
+  Reaction: 'Reaction',
+  LobbyMessage: 'LobbyMessage'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -409,7 +410,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "game" | "question" | "room" | "player" | "session" | "parms" | "transaction" | "comment" | "reaction"
+    modelProps: "user" | "game" | "question" | "room" | "player" | "session" | "parms" | "transaction" | "comment" | "reaction" | "lobbyMessage"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1153,6 +1154,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    LobbyMessage: {
+      payload: Prisma.$LobbyMessagePayload<ExtArgs>
+      fields: Prisma.LobbyMessageFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.LobbyMessageFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LobbyMessagePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.LobbyMessageFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LobbyMessagePayload>
+        }
+        findFirst: {
+          args: Prisma.LobbyMessageFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LobbyMessagePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.LobbyMessageFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LobbyMessagePayload>
+        }
+        findMany: {
+          args: Prisma.LobbyMessageFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LobbyMessagePayload>[]
+        }
+        create: {
+          args: Prisma.LobbyMessageCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LobbyMessagePayload>
+        }
+        createMany: {
+          args: Prisma.LobbyMessageCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.LobbyMessageCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LobbyMessagePayload>[]
+        }
+        delete: {
+          args: Prisma.LobbyMessageDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LobbyMessagePayload>
+        }
+        update: {
+          args: Prisma.LobbyMessageUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LobbyMessagePayload>
+        }
+        deleteMany: {
+          args: Prisma.LobbyMessageDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.LobbyMessageUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.LobbyMessageUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LobbyMessagePayload>[]
+        }
+        upsert: {
+          args: Prisma.LobbyMessageUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LobbyMessagePayload>
+        }
+        aggregate: {
+          args: Prisma.LobbyMessageAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateLobbyMessage>
+        }
+        groupBy: {
+          args: Prisma.LobbyMessageGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.LobbyMessageGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.LobbyMessageCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.LobbyMessageCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1233,6 +1308,7 @@ export type QuestionScalarFieldEnum = (typeof QuestionScalarFieldEnum)[keyof typ
 export const RoomScalarFieldEnum = {
   id: 'id',
   gameId: 'gameId',
+  status: 'status',
   gameEnded: 'gameEnded',
   userId: 'userId',
   currentPlayerId: 'currentPlayerId',
@@ -1255,6 +1331,8 @@ export const RoomScalarFieldEnum = {
   currentAnswer: 'currentAnswer',
   playingTeams: 'playingTeams',
   previousPlayedTeams: 'previousPlayedTeams',
+  scheduledStartAt: 'scheduledStartAt',
+  lobbyOpenedAt: 'lobbyOpenedAt',
   startedAt: 'startedAt',
   gameEndedAt: 'gameEndedAt',
   createdAt: 'createdAt',
@@ -1340,6 +1418,18 @@ export const ReactionScalarFieldEnum = {
 } as const
 
 export type ReactionScalarFieldEnum = (typeof ReactionScalarFieldEnum)[keyof typeof ReactionScalarFieldEnum]
+
+
+export const LobbyMessageScalarFieldEnum = {
+  id: 'id',
+  roomId: 'roomId',
+  playerId: 'playerId',
+  playerName: 'playerName',
+  content: 'content',
+  createdAt: 'createdAt'
+} as const
+
+export type LobbyMessageScalarFieldEnum = (typeof LobbyMessageScalarFieldEnum)[keyof typeof LobbyMessageScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -1527,6 +1617,21 @@ export type PrismaClientOptions = ({
    * ```
    */
   comments?: runtime.SqlCommenterPlugin[]
+  /**
+   * Optional maximum size for the query plan cache. If not provided, a default size will be used.
+   * A value of `0` can be used to disable the cache entirely. A higher cache size can improve
+   * performance for applications that execute a large number of unique queries, while a smaller
+   * cache size can reduce memory usage.
+   * 
+   * @example
+   * ```
+   * const prisma = new PrismaClient({
+   *   adapter,
+   *   queryPlanCacheMaxSize: 100,
+   * })
+   * ```
+   */
+  queryPlanCacheMaxSize?: number
 }
 export type GlobalOmitConfig = {
   user?: Prisma.UserOmit
@@ -1539,6 +1644,7 @@ export type GlobalOmitConfig = {
   transaction?: Prisma.TransactionOmit
   comment?: Prisma.CommentOmit
   reaction?: Prisma.ReactionOmit
+  lobbyMessage?: Prisma.LobbyMessageOmit
 }
 
 /* Types for Logging */

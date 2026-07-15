@@ -206,7 +206,7 @@ export type GameGroupByOutputType = {
   _max: GameMaxAggregateOutputType | null
 }
 
-type GetGameGroupByPayload<T extends GameGroupByArgs> = Prisma.PrismaPromise<
+export type GetGameGroupByPayload<T extends GameGroupByArgs> = Prisma.PrismaPromise<
   Array<
     Prisma.PickEnumerable<GameGroupByOutputType, T['by']> &
       {
@@ -1295,6 +1295,11 @@ export type GameFindManyArgs<ExtArgs extends runtime.Types.Extensions.InternalAr
    * Skip the first `n` Games.
    */
   skip?: number
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+   * 
+   * Filter by unique combinations of Games.
+   */
   distinct?: Prisma.GameScalarFieldEnum | Prisma.GameScalarFieldEnum[]
 }
 

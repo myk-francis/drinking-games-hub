@@ -60,7 +60,8 @@ export const ModelName = {
   Parms: 'Parms',
   Transaction: 'Transaction',
   Comment: 'Comment',
-  Reaction: 'Reaction'
+  Reaction: 'Reaction',
+  LobbyMessage: 'LobbyMessage'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -120,6 +121,7 @@ export type QuestionScalarFieldEnum = (typeof QuestionScalarFieldEnum)[keyof typ
 export const RoomScalarFieldEnum = {
   id: 'id',
   gameId: 'gameId',
+  status: 'status',
   gameEnded: 'gameEnded',
   userId: 'userId',
   currentPlayerId: 'currentPlayerId',
@@ -142,6 +144,8 @@ export const RoomScalarFieldEnum = {
   currentAnswer: 'currentAnswer',
   playingTeams: 'playingTeams',
   previousPlayedTeams: 'previousPlayedTeams',
+  scheduledStartAt: 'scheduledStartAt',
+  lobbyOpenedAt: 'lobbyOpenedAt',
   startedAt: 'startedAt',
   gameEndedAt: 'gameEndedAt',
   createdAt: 'createdAt',
@@ -227,6 +231,18 @@ export const ReactionScalarFieldEnum = {
 } as const
 
 export type ReactionScalarFieldEnum = (typeof ReactionScalarFieldEnum)[keyof typeof ReactionScalarFieldEnum]
+
+
+export const LobbyMessageScalarFieldEnum = {
+  id: 'id',
+  roomId: 'roomId',
+  playerId: 'playerId',
+  playerName: 'playerName',
+  content: 'content',
+  createdAt: 'createdAt'
+} as const
+
+export type LobbyMessageScalarFieldEnum = (typeof LobbyMessageScalarFieldEnum)[keyof typeof LobbyMessageScalarFieldEnum]
 
 
 export const SortOrder = {

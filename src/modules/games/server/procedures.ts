@@ -36,6 +36,7 @@ import {
   drawBadChoicesCards,
   redrawBadChoicesCards,
 } from "@/modules/games/lib/bad-choices";
+import { getScheduledRoomState } from "@/modules/games/lib/scheduled-room";
 import type { Prisma } from "../../../../prisma/generated/prisma/client";
 
 async function saveCoupState(args: {
@@ -4551,7 +4552,7 @@ export const gamesRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      const room = await prisma.room.findUnique({
+      let room = await prisma.room.findUnique({
         where: {
           id: input.roomId,
         },
@@ -4565,6 +4566,37 @@ export const gamesRouter = createTRPCRouter({
         },
       });
 
+      if (!room) {
+        return null;
+      }
+
+      const roomScheduleState = getScheduledRoomState({
+        status: room.status,
+        scheduledStartAt: room.scheduledStartAt,
+        gameEnded: room.gameEnded,
+      });
+
+      if (roomScheduleState.shouldAutoActivate) {
+        room = await prisma.room.update({
+          where: {
+            id: input.roomId,
+          },
+          data: {
+            status: "LIVE",
+            startedAt: room.startedAt ?? new Date(),
+            lobbyOpenedAt: room.lobbyOpenedAt ?? new Date(),
+          },
+          include: {
+            players: true,
+            game: {
+              include: {
+                questions: true,
+              },
+            },
+          },
+        });
+      }
+
       return room;
     }),
   getRoomState: baseProcedure
@@ -4574,13 +4606,16 @@ export const gamesRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      const room = await prisma.room.findUnique({
+      let room = await prisma.room.findUnique({
         where: {
           id: input.roomId,
         },
         select: {
           id: true,
           gameId: true,
+          status: true,
+          scheduledStartAt: true,
+          lobbyOpenedAt: true,
           gameEnded: true,
           userId: true,
           currentPlayerId: true,
@@ -4632,6 +4667,76 @@ export const gamesRouter = createTRPCRouter({
         return null;
       }
 
+      const roomScheduleState = getScheduledRoomState({
+        status: room.status,
+        scheduledStartAt: room.scheduledStartAt,
+        gameEnded: room.gameEnded,
+      });
+
+      if (roomScheduleState.shouldAutoActivate) {
+        room = await prisma.room.update({
+          where: {
+            id: input.roomId,
+          },
+          data: {
+            status: "LIVE",
+            startedAt: room.startedAt ?? new Date(),
+            lobbyOpenedAt: room.lobbyOpenedAt ?? new Date(),
+          },
+          select: {
+            id: true,
+            gameId: true,
+            status: true,
+            scheduledStartAt: true,
+            lobbyOpenedAt: true,
+            gameEnded: true,
+            userId: true,
+            currentPlayerId: true,
+            playerOneId: true,
+            playerTwoId: true,
+            previousPairIds: true,
+            allPairIds: true,
+            previousPlayersIds: true,
+            currentQuestionId: true,
+            previousQuestionsId: true,
+            currentCard: true,
+            lastCard: true,
+            lastPlayerId: true,
+            previousCards: true,
+            correctPrediction: true,
+            rounds: true,
+            currentRound: true,
+            questionAVotes: true,
+            questionBVotes: true,
+            playingTeams: true,
+            previousPlayedTeams: true,
+            startedAt: true,
+            gameEndedAt: true,
+            createdAt: true,
+            updatedAt: true,
+            currentAnswer: true,
+            players: {
+              select: {
+                id: true,
+                name: true,
+                hasChangedName: true,
+                points: true,
+                drinks: true,
+                team: true,
+              },
+            },
+            game: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                questions: true,
+              },
+            },
+          },
+        });
+      }
+
       const currentQuestion = room.currentQuestionId
         ? await prisma.question.findUnique({
             where: { id: room.currentQuestionId },
@@ -4639,7 +4744,17 @@ export const gamesRouter = createTRPCRouter({
           })
         : null;
 
-      return { ...room, currentQuestion };
+      const latestScheduleState = getScheduledRoomState({
+        status: room.status,
+        scheduledStartAt: room.scheduledStartAt,
+        gameEnded: room.gameEnded,
+      });
+
+      return {
+        ...room,
+        currentQuestion,
+        scheduleState: latestScheduleState,
+      };
     }),
   getRoomReactions: baseProcedure
     .input(
@@ -4761,6 +4876,8 @@ export const gamesRouter = createTRPCRouter({
         players: z.array(z.string()).optional(),
         userId: z.string(),
         selectedRounds: z.number(),
+        scheduleMode: z.enum(["NOW", "LATER"]).default("NOW"),
+        scheduledStartAt: z.string().datetime().optional(),
         selectedStake: z.number().int().min(10000).max(50000).optional().default(10000),
         teamsInfo: z.array(teamInfoSchema).optional(),
       }),
@@ -4815,6 +4932,33 @@ export const gamesRouter = createTRPCRouter({
 
         if (!game) {
           throw new Error("Game not found");
+        }
+
+        const scheduleState =
+          input.scheduleMode === "LATER" && input.scheduledStartAt
+            ? {
+                status: "LOBBY" as const,
+                scheduledStartAt: new Date(input.scheduledStartAt),
+              }
+            : {
+                status: "LIVE" as const,
+                scheduledStartAt: null,
+              };
+
+        if (
+          input.scheduleMode === "LATER" &&
+          (!input.scheduledStartAt ||
+            Number.isNaN(new Date(input.scheduledStartAt).getTime()))
+        ) {
+          throw new Error("A valid scheduled start time is required.");
+        }
+
+        if (
+          input.scheduleMode === "LATER" &&
+          scheduleState.scheduledStartAt &&
+          scheduleState.scheduledStartAt.getTime() <= Date.now()
+        ) {
+          throw new Error("Scheduled rooms must start in the future.");
         }
 
         if (
@@ -4950,8 +5094,10 @@ export const gamesRouter = createTRPCRouter({
           const createdRoom = await prisma.room.create({
             data: {
               gameId: game.id,
+              status: scheduleState.status,
               rounds: input.selectedRounds,
               currentRound: input.selectedRounds > 0 ? 1 : 0,
+              scheduledStartAt: scheduleState.scheduledStartAt,
               userId: input.userId, // Assuming a default user ID for now
               playingTeams: teams,
               players: {
@@ -4979,6 +5125,8 @@ export const gamesRouter = createTRPCRouter({
           await prisma.room.update({
             where: { id: createdRoomId },
             data: {
+              status: scheduleState.status,
+              scheduledStartAt: scheduleState.scheduledStartAt,
               currentPlayerId:
                 teams[Math.floor(Math.random() * teams.length)]?.toString() ||
                 "",
@@ -5008,8 +5156,10 @@ export const gamesRouter = createTRPCRouter({
           const createdRoom = await prisma.room.create({
             data: {
               gameId: game.id,
+              status: scheduleState.status,
               rounds: input.selectedRounds,
               currentRound: input.selectedRounds > 0 ? 1 : 0,
+              scheduledStartAt: scheduleState.scheduledStartAt,
               userId: input.userId, // Assuming a default user ID for now
               players: {
                 create: players,
@@ -5256,6 +5406,8 @@ export const gamesRouter = createTRPCRouter({
           await prisma.room.update({
             where: { id: createdRoomId },
             data: {
+              status: scheduleState.status,
+              scheduledStartAt: scheduleState.scheduledStartAt,
               currentPlayerId:
                 input.selectedGame === "joker-loop"
                   ? jokerLoopCurrentPlayerId

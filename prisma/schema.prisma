@@ -52,11 +52,13 @@ model Question {
 model Room {
   id        String    @id @default(dbgenerated("gen_random_uuid()"))
   gameId    Int
+  status    String    @default("LIVE")
   gameEnded Boolean @default(false)
   game      Game    @relation(fields: [gameId], references: [id], onDelete: Cascade)
   userId    String
   user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   comments  Comment[]
+  lobbyMessages LobbyMessage[]
   reactions Reaction[]
   players   Player[]
   currentPlayerId String?
@@ -79,6 +81,8 @@ model Room {
   currentAnswer String?
   playingTeams String[]
   previousPlayedTeams String[]
+  scheduledStartAt DateTime?
+  lobbyOpenedAt DateTime?
   startedAt DateTime?
   gameEndedAt DateTime? 
   createdAt DateTime @default(now())
@@ -154,5 +158,18 @@ model Reaction {
 
   @@index([roomId, createdAt])
   @@index([senderPlayerId, createdAt])
+}
+
+model LobbyMessage {
+  id         String   @id @default(cuid())
+  roomId     String
+  playerId   String
+  playerName String
+  content    String
+  createdAt  DateTime @default(now())
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt])
 }
 
