@@ -7,6 +7,7 @@ import {
   ClipboardPaste,
   Loader2,
   CalendarClock,
+  Calendar as CalendarIcon,
 } from "lucide-react";
 import React from "react";
 import { useTRPC } from "@/trpc/client";
@@ -14,6 +15,15 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loading } from "@/components/ui/loading";
@@ -30,6 +40,7 @@ import {
   isCreateRoomDisabled,
 } from "@/modules/games/lib/game-config";
 import { SPIN_BOTTLE_MODE_OPTIONS } from "@/modules/games/lib/spin-the-bottle";
+import { cn } from "@/lib/utils";
 
 interface TeamsInfo {
   teamName: string;
@@ -43,6 +54,124 @@ const pokerStakeOptions = [
   { id: 4, name: "40000 chips", value: 40000 },
   { id: 5, name: "50000 chips", value: 50000 },
 ];
+
+const scheduleHourOptions = Array.from({ length: 24 }, (_, index) =>
+  String(index).padStart(2, "0"),
+);
+const scheduleMinuteOptions = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
+
+function buildScheduledDate({
+  date,
+  hour,
+  minute,
+}: {
+  date: Date | undefined;
+  hour: string;
+  minute: string;
+}) {
+  if (!date) {
+    return null;
+  }
+
+  const next = new Date(date);
+  next.setSeconds(0, 0);
+  next.setHours(Number(hour), Number(minute), 0, 0);
+  return next;
+}
+
+function ScheduledStartPicker({
+  date,
+  hour,
+  minute,
+  onDateChange,
+  onHourChange,
+  onMinuteChange,
+}: {
+  date: Date | undefined;
+  hour: string;
+  minute: string;
+  onDateChange: (value: Date | undefined) => void;
+  onHourChange: (value: string) => void;
+  onMinuteChange: (value: string) => void;
+}) {
+  const selectedDateTime = buildScheduledDate({ date, hour, minute });
+
+  return (
+    <div className="mt-4">
+      <label className="mb-2 block text-sm font-medium text-white/80">
+        Scheduled start time
+      </label>
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1.5fr)_minmax(0,0.75fr)_minmax(0,0.75fr)]">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className={cn(
+                "justify-start border-white/15 bg-white text-left text-black hover:bg-white/90",
+                !date && "text-black/60",
+              )}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {selectedDateTime
+                ? selectedDateTime.toLocaleString([], {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                    weekday: "short",
+                  })
+                : "Pick a date"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={date}
+              onSelect={onDateChange}
+              disabled={(currentDate) => {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                return currentDate < today;
+              }}
+              captionLayout="dropdown"
+            />
+          </PopoverContent>
+        </Popover>
+
+        <Select value={hour} onValueChange={onHourChange}>
+          <SelectTrigger className="w-full border-white/15 bg-white text-black">
+            <SelectValue placeholder="Hour" />
+          </SelectTrigger>
+          <SelectContent>
+            {scheduleHourOptions.map((option) => (
+              <SelectItem key={option} value={option}>
+                {option}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={minute} onValueChange={onMinuteChange}>
+          <SelectTrigger className="w-full border-white/15 bg-white text-black">
+            <SelectValue placeholder="Minute" />
+          </SelectTrigger>
+          <SelectContent>
+            {scheduleMinuteOptions.map((option) => (
+              <SelectItem key={option} value={option}>
+                {option}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <p className="mt-2 text-xs text-white/60">
+        {selectedDateTime
+          ? `Players will wait in the lobby until ${selectedDateTime.toLocaleString()}.`
+          : "Choose the day and time players should be allowed into the live game."}
+      </p>
+    </div>
+  );
+}
 
 export default function HomePage() {
   const router = useRouter();
@@ -97,7 +226,11 @@ export default function HomePage() {
   const [selectedEdition, setSelectedEdition] = React.useState<number>(0);
   const [selectedPokerStake, setSelectedPokerStake] = React.useState<number>(10000);
   const [scheduleMode, setScheduleMode] = React.useState<"NOW" | "LATER">("NOW");
-  const [scheduledStartAt, setScheduledStartAt] = React.useState("");
+  const [scheduledStartDate, setScheduledStartDate] = React.useState<Date | undefined>(
+    undefined,
+  );
+  const [scheduledStartHour, setScheduledStartHour] = React.useState("20");
+  const [scheduledStartMinute, setScheduledStartMinute] = React.useState("00");
   const [showJsonImport, setShowJsonImport] = React.useState(false);
   const [jsonImportInput, setJsonImportInput] = React.useState("");
   const [roomCreateSource, setRoomCreateSource] = React.useState<
@@ -188,6 +321,12 @@ export default function HomePage() {
   if (isLoading) return <Loading />;
   if (error) return <div>Error: {error.message}</div>;
 
+  const scheduledStartAt = buildScheduledDate({
+    date: scheduledStartDate,
+    hour: scheduledStartHour,
+    minute: scheduledStartMinute,
+  });
+
   const createRoomFromPayload = (
     payload: SelfServicePayload,
     source: "manual" | "self-service",
@@ -226,8 +365,7 @@ export default function HomePage() {
         return;
       }
 
-      const scheduledDate = new Date(scheduledStartAt);
-      if (Number.isNaN(scheduledDate.getTime()) || scheduledDate <= new Date()) {
+      if (Number.isNaN(scheduledStartAt.getTime()) || scheduledStartAt <= new Date()) {
         toast.warning("Scheduled rooms need a future start time.");
         return;
       }
@@ -248,7 +386,7 @@ export default function HomePage() {
         scheduleMode,
         scheduledStartAt:
           scheduleMode === "LATER"
-            ? new Date(scheduledStartAt).toISOString()
+            ? scheduledStartAt?.toISOString()
             : undefined,
       },
     );
@@ -689,26 +827,14 @@ export default function HomePage() {
                   </div>
 
                   {scheduleMode === "LATER" && (
-                    <div className="mt-4">
-                      <label
-                        htmlFor="scheduledStartAt"
-                        className="mb-2 block text-sm font-medium text-white/80"
-                      >
-                        Scheduled start time
-                      </label>
-                      <Input
-                        id="scheduledStartAt"
-                        type="datetime-local"
-                        value={scheduledStartAt}
-                        onChange={(event) => setScheduledStartAt(event.target.value)}
-                        className="bg-white text-black"
-                        min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
-                      />
-                      <p className="mt-2 text-xs text-white/60">
-                        Players can open the room before this time, choose their
-                        name, and wait for the game to unlock automatically.
-                      </p>
-                    </div>
+                    <ScheduledStartPicker
+                      date={scheduledStartDate}
+                      hour={scheduledStartHour}
+                      minute={scheduledStartMinute}
+                      onDateChange={setScheduledStartDate}
+                      onHourChange={setScheduledStartHour}
+                      onMinuteChange={setScheduledStartMinute}
+                    />
                   )}
                 </div>
               </div>
@@ -771,7 +897,7 @@ export default function HomePage() {
                       selectedGame,
                       playersCount: players.length,
                       teamsCount: teams.length,
-                    }) || (scheduleMode === "LATER" && scheduledStartAt.trim() === "")}
+                    }) || (scheduleMode === "LATER" && !scheduledStartAt)}
                     className="flex items-center gap-2 px-8 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold transition-colors"
                   >
                     <Building className="w-5 h-5" />
