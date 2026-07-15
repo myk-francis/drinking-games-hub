@@ -4756,6 +4756,74 @@ export const gamesRouter = createTRPCRouter({
         scheduleState: latestScheduleState,
       };
     }),
+  startScheduledRoomNow: baseProcedure
+    .input(
+      z.object({
+        roomId: z.string().min(1, { message: "Room ID is required" }),
+        playerId: z.string().min(1, { message: "Player ID is required" }),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const room = await prisma.room.findUnique({
+        where: {
+          id: input.roomId,
+        },
+        select: {
+          id: true,
+          status: true,
+          gameEnded: true,
+          lobbyOpenedAt: true,
+          startedAt: true,
+          players: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      });
+
+      if (!room) {
+        throw new Error("Room not found.");
+      }
+
+      if (room.gameEnded) {
+        throw new Error("This game has already ended.");
+      }
+
+      const playerIsInRoom = room.players.some(
+        (player) => player.id === input.playerId,
+      );
+      if (!playerIsInRoom) {
+        throw new Error("Player not found in this room.");
+      }
+
+      if (room.status !== "LOBBY") {
+        return room;
+      }
+
+      return prisma.room.update({
+        where: {
+          id: input.roomId,
+        },
+        data: {
+          status: "LIVE",
+          startedAt: room.startedAt ?? new Date(),
+          lobbyOpenedAt: room.lobbyOpenedAt ?? new Date(),
+        },
+        select: {
+          id: true,
+          status: true,
+          gameEnded: true,
+          lobbyOpenedAt: true,
+          startedAt: true,
+          players: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      });
+    }),
   getRoomReactions: baseProcedure
     .input(
       z.object({

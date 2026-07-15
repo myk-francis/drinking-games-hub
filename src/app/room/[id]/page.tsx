@@ -2121,6 +2121,20 @@ export default function RoomPage() {
       },
     }),
   );
+  const startScheduledRoomNow = useMutation(
+    trpc.games.startScheduledRoomNow.mutationOptions({
+      onSuccess: async () => {
+        await queryClient.invalidateQueries(
+          trpc.games.getRoomState.queryFilter({
+            roomId: String(roomId),
+          }),
+        );
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not start the game early.");
+      },
+    }),
+  );
   const renderCoupGameOverMessage = React.useCallback(
     (winnerPlayerId: string | null, lastAction: string | null) => {
       const winnerName =
@@ -2776,6 +2790,17 @@ export default function RoomPage() {
     },
     [actualPlayer, players, room?.id, sendLobbyMessage],
   );
+  const handleStartScheduledRoomNow = React.useCallback(() => {
+    if (!room?.id || !actualPlayer) {
+      toast.error("Choose your player name before starting early.");
+      return;
+    }
+
+    startScheduledRoomNow.mutate({
+      roomId: room.id,
+      playerId: actualPlayer,
+    });
+  }, [actualPlayer, room?.id, startScheduledRoomNow]);
 
   const nextCatherineCard = useMutation(
     trpc.games.nextCatherineCard.mutationOptions({
@@ -3865,6 +3890,8 @@ export default function RoomPage() {
             messages={lobbyMessages}
             onSendMessage={handleSendLobbyMessage}
             isSendingMessage={sendLobbyMessage.isPending}
+            onStartNow={handleStartScheduledRoomNow}
+            isStartingNow={startScheduledRoomNow.isPending}
           />
         )}
       </>

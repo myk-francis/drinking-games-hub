@@ -40,6 +40,8 @@ export default function PreGameLobby({
   messages,
   onSendMessage,
   isSendingMessage,
+  onStartNow,
+  isStartingNow,
 }: {
   roomId: string;
   gameName: string;
@@ -49,6 +51,8 @@ export default function PreGameLobby({
   messages: LobbyMessage[];
   onSendMessage: (content: string) => void;
   isSendingMessage: boolean;
+  onStartNow: () => void;
+  isStartingNow: boolean;
 }) {
   const [draft, setDraft] = React.useState("");
   const [now, setNow] = React.useState(() => Date.now());
@@ -221,6 +225,15 @@ export default function PreGameLobby({
               {notificationPermission === "granted"
                 ? "Reminder enabled"
                 : "Enable 5-minute reminder"}
+            </Button>
+            <Button
+              type="button"
+              onClick={onStartNow}
+              disabled={isStartingNow}
+              variant="secondary"
+              className="border border-white/15 bg-white/10 text-white hover:bg-white/15"
+            >
+              {isStartingNow ? "Starting game..." : "Start game now"}
             </Button>
             <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70">
               {notificationPermission === "unsupported"
