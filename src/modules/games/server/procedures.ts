@@ -32,6 +32,7 @@ import {
   getYouLaughYouDrinkOutcome,
   YOU_LAUGH_YOU_DRINK_RESULTS,
 } from "@/modules/games/lib/you-laugh-you-drink";
+import { LIVE_ROOM_SEND_COOLDOWN_MS } from "@/modules/lobby/lib/room-live-message";
 import {
   drawBadChoicesCards,
   redrawBadChoicesCards,
@@ -173,7 +174,6 @@ const NAME_THE_SONG_TIMER_SECONDS = 5;
 const GUESS_THE_MOVIE_TIMER_SECONDS = 5;
 const GUESS_THE_MOVIE_ALL_CATEGORY = 0;
 const GHOST_TEARS_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-const REACTION_COOLDOWN_MS = 10 * 60 * 1000;
 const JOKER_LOOP_CARDS_PER_PLAYER = 12;
 const JOKER_LOOP_JOKER_KEY = "__JOKER__";
 const JOKER_LOOP_CARD_TEMPLATES: JokerLoopCardTemplate[] = [
@@ -4916,9 +4916,9 @@ export const gamesRouter = createTRPCRouter({
 
       if (lastReaction) {
         const elapsedMs = Date.now() - lastReaction.createdAt.getTime();
-        if (elapsedMs < REACTION_COOLDOWN_MS) {
+        if (elapsedMs < LIVE_ROOM_SEND_COOLDOWN_MS) {
           const remainingSeconds = Math.ceil(
-            (REACTION_COOLDOWN_MS - elapsedMs) / 1000,
+            (LIVE_ROOM_SEND_COOLDOWN_MS - elapsedMs) / 1000,
           );
           throw new Error(
             `You can send your next reaction in ${remainingSeconds}s.`,

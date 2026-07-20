@@ -78,6 +78,10 @@ import type {
 import {
   getPokerMinimumAggressiveBetTotal,
 } from "./poker-helpers";
+import {
+  LIVE_ROOM_SEND_COOLDOWN_MS,
+  parseRoomGifMessage,
+} from "@/modules/lobby/lib/room-live-message";
 
 type WhoAmINote = {
   id: string;
@@ -138,6 +142,39 @@ type RoomReaction = {
     id: string;
     name: string;
   } | null;
+};
+
+type LobbyMessageRecord = {
+  id: string;
+  roomId: string;
+  playerId: string;
+  playerName: string;
+  content: string;
+  createdAt: Date | string;
+};
+
+type RoomGifSearchResult = {
+  id: string;
+  title: string;
+  sourceUrl: string;
+  previewUrl: string;
+  previewMp4Url: string | null;
+  sendUrl: string;
+  sendMp4Url: string | null;
+  width: number;
+  height: number;
+};
+
+type RoomGifEvent = {
+  id: string;
+  playerId: string;
+  playerName: string;
+  createdAt: Date | string;
+  gifId: string;
+  gifUrl: string;
+  gifMp4Url: string | null;
+  previewUrl: string | null;
+  title: string | null;
 };
 
 const animations = [
@@ -222,7 +259,6 @@ const DRINK_ALERT_STEP = 5;
 const LOSING_MEME_SOUND_PATH = "/sounds/losing-meme.mp4";
 const LOSING_MEME_FALLBACK_SOUND_PATH = "/sounds/losing-meme.wav";
 const GAME_OVER_SOUND_PATH = "/sounds/game-over-piano.mp3";
-const REACTION_COOLDOWN_MS = 10 * 60 * 1000;
 const REACTION_VISIBLE_WINDOW_MS = 10 * 1000;
 const DEFAULT_REACTION_EMOJIS = ["🔥", "😂", "👏"];
 const EMOJI_GRAPHEME_PATTERN = /\p{Extended_Pictographic}/u;
@@ -798,8 +834,8 @@ export default function RoomPage() {
     trpc.lobby.getLobbyMessagesByRoomId.queryOptions(
       { roomId: String(roomId) },
       {
-        enabled: Boolean(room?.scheduleState?.status === "LOBBY"),
-        refetchInterval: room?.scheduleState?.status === "LOBBY" ? 2000 : false,
+        enabled: Boolean(room?.id),
+        refetchInterval: room?.gameEnded ? false : 2000,
         refetchIntervalInBackground: true,
       },
     ),
@@ -2121,6 +2157,20 @@ export default function RoomPage() {
       },
     }),
   );
+  const sendRoomGif = useMutation(
+    trpc.lobby.sendRoomGif.mutationOptions({
+      onSuccess: async () => {
+        await queryClient.invalidateQueries(
+          trpc.lobby.getLobbyMessagesByRoomId.queryFilter({
+            roomId: String(roomId),
+          }),
+        );
+      },
+      onError: (error) => {
+        toast.error(error.message || "Could not send GIF.");
+      },
+    }),
+  );
   const startScheduledRoomNow = useMutation(
     trpc.games.startScheduledRoomNow.mutationOptions({
       onSuccess: async () => {
@@ -2605,6 +2655,34 @@ export default function RoomPage() {
   const typedRoomReactions = React.useMemo<RoomReaction[]>(() => {
     return roomReactions as RoomReaction[];
   }, [roomReactions]);
+  const typedLobbyMessages = React.useMemo<LobbyMessageRecord[]>(() => {
+    return lobbyMessages as LobbyMessageRecord[];
+  }, [lobbyMessages]);
+  const lobbyChatMessages = React.useMemo(() => {
+    return typedLobbyMessages.filter(
+      (message) => parseRoomGifMessage(message.content) === null,
+    );
+  }, [typedLobbyMessages]);
+  const roomGifEvents = React.useMemo<RoomGifEvent[]>(() => {
+    return typedLobbyMessages.flatMap((message) => {
+      const payload = parseRoomGifMessage(message.content);
+      if (!payload) return [];
+
+      return [
+        {
+          id: message.id,
+          playerId: message.playerId,
+          playerName: message.playerName,
+          createdAt: message.createdAt,
+          gifId: payload.gifId,
+          gifUrl: payload.gifUrl,
+          gifMp4Url: payload.gifMp4Url ?? null,
+          previewUrl: payload.previewUrl ?? null,
+          title: payload.title ?? null,
+        },
+      ];
+    });
+  }, [typedLobbyMessages]);
 
   const myMostUsedReactions = React.useMemo(() => {
     if (!actualPlayer) return DEFAULT_REACTION_EMOJIS;
@@ -2630,24 +2708,59 @@ export default function RoomPage() {
     return topUsed;
   }, [actualPlayer, typedRoomReactions]);
 
-  const latestMyReactionAt = React.useMemo(() => {
+  const latestMyLiveSendAt = React.useMemo(() => {
     if (!actualPlayer) return 0;
 
     let latest = 0;
+
     for (const reaction of typedRoomReactions) {
       if (reaction.senderPlayerId !== actualPlayer) continue;
       const timestamp = new Date(reaction.createdAt).getTime();
       if (timestamp > latest) latest = timestamp;
     }
 
+    for (const gifEvent of roomGifEvents) {
+      if (gifEvent.playerId !== actualPlayer) continue;
+      const timestamp = new Date(gifEvent.createdAt).getTime();
+      if (timestamp > latest) latest = timestamp;
+    }
+
     return latest;
-  }, [actualPlayer, typedRoomReactions]);
+  }, [actualPlayer, roomGifEvents, typedRoomReactions]);
 
   React.useEffect(() => {
-    if (latestMyReactionAt > lastReactionSentAt) {
-      setLastReactionSentAt(latestMyReactionAt);
+    if (latestMyLiveSendAt > lastReactionSentAt) {
+      setLastReactionSentAt(latestMyLiveSendAt);
     }
-  }, [lastReactionSentAt, latestMyReactionAt]);
+  }, [lastReactionSentAt, latestMyLiveSendAt]);
+
+  const gifOverlayStartedAtRef = React.useRef(Date.now());
+  const processedGifEventIdsRef = React.useRef<Set<string>>(new Set());
+  const [gifQueue, setGifQueue] = React.useState<RoomGifEvent[]>([]);
+
+  React.useEffect(() => {
+    const nextGifEvents = roomGifEvents.filter((event) => {
+      const createdAt = new Date(event.createdAt).getTime();
+      if (!Number.isFinite(createdAt)) return false;
+      if (createdAt < gifOverlayStartedAtRef.current) return false;
+      if (processedGifEventIdsRef.current.has(event.id)) return false;
+      return true;
+    });
+
+    if (nextGifEvents.length === 0) {
+      return;
+    }
+
+    nextGifEvents.forEach((event) => {
+      processedGifEventIdsRef.current.add(event.id);
+    });
+    setGifQueue((currentQueue) => [...currentQueue, ...nextGifEvents]);
+  }, [roomGifEvents]);
+
+  const activeGifEvent = gifQueue[0] ?? null;
+  const dismissActiveGifEvent = React.useCallback(() => {
+    setGifQueue((currentQueue) => currentQueue.slice(1));
+  }, []);
 
   React.useEffect(() => {
     const interval = window.setInterval(() => {
@@ -2659,7 +2772,7 @@ export default function RoomPage() {
 
   const reactionCooldownRemainingMs = Math.max(
     0,
-    REACTION_COOLDOWN_MS - (reactionCooldownNow - lastReactionSentAt),
+    LIVE_ROOM_SEND_COOLDOWN_MS - (reactionCooldownNow - lastReactionSentAt),
   );
 
   const canSendReaction =
@@ -2789,6 +2902,41 @@ export default function RoomPage() {
       });
     },
     [actualPlayer, players, room?.id, sendLobbyMessage],
+  );
+  const handleSendRoomGif = React.useCallback(
+    (gif: RoomGifSearchResult) => {
+      if (!room?.id || !actualPlayer) {
+        toast.error("Choose your player name before sending a GIF.");
+        return;
+      }
+      if (!canSendReaction) {
+        toast.error(
+          `You can send again in ${Math.ceil(reactionCooldownRemainingMs / 1000)}s.`,
+        );
+        return;
+      }
+
+      sendRoomGif.mutate({
+        roomId: room.id,
+        playerId: actualPlayer,
+        gifId: gif.id,
+        gifUrl: gif.sendUrl,
+        gifMp4Url: gif.sendMp4Url ?? undefined,
+        previewUrl: gif.previewUrl,
+        title: gif.title,
+      }, {
+        onSuccess: () => {
+          setLastReactionSentAt(Date.now());
+        },
+      });
+    },
+    [
+      actualPlayer,
+      canSendReaction,
+      reactionCooldownRemainingMs,
+      room?.id,
+      sendRoomGif,
+    ],
   );
   const handleStartScheduledRoomNow = React.useCallback(() => {
     if (!room?.id || !actualPlayer) {
@@ -3887,7 +4035,7 @@ export default function RoomPage() {
               name: player.name,
             }))}
             actualPlayerId={actualPlayer}
-            messages={lobbyMessages}
+            messages={lobbyChatMessages}
             onSendMessage={handleSendLobbyMessage}
             isSendingMessage={sendLobbyMessage.isPending}
             onStartNow={handleStartScheduledRoomNow}
@@ -4221,6 +4369,13 @@ export default function RoomPage() {
           />
         )}
 
+        {!showQRCode && activeGifEvent && (
+          <RoomGifOverlay
+            event={activeGifEvent}
+            onClose={dismissActiveGifEvent}
+          />
+        )}
+
         {!showQRCode && (
           <ReactionRainPanel
             players={players}
@@ -4232,6 +4387,16 @@ export default function RoomPage() {
             cooldownRemainingMs={reactionCooldownRemainingMs}
             canSendReaction={canSendReaction}
             isPending={sendReaction.isPending}
+          />
+        )}
+
+        {!showQRCode && (
+          <RoomGifPanel
+            canSendGif={Boolean(actualPlayer) && Boolean(room?.id) && !room?.gameEnded}
+            canSendLiveMedia={canSendReaction}
+            cooldownRemainingMs={reactionCooldownRemainingMs}
+            isSendingGif={sendRoomGif.isPending}
+            onSendGif={handleSendRoomGif}
           />
         )}
 
@@ -4394,6 +4559,214 @@ const ReactionRainPanel = React.memo(function ReactionRainPanel({
           </Button>
         </div>
       </div>
+    </div>
+  );
+});
+
+const RoomGifPanel = React.memo(function RoomGifPanel({
+  canSendGif,
+  canSendLiveMedia,
+  cooldownRemainingMs,
+  isSendingGif,
+  onSendGif,
+}: {
+  canSendGif: boolean;
+  canSendLiveMedia: boolean;
+  cooldownRemainingMs: number;
+  isSendingGif: boolean;
+  onSendGif: (gif: RoomGifSearchResult) => void;
+}) {
+  const trpc = useTRPC();
+  const [open, setOpen] = React.useState(false);
+  const [draft, setDraft] = React.useState("");
+  const [searchTerm, setSearchTerm] = React.useState("");
+  const trimmedSearchTerm = searchTerm.trim();
+  const cooldownSeconds = Math.ceil(cooldownRemainingMs / 1000);
+  const { data: gifs = [], isFetching, error } = useQuery(
+    trpc.lobby.searchGifs.queryOptions(
+      { query: trimmedSearchTerm },
+      {
+        enabled: open && trimmedSearchTerm.length >= 2,
+        staleTime: 30_000,
+      },
+    ),
+  );
+
+  const handleSearch = React.useCallback(() => {
+    const nextQuery = draft.trim();
+    if (nextQuery.length < 2) {
+      toast.error("Type at least 2 characters to search GIFs.");
+      return;
+    }
+
+    setSearchTerm(nextQuery);
+  }, [draft]);
+
+  return (
+    <div className="mb-6 rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-white">GIF Blast</p>
+          <p className="text-xs text-white/70">
+            Search a GIF and send it to everyone in the room. It plays once, then clears.
+          </p>
+          <p className="mt-1 text-xs text-white/55">
+            {canSendLiveMedia
+              ? "Shares the same cooldown as emoji reactions."
+              : `Shares emoji cooldown: ${cooldownSeconds}s remaining.`}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 flex justify-end">
+        <Dialog
+          open={open}
+          onOpenChange={(nextOpen) => {
+            if (nextOpen && !canSendGif) {
+              return;
+            }
+            setOpen(nextOpen);
+          }}
+        >
+          <DialogTrigger asChild>
+            <Button
+              type="button"
+              disabled={!canSendGif || !canSendLiveMedia || isSendingGif}
+            >
+              {isSendingGif ? "Sending GIF..." : "Search and Send GIF"}
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="h-[85vh] max-h-[85vh] overflow-hidden border-white/10 bg-slate-950 p-4 text-white sm:h-[80vh] sm:max-h-[80vh] sm:max-w-4xl sm:p-6">
+            <DialogHeader>
+              <DialogTitle>Search GIFs</DialogTitle>
+            </DialogHeader>
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <Input
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter") return;
+                    event.preventDefault();
+                    handleSearch();
+                  }}
+                  placeholder="Search KLIPY"
+                  className="border-white/10 bg-black/30 text-white placeholder:text-white/45"
+                />
+                <Button type="button" onClick={handleSearch} disabled={isFetching}>
+                  {isFetching ? "Searching..." : "Search"}
+                </Button>
+              </div>
+              <p className="text-xs text-white/55">Powered by KLIPY</p>
+              {error ? (
+                <div className="rounded-lg border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-sm text-rose-100">
+                  <p>{error.message}</p>
+                  <p className="mt-1 text-xs text-rose-100/80">
+                    If this keeps happening, KLIPY may be rate limited or temporarily unavailable.
+                  </p>
+                </div>
+              ) : null}
+              {trimmedSearchTerm.length < 2 ? (
+                <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-6 text-center text-sm text-white/60">
+                  Search for a reaction GIF to send to the whole room.
+                </div>
+              ) : gifs.length === 0 && !isFetching ? (
+                <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-6 text-center text-sm text-white/60">
+                  No GIFs found for &quot;{trimmedSearchTerm}&quot;.
+                </div>
+              ) : (
+                <div className="-mr-1 min-h-0 flex-1 overflow-y-auto pr-1">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {gifs.map((gif) => (
+                    <button
+                      key={gif.id}
+                      type="button"
+                      onClick={() => {
+                        onSendGif(gif);
+                        setOpen(false);
+                      }}
+                      className="w-full overflow-hidden rounded-xl border border-white/10 bg-white/5 text-left transition hover:border-cyan-300/50 hover:bg-white/10"
+                    >
+                      <div
+                        aria-label={gif.title}
+                        className="h-40 w-full bg-black/30 bg-cover bg-center sm:h-44 lg:aspect-[4/3] lg:h-auto"
+                        style={{ backgroundImage: `url("${gif.previewUrl}")` }}
+                      />
+                      <div className="px-3 py-2.5">
+                        <p className="line-clamp-2 text-sm font-medium text-white">
+                          {gif.title || "GIF"}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </div>
+  );
+});
+
+const RoomGifOverlay = React.memo(function RoomGifOverlay({
+  event,
+  onClose,
+}: {
+  event: RoomGifEvent;
+  onClose: () => void;
+}) {
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-black/45 px-4">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={event.id}
+          initial={{ opacity: 0, scale: 0.9, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.98, y: -8 }}
+          transition={{ duration: 0.25, ease: "easeOut" }}
+          className="w-full max-w-md overflow-hidden rounded-3xl border border-white/15 bg-slate-950/95 shadow-2xl"
+        >
+          <div className="border-b border-white/10 px-4 py-3">
+            <p className="text-sm font-semibold text-white">{event.playerName} sent a GIF</p>
+            <p className="text-xs text-white/60">{event.title || "Room reaction"}</p>
+          </div>
+          <div className="bg-black">
+            {event.gifMp4Url ? (
+              <video
+                key={event.gifMp4Url}
+                src={event.gifMp4Url}
+                className="h-auto w-full"
+                autoPlay
+                loop
+                muted
+                playsInline
+              />
+            ) : (
+              <div
+                aria-label={event.title || `${event.playerName} GIF`}
+                className="aspect-[4/3] w-full bg-cover bg-center"
+                style={{ backgroundImage: `url("${event.gifUrl}")` }}
+              />
+            )}
+          </div>
+          <div className="px-4 py-4">
+            <Button
+              type="button"
+              onClick={onClose}
+              className="pointer-events-auto w-full"
+            >
+              Close GIF
+            </Button>
+          </div>
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 });
